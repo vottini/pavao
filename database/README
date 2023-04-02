@@ -1,0 +1,15 @@
+
+* Requirements
+'-> run as this directory owner's user the script 'allow_access.sh'
+    in order to make sure 'postgres' user has access to this directory
+
+* Database creation
+'-> run as 'postgres' in order:
+  |-> ./create_role.sh
+  |-> ./create_database.sh
+  '-> ./create_admin.py
+
+* Database remotion
+'-> run as 'postgres' in order:
+  |-> ./drop_database.sh
+  '-> ./drop_role.sh
