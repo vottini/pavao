@@ -7,15 +7,8 @@ check_user
 #-------------------------------
 
 get_password() {
-	echo -n "Type a password for role ${DB_LOGIN}: "
-	stty -echo
-	read FIRST_PASSWORD
-	echo ""
-	
-	printf "Re-type the password: "
-	read SECOND_PASSWORD
-	stty echo
-	echo ""
+	read -s -p "Type a password for role ${DB_LOGIN}: " FIRST_PASSWORD; echo ""
+	read -s -p "Re-type the password: " SECOND_PASSWORD; echo ""
 }
 
 ask_password() {
