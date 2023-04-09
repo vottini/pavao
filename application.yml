@@ -1,0 +1,10 @@
+
+pavao.database.name: Gustavo
+pavao.database.user: talaria_admin
+
+pavao:
+  database:
+    address:
+      port: 5763
+      ip.hostname: 127.0.0.1
+
