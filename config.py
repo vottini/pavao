@@ -4,7 +4,7 @@ import yaml
 import re
 
 NO_DEFAULT = "__undefined__"
-DEFAULT_CONFIGURATION = "application.yml"
+DEFAULT_FILE = "application.yml"
 VAR_PATTERN = re.compile(r"\$\{(\w+)\}")
 
 class ConfigException(Exception):
@@ -34,7 +34,7 @@ def unflatten(config):
 
 #-------------------------------------------------------------------------------
 
-configFile = os.environ.get("PAVAO_CONFIG", DEFAULT_CONFIGURATION)
+configFile = os.environ.get("PAVAO_CONFIG", DEFAULT_FILE)
 __config = None
 
 try:
@@ -56,67 +56,136 @@ if None == __config:
 
 #-------------------------------------------------------------------------------
 
-def hasRequiredDefinitions(schema):
-	if isinstance(schema, list):
-		return False
+def requiresDefinition(schema):
+	if isinstance(schema, list): return False
+	if isinstance(schema, type): return True
 
-	for key, value in schema.items():
-		if NO_DEFAULT == value:
-			return True
-
-		if isinstance(value, dict):
-			if hasRequiredDefinitions(value):
+	if isinstance(schema, dict):
+		for key, value in schema.items():
+			if NO_DEFAULT == value:
 				return True
+
+			if isinstance(value, dict):
+				if requiresDefinition(value):
+					return True
 
 	return False
 
 
-def obtainConfig(node, entry, schema):
-	configured = node.get(entry)
+def processConfig(configured, entry, schema):
+
+	# first look if it expects a list of items
+	# and if yes then just map each item recursively
+
+	if isinstance(schema, list):
+		if len(schema) != 1:
+			msg = f"List on schema ({entry}) needs to have only one element"
+			raise ConfigException(msg)
+
+		if not isinstance(configured, list):
+			msg = f"'{entry}' needs to be a list"
+			raise ConfigException(msg)
+
+		innerSchema = schema[0]
+		if not isinstance(innerSchema, (type, dict)):
+			msg = f"Bad description for list in schema ({entry}), needs to be a type or a dict"
+			raise ConfigException(msg)
+
+		result = list()
+		for idx, value in enumerate(configured):
+			innerResult = processConfig(value, f"{entry}[{idx}]", innerSchema)
+			result.append(innerResult)
+
+		return result
+
+	# if nothing was configured under this entry,
+	# check whether it has any required values to be set,
+	# and if possible just return the schema if it is
+	# comprised only of default values
 
 	if None == configured:
-		if hasRequiredDefinitions(schema):
-			msg = f"Entry '{entry}' is absent but has fields that need definition"
+		if requiresDefinition(schema):
+			msg = f"{entry} is not defined and has no defaults"
 			raise ConfigException(msg)
 	
 		return schema
 
-	if isinstance(schema, list):
-		return configured
-	
-	result = dict()
-	for key, innerSchema in schema.items():
-		if isinstance(innerSchema, dict):
-			result[key] = obtainConfig(configured, key, innerSchema)
-			continue
-	
-		innerConfigured = configured.get(key)
+	defaultValue = schema
+	requiredType = defaultValue if isinstance(defaultValue, type) else type(defaultValue)
 
-		if None == innerConfigured:
-			if innerSchema == NO_DEFAULT:
-				msg = f"Field '{key}' needs to be defined"
+	# when the assigned value matches a enviroment
+	# variable format, try to retrieve and convert it to
+	# the expected type
+
+	if isinstance(configured, str):
+		varMatch = VAR_PATTERN.search(configured)
+	
+		if None != varMatch:
+			varName = varMatch.group(1)
+	
+			if not varName in os.environ:
+				msg = f"Environment variable '${{{varName}}}' not found while processing '{entry}'"
 				raise ConfigException(msg)
 	
-			result[key] = innerSchema
-			continue
+			try:
+				retrievedValue = os.environ.get(varName)
+				return requiredType(retrievedValue)
+
+			except ValueError as e:
+				msg = f"Unable to convert '{retrievedValue}' to {requiredType}"
+				raise ConfigException(msg) from None
+
+	# if no default is set, (only the expected type
+	# is defined), check if the assigned value is
+	# coherent and just return it
+
+	if isinstance(schema, type):
+		if isinstance(configured, schema):
+			return configured
+
+		msg = f"'{entry}' expects {schema} but got {type(configured)}"
+		raise ConfigException(msg)
+
+	# otherwise (default is set) and it is a
+	# simple type, just check its type and return
+	# accordingly
+
+	if not isinstance(defaultValue, dict):
+		if isinstance(configured, requiredType):
+			return configured
+
+		msg = f"'{entry}' expects {requiredType} but got {type(configured)}"
+		raise ConfigException(msg)
+
+	# finally, if the schema is a dictionary
+	# iterate over its keys and values, recursively
+	# retrieving the final values
+
+	result = dict()
+	for key, innerSchema in defaultValue.items():
+		innerConfigured = configured.get(key)
 	
-		if isinstance(innerConfigured, str):
-			varMatch = VAR_PATTERN.search(innerConfigured)
-	
-			if None != varMatch:
-				varName = varMatch.group(1)
-	
-				if not varName in os.environ:
-					msg = f"Environment variable '${{{varName}}}' not found"
-					raise ConfigException(msg)
-	
-				result[key] = os.environ.get(varName)
-				continue
-	
-		result[key] = innerConfigured
+		result[key] = processConfig(
+			innerConfigured,
+			f"{entry}.{key}",
+			innerSchema)
 
 	return result
 
+
+def obtainConfig(entry, schema):
+	components = entry.split('.') 
+	node = __config
+
+	counter = 0
+	while node != None and counter < len(components):
+		node = node.get(components[counter])
+		counter += 1
+
+	if None != node: return processConfig(node, entry, schema)
+	return None
+
+#-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 
 databaseSchema = {
@@ -124,31 +193,33 @@ databaseSchema = {
 	"user": NO_DEFAULT,
 
 	"address": {
-		"port": NO_DEFAULT,
+		"port": 3322,
 
 		"ip": {
 			"hostname": NO_DEFAULT,
 			"version": 4
 		}
-	}
+	},
 }
 
-pavaoConfig = __config.get("pavao")
-
-result = obtainConfig(
-	pavaoConfig,
-	"database",
-	databaseSchema)
-
-print(f"result: {result}")
-
 proxiesSchema = [
+	str
 ]
 
-result = obtainConfig(
-	pavaoConfig,
-	"proxies",
-	proxiesSchema)
+servicesSchema = [{
+	"name": NO_DEFAULT,
+	"url": NO_DEFAULT,
+	"prefix": "/api"
+}]
 
-print(f"result: {result}")
+tests = [
+	("pavao.database", databaseSchema),
+	("pavao.database.user", str),
+	("proxies", proxiesSchema),
+	("services", servicesSchema)
+]
+
+for test in tests:
+	result = obtainConfig(*test)
+	print(f"result: {result}")
 

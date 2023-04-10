@@ -1,10 +1,23 @@
 
-pavao.database.name: Gustavo
-pavao.database.user: talaria_admin
+pavao.database.name: ${DB_NAME}
+pavao.database.user: ${DB_ROLE}
 
 pavao:
   database:
     address:
       port: 5763
       ip.hostname: 127.0.0.1
+
+proxies:
+  - google
+  - microsoft
+  - amazon
+
+services:
+  - name: dummy
+    url: 127.0.0.1:5000
+    prefix: /
+
+  - name: dummy2
+    url: 192.168.0.1:4000
 
