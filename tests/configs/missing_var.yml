@@ -1,0 +1,15 @@
+
+pavao.database.name: ${DB_NAME}
+pavao.database.user: ${DB_INEXISTENT}
+
+pavao:
+  database:
+    address:
+      port: 5763
+      ip.hostname: 127.0.0.1
+
+position:
+  latitude: -20.323
+  longitude: ${BAD_LONGITUDE}
+  accuracy: 20
+

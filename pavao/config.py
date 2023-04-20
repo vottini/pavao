@@ -3,11 +3,10 @@ import os
 import yaml
 import re
 
-NO_DEFAULT = "__undefined__"
-DEFAULT_FILE = "application.yml"
 VAR_PATTERN = re.compile(r"\$\{(\w+)\}")
 
-class ConfigException(Exception):
+from .exception import PavaoException
+class ConfigException(PavaoException):
 	pass
 
 #-------------------------------------------------------------------------------
@@ -34,25 +33,22 @@ def unflatten(config):
 
 #-------------------------------------------------------------------------------
 
-configFile = os.environ.get("PAVAO_CONFIG", DEFAULT_FILE)
-__config = None
+settings = None
+def loadSettings(configFile="application.yml"):
+	global settings
 
-try:
-	with open(configFile) as config_fd:
-		flattened = yaml.safe_load(config_fd)
-		__config = unflatten(flattened)
+	try:
+		with open(configFile) as config_fd:
+			flattened = yaml.safe_load(config_fd)
+			settings = unflatten(flattened)
 
-except yaml.error.MarkedYAMLError as e:
-	print("Error parsing configuration file")
-	print(f"What went wrong: {e}")
-
-except OSError as e:
-	print(f"Unable to read configuration from file '{configFile}'")
-	print("Make sure it exists and can be read")
-
-if None == __config:
-	msg = "Unable to load configuration, aborting..." 
-	raise ConfigException(msg)
+	except OSError as e:
+		cause = f"Unable to read configuration file '{configFile}'"
+		raise ConfigException(cause) from None
+	
+	except yaml.error.MarkedYAMLError as e:
+		cause = f"Unable to parse YAML: {e}"
+		raise ConfigException(cause) from None
 
 #-------------------------------------------------------------------------------
 
@@ -62,9 +58,9 @@ def requiresDefinition(schema):
 
 	if isinstance(schema, dict):
 		for key, value in schema.items():
-			if NO_DEFAULT == value:
+			if isinstance(value, type):
 				return True
-
+			
 			if isinstance(value, dict):
 				if requiresDefinition(value):
 					return True
@@ -97,6 +93,10 @@ def processConfig(configured, entry, schema):
 			result.append(innerResult)
 
 		return result
+
+	if isinstance(configured, list):
+		msg = f"'{entry}' needs to be a single element, got list"
+		raise ConfigException(msg)
 
 	# if nothing was configured under this entry,
 	# check whether it has any required values to be set,
@@ -159,7 +159,7 @@ def processConfig(configured, entry, schema):
 
 	# finally, if the schema is a dictionary
 	# iterate over its keys and values, recursively
-	# retrieving the final values
+	# retrieving the final definitions
 
 	result = dict()
 	for key, innerSchema in defaultValue.items():
@@ -172,10 +172,15 @@ def processConfig(configured, entry, schema):
 
 	return result
 
+#-------------------------------------------------------------------------------
 
-def obtainConfig(entry, schema):
+def getSetting(entry, schema):
+	if settings == None:
+		msg = "Pavao config was not initialized, run loadSettings() first"
+		raise ConfigException(msg)
+
 	components = entry.split('.') 
-	node = __config
+	node = settings
 
 	counter = 0
 	while node != None and counter < len(components):
@@ -186,40 +191,10 @@ def obtainConfig(entry, schema):
 	return None
 
 #-------------------------------------------------------------------------------
-#-------------------------------------------------------------------------------
 
-databaseSchema = {
-	"name": NO_DEFAULT,
-	"user": NO_DEFAULT,
-
-	"address": {
-		"port": 3322,
-
-		"ip": {
-			"hostname": NO_DEFAULT,
-			"version": 4
-		}
-	},
-}
-
-proxiesSchema = [
-	str
+__all__ = [
+	'ConfigException',
+	'loadSettings',
+	'getSetting'
 ]
-
-servicesSchema = [{
-	"name": NO_DEFAULT,
-	"url": NO_DEFAULT,
-	"prefix": "/api"
-}]
-
-tests = [
-	("pavao.database", databaseSchema),
-	("pavao.database.user", str),
-	("proxies", proxiesSchema),
-	("services", servicesSchema)
-]
-
-for test in tests:
-	result = obtainConfig(*test)
-	print(f"result: {result}")
 

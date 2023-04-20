@@ -1,0 +1,11 @@
+
+position1:
+  latitude: -20.323
+  longitude: MISSING
+  accuracy: 20.0
+
+position2:
+  latitude: -20.323
+  longitude: -40.322
+  accuracy: INNACURATE
+

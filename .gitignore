@@ -1,4 +1,5 @@
 /.environment
 /__pycache__
-
+*.pyc
+.coverage
 

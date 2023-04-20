@@ -1,0 +1,15 @@
+
+localization:
+  - keyboard: pt_BR
+    variation:
+      country: Brazil
+      dialect: Default
+
+  - keyboard: en_US
+    variation:
+      country: United States
+      dialect: Texan
+
+giants:
+  brand: google
+

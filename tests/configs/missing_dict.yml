@@ -1,0 +1,10 @@
+
+pavao.database.name: ${DB_NAME}
+pavao.database.user: ${DB_ROLE}
+
+pavao:
+  database:
+    address:
+      port: 5763
+
+
