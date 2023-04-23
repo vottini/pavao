@@ -1,82 +1,63 @@
 
 import logging
-import asyncio
 import threading
 import datetime
+import queue
 
 def time_now():
 	currently = datetime.datetime.now(datetime.timezone.utc)
 	millisecs = currently.microsecond / 1000
 	return currently.strftime(f"%Y-%m-%d %H:%M:%S.{millisecs:03.0f} %Z")
 
-_logLoop = None
 _logThread = None
-_logQueue = None
-
-# adapted from
-# https://stackoverflow.com/a/63859696
-# by user4815162342
+_logQueue = queue.Queue()
 
 def _scheduleLog(contents):
+	global _logQueue
 	startLogging()
+	_logQueue.put(contents)
 
-	global _logLoop, _logQueue
-	_logLoop.call_soon_threadsafe(
-		_logQueue.put_nowait,
-		contents)
+def loggingLoop(readyEvent):
+	global _logQueue
+	readyEvent.set()
 
-
-def _logPublisher(readyEvent):
-	async def publishingLoop():
-		global _logLoop, _logQueue
-		_logLoop = asyncio.get_running_loop()
-		_logQueue = asyncio.Queue()
-		readyEvent.set()
-
-		while True:
-			new_message = await _logQueue.get()
-			if "__exit__" == new_message:
-				_logQueue.task_done()
-				break
-
-			fnc, level_str, text, time_str = new_message
-			final_msg = f"({time_str}) [{level_str}] {text}"
-			fnc(final_msg)
-
+	while True:
+		new_message = _logQueue.get()
+		if "__exit__" == new_message:
 			_logQueue.task_done()
+			break
 
-	asyncio.run(publishingLoop())
+		log_function, level_str, text, time_str = new_message
+		final_msg = f"({time_str}) [{level_str}] {text}"
+		log_function(final_msg)
+		_logQueue.task_done()
 
 #-------------------------------------------------------------------------------
 
 def startLogging():
-	global _logThread
+	global _logQueue, _logThread
 	if None != _logThread:
 		return
-
-	readyEvent = threading.Event()
-	_logThread = threading.Thread(
-		target=_logPublisher,
-		args=(readyEvent,))
 
 	logging.basicConfig(
 		filename="teste.log",
 		format='%(message)s',
 		level=logging.DEBUG)
 
+	readyEvent = threading.Event()
 	logging.getLogger().addHandler(logging.StreamHandler())
+	_logThread = threading.Thread(target=loggingLoop, args=(readyEvent,))
 	_logThread.start()
 	readyEvent.wait()
 
 
 def stopLogging():
-	global _logThread, _logQueue
-
+	global _logThread
 	if None != _logThread:
 		_scheduleLog("__exit__")
 		_logThread.join()
 		_logThread = None
-		_logQueue = None
+
 
 #-------------------------------------------------------------------------------
 
@@ -88,18 +69,29 @@ def debug(msg):    _scheduleLog((logging.debug,    "DEBUG",    msg, time_now()))
 
 #-------------------------------------------------------------------------------
 
-startLogging()
+#startLogging()
+#
+#while True:
+#	cmd = input("Insert something: ")
+#	if cmd == "exit":
+#		break
+#
+#	critical(cmd)
+#	error(cmd)
+#	warning(cmd)
+#	info(cmd)
+#	debug(cmd)
+#
+#stopLogging()
 
-while True:
-	cmd = input("Insert something: ")
-	if cmd == "exit":
-		break
+__all__ = [
+	"startLogging",
+	"stopLogging",
+	"critical",
+	"error",
+	"warning",
+	"info",
+	"debug"
+]
 
-	critical(cmd)
-	error(cmd)
-	warning(cmd)
-	info(cmd)
-	debug(cmd)
-
-stopLogging()
 
