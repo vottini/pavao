@@ -1,7 +1,7 @@
 
 * Requirements
 '-> run as this directory owner's user the script 'allow_access.sh'
-    in order to make sure 'postgres' user has access to this directory
+    in order to make sure 'postgres' user has access to it
 
 * Database creation
 '-> run as 'postgres' in order:
