@@ -11,21 +11,17 @@ async def close_database():
 		_pool = None
 
 
-def setup_database(loop, host, port, database, user, password=None):
+async setup_database(host, port, database, user, password=None):
+	await close_database()
+	global _pool
 
-	async def initialize():
-		await close_database()
-		global _pool
+	try:
+		_pool = await asyncpg.create_pool(
+			host=host, port=port, database=database,
+			user=user, password=password)
 
-		try:
-			_pool = await asyncpg.create_pool(
-				host=host, port=port, database=database,
-				user=user, password=password)
-
-		except Exception as e:
-			print("Error while connecting to database: " + str(e))
-
-	loop.run_until_complete(initialize())
+	except Exception as e:
+		print("Error while connecting to database: " + str(e))
 
 	if None == _pool:
 		msg = f"Unable to connect to database '{database}' at server '{host}:{port}'"
