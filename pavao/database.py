@@ -1,5 +1,7 @@
 
+import asyncio
 import asyncpg
+
 from .exception import PavaoException
 
 _pool = None
@@ -11,7 +13,7 @@ async def close_database():
 		_pool = None
 
 
-async setup_database(host, port, database, user, password=None):
+async def setup_database(host, port, database, user, password=None):
 	await close_database()
 	global _pool
 
