@@ -13,37 +13,37 @@ original_claims = {
 }
 
 def testCreation():
-	generated = pavao.generateToken(original_claims)
-	validated_claims = pavao.validateToken(generated)
+	generated = pavao.http.generateToken(original_claims)
+	validated_claims = pavao.http.validateToken(generated)
 	assert original_claims["iss"] == validated_claims["iss"]
 
 #-------------------------------------------------------------------------------
 
 def testRefresh():
 	due_tokens = list()
-	due_tokens.append(pavao.generateToken(original_claims))
-	pavao.refresh_secretKey()
+	due_tokens.append(pavao.http.generateToken(original_claims))
+	pavao.http.refresh_secretKey()
 
-	due_tokens.append(pavao.generateToken(original_claims))
-	pavao.refresh_secretKey(timedelta(microseconds=10))
+	due_tokens.append(pavao.http.generateToken(original_claims))
+	pavao.http.refresh_secretKey(timedelta(microseconds=10))
 	time.sleep(0.01)
 
 	for due_token in due_tokens:
-		assert None == pavao.validateToken(due_token)
+		assert None == pavao.http.validateToken(due_token)
 
 	good_tokens = list()
-	good_tokens.append(pavao.generateToken(original_claims))
-	pavao.refresh_secretKey(5) # 5 days
+	good_tokens.append(pavao.http.generateToken(original_claims))
+	pavao.http.refresh_secretKey(5) # 5 days
 
-	good_tokens.append(pavao.generateToken(original_claims))
-	pavao.refresh_secretKey(timedelta(days=5))
+	good_tokens.append(pavao.http.generateToken(original_claims))
+	pavao.http.refresh_secretKey(timedelta(days=5))
 
 	for good_token in good_tokens:
-		validated_claims = pavao.validateToken(good_token)
+		validated_claims = pavao.http.validateToken(good_token)
 		assert original_claims["iss"] == validated_claims["iss"]
 	
-	assert False == pavao.refresh_secretKey("bad argument")
-	assert False == pavao.refresh_secretKey(32.22)
+	assert False == pavao.http.refresh_secretKey("bad argument")
+	assert False == pavao.http.refresh_secretKey(32.22)
 
 #-------------------------------------------------------------------------------
 
@@ -56,13 +56,13 @@ def testFrauds():
 	]
 
 	for bad_token in bad_tokens:
-		assert None == pavao.validateToken(bad_token)
+		assert None == pavao.http.validateToken(bad_token)
 
-	good_token = pavao.generateToken(original_claims)
+	good_token = pavao.http.generateToken(original_claims)
 	header, claims, signature = good_token.split('.')
 
 	bad_claims = '{"invalid=323}'
-	bad_claims_signature = pavao.calcCurrentSignature(header + '.' + bad_claims)
+	bad_claims_signature = pavao.http.calcCurrentSignature(header + '.' + bad_claims)
 	bad_signature = "a" + signature
 
 	forged_tokens = [
@@ -71,7 +71,7 @@ def testFrauds():
 	]
 
 	for forged_token in forged_tokens:
-		assert None == pavao.validateToken(forged_token)
+		assert None == pavao.http.validateToken(forged_token)
 
 #-------------------------------------------------------------------------------
 

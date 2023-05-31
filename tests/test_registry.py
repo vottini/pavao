@@ -10,22 +10,22 @@ def testListSorting():
 
 	listage = list()
 	for value in contents:
-		pavao.insert_sorted(listage, value)
+		pavao.http.insert_sorted(listage, value)
 
 	for idx in range(1, len(listage)):
 		assert listage[idx] > listage[idx-1]
 	
 	for value in contents:
-		assert pavao.search_sorted(listage, value) != None
+		assert pavao.http.search_sorted(listage, value) != None
 
 	not_included = [ 5, 0, 6 ]
 	for value in not_included:
-		assert pavao.search_sorted(listage, value) == None
+		assert pavao.http.search_sorted(listage, value) == None
 
 #-------------------------------------------------------------------------------
 
 def testLookup():
-	trie = pavao.EndpointTrie()
+	trie = pavao.http.Registry()
 
 	values = {
 		"FIRST": ("PUT", "/"),
@@ -56,7 +56,7 @@ def testLookup():
 #-------------------------------------------------------------------------------
 
 def testDuplications():
-	trie = pavao.EndpointTrie()
+	trie = pavao.http.Registry()
 
 	tests = (
 		("GET", "/reserved/info/public"),
@@ -68,15 +68,15 @@ def testDuplications():
 		trie.add_endpoint(method, endpoint, "should_work")
 
 	for method, endpoint in tests:
-		with pytest.raises(pavao.trie.EndpointException):
+		with pytest.raises(pavao.http.EndpointException):
 			trie.add_endpoint(method, endpoint, "should_fail")
 
 
 def testLength():
-	trie = pavao.EndpointTrie(max_depth=5)
+	trie = pavao.http.Registry(max_depth=5)
 	trie.add_endpoint("GET", "/1/2/3/4/5", "Size Ok")
 
-	with pytest.raises(pavao.trie.EndpointException):
+	with pytest.raises(pavao.http.EndpointException):
 		trie.add_endpoint("GET", "/0/1/2/3/4/5/6", "Too long")
 
 	assert None == trie.find_endpoint("GET", "/0/1/2/3/4/5/6")
@@ -84,7 +84,7 @@ def testLength():
 #-------------------------------------------------------------------------------
 
 def testCapture():
-	trie = pavao.EndpointTrie()
+	trie = pavao.http.Registry()
 	trie.add_endpoint("POST", "/message/{user}", "FIRST")
 	trie.add_endpoint("GET", "/resource/{resource}/status/{status}", "SECOND")
 

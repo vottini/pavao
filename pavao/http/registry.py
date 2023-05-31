@@ -2,7 +2,7 @@
 import re
 _capture_pattern = re.compile(r'^{([a-zA-Z_][a-zA-Z_0-9]*)}$')
 
-from .exception import PavaoException
+from ..exception import PavaoException
 class EndpointException(PavaoException):
 	pass
 
@@ -120,7 +120,7 @@ class EndpointNode:
 		return None
 
 
-class EndpointTrie:
+class Registry:
 	def __init__(self, max_depth=10):
 		self.root = EndpointNode(None, '/')
 		self.max_depth = max_depth
@@ -157,6 +157,6 @@ __all__ = [
 	"EndpointException",
 	"insert_sorted",
 	"search_sorted",
-	"EndpointTrie"
+	"Registry"
 ]
 

@@ -7,10 +7,11 @@ import pavao
 #	host="0.0.0.0",
 #	port=8001)
 
-config = uvicorn.Config(
-	app=pavao.app,
-	loop=pavao.loop)
+handler = pavao.Handler()
+asgi_config = uvicorn.Config(
+	app=handler.get_app(),
+	loop=handler.loop)
 
-server = uvicorn.Server(config)
-pavao.loop.run_until_complete(server.serve())
+asgi_server = uvicorn.Server(asgi_config)
+handler.loop.run_until_complete(asgi_server.serve())
 
