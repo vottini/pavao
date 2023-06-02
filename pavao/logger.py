@@ -4,7 +4,7 @@ import threading
 import datetime
 import queue
 
-def time_now():
+def _time_now():
 	currently = datetime.datetime.now(datetime.timezone.utc)
 	millisecs = currently.microsecond / 1000
 	return currently.strftime(f"%Y-%m-%d %H:%M:%S.{millisecs:03.0f} %Z")
@@ -14,7 +14,6 @@ _logQueue = queue.Queue()
 
 def _scheduleLog(contents):
 	global _logQueue
-	startLogging()
 	_logQueue.put(contents)
 
 def loggingLoop(readyEvent):
@@ -58,14 +57,13 @@ def stopLogging():
 		_logThread.join()
 		_logThread = None
 
-
 #-------------------------------------------------------------------------------
 
-def critical(msg): _scheduleLog((logging.critical, "CRITICAL", msg, time_now()))
-def error(msg):    _scheduleLog((logging.error,    "ERROR",    msg, time_now()))
-def warning(msg):  _scheduleLog((logging.warning,  "WARNING",  msg, time_now()))
-def info(msg):     _scheduleLog((logging.info,     "INFO",     msg, time_now()))
-def debug(msg):    _scheduleLog((logging.debug,    "DEBUG",    msg, time_now()))
+def critical(msg): _scheduleLog((logging.critical, "CRITICAL", msg, _time_now()))
+def error(msg):    _scheduleLog((logging.error,    "ERROR",    msg, _time_now()))
+def warning(msg):  _scheduleLog((logging.warning,  "WARNING",  msg, _time_now()))
+def info(msg):     _scheduleLog((logging.info,     "INFO",     msg, _time_now()))
+def debug(msg):    _scheduleLog((logging.debug,    "DEBUG",    msg, _time_now()))
 
 #-------------------------------------------------------------------------------
 
@@ -93,5 +91,4 @@ __all__ = [
 	"info",
 	"debug"
 ]
-
 
