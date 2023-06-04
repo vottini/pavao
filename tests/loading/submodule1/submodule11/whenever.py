@@ -1,4 +1,6 @@
 
+import hello
+
 def pavao_endpoint():
-	return "whenever"
+	return f"whenever... {hello.pavao_endpoint()}"
 

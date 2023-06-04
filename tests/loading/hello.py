@@ -1,4 +1,4 @@
 
 def pavao_endpoint():
-	return "Hello
+	return "Hello"
 

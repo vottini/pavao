@@ -8,6 +8,7 @@ from .logger import *
 from .database import *
 from .lifespan import *
 from .http import *
+from .loader import *
 
 #from starlette.applications import Router
 #from starlette.responses import JSONResponse, HTMLResponse

@@ -2,13 +2,17 @@
 import os
 import inspect
 import sys
-import importlib.util
 import uuid
+import importlib.util
+import hashlib
 
-import logger
+from .logger import warning
 
 def _find_python_scripts(path):
-	path_files = os.listdir(path)
+	try: path_files = os.listdir(path)
+	except FileNotFoundError:
+		warning(f"Unable to find directory '{path}', skipping...")
+		return list()
 
 	files = [
 		os.path.join(path, f) for f in path_files
@@ -47,11 +51,27 @@ def load_dir(path):
 			if hasattr(module, 'pavao_endpoint'):
 				callback = module.pavao_endpoint
 				if inspect.isfunction(callback):
-					loaded.append(callback)
+
+					with open(file_path, 'rb') as fd:
+						hasher = hashlib.md5()
+						hasher.update(fd.read())
+						file_hash = hasher.hexdigest()
+
+						loaded.append((
+							file_path,
+							file_hash,
+							callback
+						))
 
 		except Exception as e:
-			logger.warning(f"Unable to load file '{file_path}': {e}")
+			warning(f"Unable to load file '{file_path}': {e}")
 			continue
 
 	return loaded
+
+#-------------------------------------------------------------------------------
+
+__all__ = [
+	"load_dir"
+]
 
