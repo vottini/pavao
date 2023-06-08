@@ -6,11 +6,6 @@ import pytest
 import pavao
 
 
-def testInit():
-	with pytest.raises(pavao.config.ConfigException):
-		pavao.config.getSetting("pavao.database", databaseSchema)
-
-
 def testBadFiles():
 
 	badFiles = [
@@ -78,12 +73,12 @@ def testMissing():
 
 	for file in missingFiles:
 		with pytest.raises(pavao.config.ConfigException):
-			pavao.config.loadSettings("configs/" + file)
-			pavao.config.getSetting("pavao.database", databaseSchema)
+			settings = pavao.config.loadSettings("configs/" + file)
+			settings.getSetting("pavao.database", databaseSchema)
 
 
 def testArrays():
-	pavao.config.loadSettings("configs/array_incompat.yml")
+	settings = pavao.config.loadSettings("configs/array_incompat.yml")
 
 	tests = [
 		("localization", localizationSchema),
@@ -92,21 +87,21 @@ def testArrays():
 
 	for test in tests:
 		with pytest.raises(pavao.config.ConfigException):
-			pavao.config.getSetting(*test)
+			settings.getSetting(*test)
 
 	badGiantsSchemas = [
 		[ str, int ],
 		[ (str, int) ]
 	]
 
-	pavao.config.loadSettings("configs/correct.yml")
+	settings = pavao.config.loadSettings("configs/correct.yml")
 	for badGiantsSchema in badGiantsSchemas:
 		with pytest.raises(pavao.config.ConfigException):
-			pavao.config.getSetting("giants", badGiantsSchema)
+			settings.getSetting("giants", badGiantsSchema)
 
 
 def testVariables():
-	pavao.config.loadSettings("configs/missing_var.yml")
+	settings = pavao.config.loadSettings("configs/missing_var.yml")
 
 	tests = [
 		("pavao.database", databaseSchema),
@@ -115,11 +110,11 @@ def testVariables():
 
 	for test in tests:
 		with pytest.raises(pavao.config.ConfigException):
-			pavao.config.getSetting(*test)
+			settings.getSetting(*test)
 
 
 def testTypes():
-	pavao.config.loadSettings("configs/bad_types.yml")
+	settings = pavao.config.loadSettings("configs/bad_types.yml")
 
 	tests = [
 		("position1", positionSchema),
@@ -128,11 +123,11 @@ def testTypes():
 
 	for test in tests:
 		with pytest.raises(pavao.config.ConfigException):
-			pavao.config.getSetting(*test)
+			settings.getSetting(*test)
 
 
 def testCorrect():
-	pavao.config.loadSettings("configs/correct.yml")
+	settings = pavao.config.loadSettings("configs/correct.yml")
 
 	tests = [
 		("pavao.database", databaseSchema),
@@ -143,14 +138,13 @@ def testCorrect():
 	]
 
 	for test in tests:
-		pavao.config.getSetting(*test)
+		settings.getSetting(*test)
 
-	assert None == pavao.config.getSetting("nonExistent", str)
+	assert None == settings.getSetting("nonExistent", str)
 
 #-------------------------------------------------------------------------------
 
 if __name__ == "__main__":
-	testInit()
 	testBadFiles()
 	testArrays()
 	testVariables()

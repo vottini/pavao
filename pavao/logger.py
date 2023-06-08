@@ -4,6 +4,8 @@ import threading
 import datetime
 import queue
 
+from .exception import PavaoException
+
 def _time_now():
 	currently = datetime.datetime.now(datetime.timezone.utc)
 	millisecs = currently.microsecond / 1000
@@ -33,15 +35,39 @@ def loggingLoop(readyEvent):
 
 #-------------------------------------------------------------------------------
 
-def startLogging():
+_logging_schema = {
+	"output": "pavao.log",
+	"level": "INFO"
+}
+
+_logging_levels = {
+	"FATAL": logging.CRITICAL,
+	"ERROR": logging.ERROR,
+	"WARN":  logging.WARNING,
+	"INFO":  logging.INFO,
+	"DEBUG": logging.DEBUG
+}
+
+#-------------------------------------------------------------------------------
+
+def startLogging(settings):
 	global _logQueue, _logThread
 	if None != _logThread:
 		return
 
+	log_settings = settings.getSetting(
+		"pavao.logging",
+		_logging_schema)
+
+	log_level = log_settings['level']
+	if not log_level in _logging_levels:
+		Logger.warning(f"Unrecognized log level '{log_level}', using default 'INFO'")
+		log_level = "INFO"
+
 	logging.basicConfig(
-		filename="teste.log",
-		format='%(message)s',
-		level=logging.DEBUG)
+		filename=log_settings['output'],
+		level=_logging_levels[log_level],
+		format='%(message)s')
 
 	readyEvent = threading.Event()
 	logging.getLogger().addHandler(logging.StreamHandler())
@@ -59,36 +85,42 @@ def stopLogging():
 
 #-------------------------------------------------------------------------------
 
-def critical(msg): _scheduleLog((logging.critical, "CRITICAL", msg, _time_now()))
-def error(msg):    _scheduleLog((logging.error,    "ERROR",    msg, _time_now()))
-def warning(msg):  _scheduleLog((logging.warning,  "WARNING",  msg, _time_now()))
-def info(msg):     _scheduleLog((logging.info,     "INFO",     msg, _time_now()))
-def debug(msg):    _scheduleLog((logging.debug,    "DEBUG",    msg, _time_now()))
+class Logger:
+	@staticmethod
+	def critical(msg):
+		_scheduleLog((
+			logging.critical, "CRITICAL",
+			msg, _time_now()))
+
+	@staticmethod
+	def error(msg):
+		_scheduleLog((
+			logging.error, "ERROR",
+			msg, _time_now()))
+
+	@staticmethod
+	def warning(msg):
+		_scheduleLog((
+			logging.warning, "WARNING",
+			msg, _time_now()))
+
+	@staticmethod
+	def info(msg):
+		_scheduleLog((
+			logging.info, "INFO",
+			msg, _time_now()))
+
+	@staticmethod
+	def debug(msg):
+		_scheduleLog((
+			logging.debug, "DEBUG",
+			msg, _time_now()))
 
 #-------------------------------------------------------------------------------
-
-#startLogging()
-#
-#while True:
-#	cmd = input("Insert something: ")
-#	if cmd == "exit":
-#		break
-#
-#	critical(cmd)
-#	error(cmd)
-#	warning(cmd)
-#	info(cmd)
-#	debug(cmd)
-#
-#stopLogging()
 
 __all__ = [
 	"startLogging",
 	"stopLogging",
-	"critical",
-	"error",
-	"warning",
-	"info",
-	"debug"
+	"Logger"
 ]
 

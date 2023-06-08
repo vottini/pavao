@@ -6,12 +6,12 @@ import uuid
 import importlib.util
 import hashlib
 
-from .logger import warning
+from .logger import Logger
 
 def _find_python_scripts(path):
 	try: path_files = os.listdir(path)
 	except FileNotFoundError:
-		warning(f"Unable to find directory '{path}', skipping...")
+		Logger.warning(f"Unable to find directory '{path}', skipping...")
 		return list()
 
 	files = [
@@ -35,6 +35,7 @@ def _find_python_scripts(path):
 
 
 def load_dir(path):
+	Logger.info(f"Loading scripts at '{path}'")
 	files = _find_python_scripts(path)
 	if not path in sys.path:
 		sys.path.insert(0, path)
@@ -57,14 +58,11 @@ def load_dir(path):
 						hasher.update(fd.read())
 						file_hash = hasher.hexdigest()
 
-						loaded.append((
-							file_path,
-							file_hash,
-							callback
-						))
+						loaded.append((file_path, file_hash, callback))
+						Logger.info(f"Loaded endpoint file {file_path}")
 
 		except Exception as e:
-			warning(f"Unable to load file '{file_path}': {e}")
+			Logger.warning(f"Unable to load file '{file_path}': {e}")
 			continue
 
 	return loaded

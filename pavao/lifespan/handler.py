@@ -4,11 +4,8 @@ import inspect
 
 async def _secure_call(fnc):
 	if fnc != None:
-		if inspect.isawaitable(fnc):
-			return await fnc()
-
-		else:
-			return fnc()
+		if inspect.iscoroutinefunction(fnc): return await fnc()
+		else: return fnc()
 
 
 class LifespanHandler:
@@ -18,27 +15,31 @@ class LifespanHandler:
 
 
 	async def handle(self, scope, receive, send):
+
 		message = await receive()
+		while message['type'] != 'lifespan.startup':
+			message = await receive()
 
-		if message['type'] == 'lifespan.startup':
+		try:
+			success = await _secure_call(self.startup_callback)
+			response_event = 'lifespan.startup.complete' if success else 'lifespan.startup.failed'
+			await send({'type': response_event})
 
-			try:
-				await _secure_call(self.startup_callback)
-				await send({'type': 'lifespan.startup.complete'})
+		except Exception as e:
+			print(f"Exception occured during startup: {e}")
+			await send({'type': 'lifespan.startup.failed'})
 
-			except Exception as e:
-				print(f"Exception occured during startup: {e}")
-				await send({'type': 'lifespan.startup.failed'})
+		message = await receive()
+		while message['type'] != 'lifespan.shutdown':
+			message = await receive()
 
-		elif message['type'] == 'lifespan.shutdown':
+		try:
+			await _secure_call(self.shutdown_callback)
+			await send({'type': 'lifespan.shutdown.complete'})
 
-			try:
-				await _secure_call(self.shutdown_callback)
-				await send({'type': 'lifespan.shutdown.complete'})
-
-			except Exception as e:
-				print(f"Exception occured during shutdown: {e}")
-				await send({'type': 'lifespan.shutdown.failed'})
+		except Exception as e:
+			print(f"Exception occured during shutdown: {e}")
+			await send({'type': 'lifespan.shutdown.failed'})
 
 #------------------------------------------------------------------------------
 

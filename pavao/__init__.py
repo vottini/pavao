@@ -1,6 +1,8 @@
 
 import asyncio
+import inspect
 import uvloop
+import operator
 
 from .exception import *
 from .config import *
@@ -10,54 +12,57 @@ from .lifespan import *
 from .http import *
 from .loader import *
 
-#from starlette.applications import Router
-#from starlette.responses import JSONResponse, HTMLResponse
-#from starlette.routing import Route
-
-#async def homepage(request):
-#	response = HTMLResponse('<html><body><h1>Hello World!</h1></body></html>')
-#	return response
-#
-#async def login(request):
-#	async with database_connection() as conn:
-#		response = JSONResponse({'hello': 'world'})
-#		response.set_cookie("refresh-token", "lalala", path="/token-refresh", httponly=True, samesite="strict")
-#		return response
-
-#routes = [
-#	Route('/', homepage),
-#	Route('/login', login),
-#]
-
-#setup_database(loop, "localhost", 5432, "talaria", "talaria_admin")
-#app = Router(routes=routes)
 
 class Handler:
-	def __init__(self):
-		self.loop = uvloop.new_event_loop()
-		self.httpHandler = http.HttpHandler()
-		self.lifespanHandler = lifespan.LifespanHandler(
-			lambda : self.init(),
-			lambda : self.close()
-		)
+	def __init__(self, config_file, endpoints_dir):
 
+		self.settings = None
+		self.endpoints_dir = endpoints_dir
+		self.loaded_scripts = list()
+
+		async def init():
+			Logger.info("Starting up Pavão...")
+			self.settings = loadSettings(config_file)
+			startLogging(self.settings)
+
+			self.load_endpoints()
+			if len(self.loaded_scripts) == 0:
+				Logger.warning("No endpoints loaded, aborting...")
+				stopLogging()
+				return False
+
+			Logger.info("Pavão started!")
+			return True
+
+		async def stop():
+			Logger.info("Stopping Pavão...")
+			stopLogging()
+
+		self.lifespanHandler = lifespan.LifespanHandler(init, stop)
+		self.httpHandler = http.HttpHandler()
+		self.loop = uvloop.new_event_loop()
+
+	#-------------------------------------------------------------------------------
 
 	def load_endpoints(self):
-		registry = http.Registry()
-		#load_endpoints(path, router)
-		self.httpHandler.set_registry(registry)
-		pass
-	
-	#-------------------------------------------------------------------------------
-	
-	def init(self):
-		print("Iniciando...")
-		self.load_endpoints()
-	
-	
-	def close(self):
-		print("Encerrando...")
-		
+		loaded_scripts = load_dir(self.endpoints_dir)
+		new_registry = http.Registry()
+
+		spec_destructer = operator.itemgetter('method', 'path', 'callback')
+		for file_path, file_hash, specs_fnc in loaded_scripts:
+
+			try:
+				specs = specs_fnc()
+				destructured_specs = spec_destructer(specs)
+				new_registry.add_endpoint(*destructured_specs)
+
+			except Exception as e:
+				Logger.warn(f"Unable to process specs from file '{file_path}': {e}")
+				continue
+
+		self.loaded_scripts = loaded_scripts
+		self.httpHandler.set_registry(new_registry)
+
 	#-------------------------------------------------------------------------------
 
 	def get_app(self):

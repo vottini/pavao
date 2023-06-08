@@ -5,6 +5,7 @@ import re
 
 VAR_PATTERN = re.compile(r"\$\{(\w+)\}")
 
+from .logger import Logger
 from .exception import PavaoException
 class ConfigException(PavaoException):
 	pass
@@ -30,25 +31,6 @@ def unflatten(config):
 			result[key] = unflatten(subconfig)
 
 	return result
-
-#-------------------------------------------------------------------------------
-
-settings = None
-def loadSettings(configFile="application.yml"):
-	global settings
-
-	try:
-		with open(configFile) as config_fd:
-			flattened = yaml.safe_load(config_fd)
-			settings = unflatten(flattened)
-
-	except OSError as e:
-		cause = f"Unable to read configuration file '{configFile}'"
-		raise ConfigException(cause) from None
-	
-	except yaml.error.MarkedYAMLError as e:
-		cause = f"Unable to parse YAML: {e}"
-		raise ConfigException(cause) from None
 
 #-------------------------------------------------------------------------------
 
@@ -174,27 +156,44 @@ def processConfig(configured, entry, schema):
 
 #-------------------------------------------------------------------------------
 
-def getSetting(entry, schema):
-	if settings == None:
-		msg = "Pavao config was not initialized, run loadSettings() first"
-		raise ConfigException(msg)
+class _Settings:
+	def __init__(self, settings):
+		self.settings = settings
 
-	components = entry.split('.') 
-	node = settings
+	def getSetting(self, entry, schema):
+		components = entry.split('.') 
+		node = self.settings
+	
+		counter = 0
+		while node != None and counter < len(components):
+			node = node.get(components[counter])
+			counter += 1
+	
+		if None != node: return processConfig(node, entry, schema)
+		return None
 
-	counter = 0
-	while node != None and counter < len(components):
-		node = node.get(components[counter])
-		counter += 1
 
-	if None != node: return processConfig(node, entry, schema)
-	return None
+def loadSettings(configFile="application.yml"):
+	Logger.info(f"Loading configuration file '{configFile}'")
+
+	try:
+		with open(configFile) as config_fd:
+			flattened = yaml.safe_load(config_fd)
+			structured = unflatten(flattened)
+			return _Settings(structured)
+
+	except OSError as e:
+		cause = f"Unable to read configuration file '{configFile}'"
+		raise ConfigException(cause) from None
+	
+	except yaml.error.MarkedYAMLError as e:
+		cause = f"Unable to parse YAML: {e}"
+		raise ConfigException(cause) from None
 
 #-------------------------------------------------------------------------------
 
 __all__ = [
 	'ConfigException',
-	'loadSettings',
-	'getSetting'
+	'loadSettings'
 ]
 
