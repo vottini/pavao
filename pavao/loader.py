@@ -17,7 +17,7 @@ def _find_python_scripts(path):
 	files = [
 		os.path.join(path, f) for f in path_files
 			if os.path.isfile(os.path.join(path, f))
-			and not f.startswith("_")
+			and not f.startswith("__")
 			and f.endswith(".py")
 	]
 

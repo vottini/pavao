@@ -12,12 +12,12 @@ from .lifespan import *
 from .http import *
 from .loader import *
 
-
 class Handler:
 	def __init__(self, config_file, endpoints_dir):
 
 		self.settings = None
 		self.endpoints_dir = endpoints_dir
+		self.db_pool = DatabasePool()
 		self.loaded_scripts = list()
 
 		async def init():
@@ -31,37 +31,54 @@ class Handler:
 				stopLogging()
 				return False
 
+			await self.db_pool.setup(self.settings)
 			Logger.info("Pavão started!")
 			return True
 
 		async def stop():
 			Logger.info("Stopping Pavão...")
+			await self.db_pool.close()
 			stopLogging()
 
 		self.lifespanHandler = lifespan.LifespanHandler(init, stop)
-		self.httpHandler = http.HttpHandler()
+		self.httpHandler = http.HttpHandler(self.db_pool)
 		self.loop = uvloop.new_event_loop()
 
 	#-------------------------------------------------------------------------------
 
-	def load_endpoints(self):
-		loaded_scripts = load_dir(self.endpoints_dir)
-		new_registry = http.Registry()
+	class Endpoint:
+		def __init__(self, specs):
+			self.function = specs['processor']
+			self.public = specs.get('public', False)
+			self.functionality = specs.get('functionality')
 
-		spec_destructer = operator.itemgetter('method', 'path', 'callback')
+
+	def load_endpoints(self):
+		routing_destructor = operator.itemgetter('method', 'path')
+		loaded_scripts = load_dir(self.endpoints_dir)
+
+		new_registry = http.Registry()
 		for file_path, file_hash, specs_fnc in loaded_scripts:
 
 			try:
 				specs = specs_fnc()
-				destructured_specs = spec_destructer(specs)
-				new_registry.add_endpoint(*destructured_specs)
+				method_and_path = routing_destructor(specs)
+				processor = Handler.Endpoint(specs)
+
+				new_registry.add_endpoint(
+					*method_and_path,
+					processor)
+
+			except KeyError as e:
+				Logger.warning(f"Incomplete spec in '{file_path}': missing field {e}")
+				continue
 
 			except Exception as e:
-				Logger.warn(f"Unable to process specs from file '{file_path}': {e}")
+				Logger.warning(f"Unable to process specs from file '{file_path}': {e}")
 				continue
 
 		self.loaded_scripts = loaded_scripts
-		self.httpHandler.set_registry(new_registry)
+		self.httpHandler.update_registry(new_registry)
 
 	#-------------------------------------------------------------------------------
 

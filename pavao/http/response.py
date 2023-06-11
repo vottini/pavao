@@ -5,10 +5,12 @@ from .cookie import Cookie
 class Response:
 	def __init__(self, send_fnc):
 		self.send_fnc = send_fnc
-		self.content_type = None
-		self.content = None
-		self.cookies = dict()
+
 		self.status = 200
+		self.cookies = dict()
+		self.content_type = None
+		self.content_length = None
+		self.content = None
 
 	def set_status(self, status):
 		self.status = status
@@ -19,8 +21,9 @@ class Response:
 		return self
 
 	def set_plain_text(self, text):
-		self.content_type = b'text/plain'
 		self.content = text.encode()
+		self.content_type = b'text/plain'
+		self.content_length = len(self.content)
 		return self
 
 
@@ -29,6 +32,9 @@ async def emit(response):
 
 	if None != response.content_type:
 		headers.append((b'content-type', response.content_type))
+
+	if None != response.content_length:
+		headers.append((b'content-length', str(response.content_length)))
 
 	await response.send_fnc({
 		'type': 'http.response.start',

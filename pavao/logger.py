@@ -33,6 +33,10 @@ def loggingLoop(readyEvent):
 		log_function(final_msg)
 		_logQueue.task_done()
 
+	text = "Logging thread finished"
+	final_msg = f"({_time_now()}) [INFO] {text}"
+	logging.info(final_msg)
+
 #-------------------------------------------------------------------------------
 
 _logging_schema = {

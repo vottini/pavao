@@ -2,22 +2,20 @@
 import asyncio
 import inspect
 
-async def _secure_call(fnc):
-	if inspect.iscoroutinefunction(fnc): return await fnc()
-	else: return fnc()
-
 from ..logger import Logger
 from .request import Request
 from .response import Response, emit
+from .authorizer import Authorizer
 from .registry import Registry
-from .token import *
 
 class HttpHandler:
-	def __init__(self):
+	def __init__(self, db_manager):
+		self.db_manager = db_manager
+		self.authorizer = Authorizer()
 		self.registry = Registry()
 
 
-	def set_registry(self, registry):
+	def update_registry(self, registry):
 		self.registry = registry
 
 
@@ -26,6 +24,7 @@ class HttpHandler:
 		try:
 			request = Request(scope)
 			response = Response(send)
+
 			found_endpoint = self.registry.find_endpoint(
 				request.method,
 				request.path)
@@ -35,12 +34,23 @@ class HttpHandler:
 				await emit(response)
 				return
 
-			handler, path_variables = found_endpoint
+			db_connection = None # self.db_manager.get_conn()
+			endpoint, path_variables = found_endpoint
+			has_access = await self.authorizer.validate_access(
+				request, endpoint, db_connection)
+
+			if not has_access:
+				response.set_status(403)
+				await emit(response)
+				return
+
+			handler = endpoint.function
 			handler_params = handler.__code__.co_varnames
 
 			all_args = {
 				'request': request,
 				'path_variables': path_variables,
+				'db_connection': db_connection,
 				'response': response
 			}
 

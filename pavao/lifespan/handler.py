@@ -2,6 +2,8 @@
 import asyncio
 import inspect
 
+from ..logger import Logger
+
 async def _secure_call(fnc):
 	if fnc != None:
 		if inspect.iscoroutinefunction(fnc): return await fnc()
@@ -26,8 +28,9 @@ class LifespanHandler:
 			await send({'type': response_event})
 
 		except Exception as e:
-			print(f"Exception occured during startup: {e}")
-			await send({'type': 'lifespan.startup.failed'})
+			Logger.error(f"Exception occured during startup: {e}")
+			try: await _secure_call(self.shutdown_callback)
+			finally: await send({'type': 'lifespan.startup.failed'})
 
 		message = await receive()
 		while message['type'] != 'lifespan.shutdown':
@@ -38,7 +41,7 @@ class LifespanHandler:
 			await send({'type': 'lifespan.shutdown.complete'})
 
 		except Exception as e:
-			print(f"Exception occured during shutdown: {e}")
+			Logger.error(f"Exception occured during shutdown: {e}")
 			await send({'type': 'lifespan.shutdown.failed'})
 
 #------------------------------------------------------------------------------

@@ -2,61 +2,64 @@
 import asyncio
 import asyncpg
 
+from .logger import Logger
 from .exception import PavaoException
+class DatabaseException(PavaoException):
+	pass
 
-_pool = None
+_database_schema = {
+	"host": str,
+	"database": str,
+	"user": str,
+	"port": 5432,
+	"password": ""
+}
 
-async def close_database():
-	global _pool
-	if None != _pool:
-		await _pool.close()
-		_pool = None
+class DatabasePool:
+	def __init__(self):
+		self.pool = None
 
+	async def setup(self, settings):
+		await self.close()
 
-async def setup_database(host, port, database, user, password=None):
-	await close_database()
-	global _pool
+		try:
+			db_settings = settings.getSetting("pavao.database", _database_schema)
+			self.pool = await asyncpg.create_pool(**db_settings)
+			Logger.info("Database pool connected")
 
-	try:
-		_pool = await asyncpg.create_pool(
-			host=host, port=port, database=database,
-			user=user, password=password)
-
-	except Exception as e:
-		print("Error while connecting to database: " + str(e))
-
-	if None == _pool:
-		msg = f"Unable to connect to database '{database}' at server '{host}:{port}'"
-		raise PavaoException(msg)
-
-
-def release_database(loop):
-	loop.run_until_complete(close_database())
-
-#-------------------------------------------------------------------------------
-
-class DatabaseConnection:
-	def __init__(self, pool):
-		self.pool = pool
-		self.conn = None
-
-	async def __aenter__(self):
-		self.conn = await self.pool.acquire()
-		return self.conn
-
-	async def __aexit__(self, *args):
-		await self.pool.release(self.conn)
+		except Exception as e:
+			Logger.error("Error while setting up database: " + str(e))
+			raise DatabaseException("Unable to start database pool")
 
 
-def database_connection():
-	global _pool
-	return DatabaseConnection(_pool)
+	async def close(self):
+		if None != self.pool:
+			await self.pool.close()
+			Logger.info("Database pool closed")
+			self.pool = None
+
+	#-------------------------------------------------------------------------------
+	
+	class DatabaseConnection:
+		def __init__(self, dbManager):
+			self.pool = dbManager.pool
+			self.conn = None
+	
+		async def __aenter__(self):
+			self.conn = await self.pool.acquire()
+			return self.conn
+	
+		async def __aexit__(self, *args):
+			await self.pool.release(self.conn)
+	
+	
+	def connection():
+		return DatabaseConnection(_pool)
 
 #-------------------------------------------------------------------------------
 
 __all__ = [
-	"setup_database",
-	"release_database",
-	"database_connection"
+	"DatabaseException",
+	"DatabasePool"
 ]
 
