@@ -40,9 +40,9 @@ class DatabasePool:
 
 	#-------------------------------------------------------------------------------
 	
-	class DatabaseConnection:
-		def __init__(self, dbManager):
-			self.pool = dbManager.pool
+	class Connection:
+		def __init__(self, pool):
+			self.pool = pool
 			self.conn = None
 	
 		async def __aenter__(self):
@@ -53,8 +53,8 @@ class DatabasePool:
 			await self.pool.release(self.conn)
 	
 	
-	def connection():
-		return DatabaseConnection(_pool)
+	def connection(self):
+		return DatabasePool.Connection(self.pool)
 
 #-------------------------------------------------------------------------------
 

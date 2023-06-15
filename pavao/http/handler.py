@@ -8,9 +8,10 @@ from .response import Response, emit
 from .authorizer import Authorizer
 from .registry import Registry
 
+
 class HttpHandler:
-	def __init__(self, db_manager):
-		self.db_manager = db_manager
+	def __init__(self, db_pool):
+		self.db_pool = db_pool
 		self.authorizer = Authorizer()
 		self.registry = Registry()
 
@@ -34,32 +35,35 @@ class HttpHandler:
 				await emit(response)
 				return
 
-			db_connection = None # self.db_manager.get_conn()
 			endpoint, path_variables = found_endpoint
-			has_access = await self.authorizer.validate_access(
-				request, endpoint, db_connection)
+			async with self.db_pool.connection() as db_connection:
+				has_access = await self.authorizer.validate_access(
+					request, endpoint, db_connection)
 
-			if not has_access:
-				response.set_status(403)
+				if not has_access:
+					response.set_status(403)
+					await emit(response)
+					return
+
+				handler = endpoint.function
+				handler_nargs = handler.__code__.co_argcount
+				handler_lvars = handler.__code__.co_varnames
+				handler_params = handler_lvars[0:handler_nargs]
+
+				all_args = {
+					'request': request,
+					'path_variables': path_variables,
+					'db_connection': db_connection,
+					'response': response,
+					'receive': receive
+				}
+
+				selected_args = list()
+				for param_name in handler_params:
+					selected_args.append(all_args[param_name])
+
+				await handler(*selected_args)
 				await emit(response)
-				return
-
-			handler = endpoint.function
-			handler_params = handler.__code__.co_varnames
-
-			all_args = {
-				'request': request,
-				'path_variables': path_variables,
-				'db_connection': db_connection,
-				'response': response
-			}
-
-			selected_args = list()
-			for param_name in handler_params:
-				selected_args.append(all_args[param_name])
-
-			await handler(*selected_args)
-			await emit(response)
 
 		except Exception as e:
 			Logger.error(f"Error processing request: {e}")

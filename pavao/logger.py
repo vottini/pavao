@@ -22,6 +22,10 @@ def loggingLoop(readyEvent):
 	global _logQueue
 	readyEvent.set()
 
+	text = "Logging thread started"
+	initial_msg = f"({_time_now()}) [INFO] {text}"
+	logging.info(initial_msg)
+
 	while True:
 		new_message = _logQueue.get()
 		if "__exit__" == new_message:

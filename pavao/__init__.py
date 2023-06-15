@@ -3,6 +3,7 @@ import asyncio
 import inspect
 import uvloop
 import operator
+import os
 
 from .exception import *
 from .config import *
@@ -11,6 +12,7 @@ from .database import *
 from .lifespan import *
 from .http import *
 from .loader import *
+from .json import *
 
 class Handler:
 	def __init__(self, config_file, endpoints_dir):
@@ -19,18 +21,21 @@ class Handler:
 		self.endpoints_dir = endpoints_dir
 		self.db_pool = DatabasePool()
 		self.loaded_scripts = list()
+		self.builtin_scripts = list()
 
 		async def init():
 			Logger.info("Starting up Pavão...")
 			self.settings = loadSettings(config_file)
 			startLogging(self.settings)
 
-			self.load_endpoints()
+			registry = self.load_external_endpoints()
 			if len(self.loaded_scripts) == 0:
 				Logger.warning("No endpoints loaded, aborting...")
 				stopLogging()
 				return False
 
+			self.load_builtin_endpoints()
+			self.register_builtin_endpoints(registry)
 			await self.db_pool.setup(self.settings)
 			Logger.info("Pavão started!")
 			return True
@@ -53,11 +58,11 @@ class Handler:
 			self.functionality = specs.get('functionality')
 
 
-	def load_endpoints(self):
-		routing_destructor = operator.itemgetter('method', 'path')
+	def load_external_endpoints(self):
 		loaded_scripts = load_dir(self.endpoints_dir)
 
 		new_registry = http.Registry()
+		routing_destructor = operator.itemgetter('method', 'path')
 		for file_path, file_hash, specs_fnc in loaded_scripts:
 
 			try:
@@ -79,6 +84,27 @@ class Handler:
 
 		self.loaded_scripts = loaded_scripts
 		self.httpHandler.update_registry(new_registry)
+		return new_registry
+
+	#-------------------------------------------------------------------------------
+
+	def load_builtin_endpoints(self):
+		script_path = os.path.dirname(os.path.realpath(__file__))
+		builtins_path = os.path.join(script_path, "http", "builtin")
+		self.builtin_scripts = load_dir(builtins_path)
+
+
+	def register_builtin_endpoints(self, registry):
+		routing_destructor = operator.itemgetter('method', 'path')
+		for file_path, file_hash, specs_fnc in self.builtin_scripts:
+
+			specs = specs_fnc()
+			method_and_path = routing_destructor(specs)
+			processor = Handler.Endpoint(specs)
+
+			registry.add_endpoint(
+				*method_and_path,
+				processor)
 
 	#-------------------------------------------------------------------------------
 
