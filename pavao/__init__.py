@@ -5,6 +5,7 @@ import uvloop
 import operator
 import os
 
+from . import predicates
 from .utils import *
 from .exception import *
 from .config import *

@@ -7,6 +7,7 @@ class Response:
 		self.send_fnc = send_fnc
 
 		self.status = 200
+		self.headers = dict()
 		self.cookies = dict()
 		self.content_type = None
 		self.content_length = None
@@ -20,10 +21,10 @@ class Response:
 		self.cookies[cookie.name] = cookie
 		return self
 
-	def set_plain_text(self, text):
-		self.content = text.encode()
-		self.content_type = b'text/plain'
-		self.content_length = len(self.content)
+	def set_content(self, content_type, content):
+		self.content = content
+		self.content_type = content_type.encode()
+		self.content_length = len(content)
 		return self
 
 
