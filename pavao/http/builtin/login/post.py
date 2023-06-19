@@ -1,6 +1,5 @@
 
 import asyncio
-import asyncpg
 import argon2
 import pavao
 
@@ -9,15 +8,15 @@ output_blueprint = pavao.include('output.jbp')
 select_auth_from_login = pavao.include('select_auth_from_login.sql')
 update_auth = pavao.include('update_auth.sql')
 
+localized_messages = pavao.include('messages.ini')
+localization = pavao.Localization(localized_messages)
 
-@pavao.generatesJson([
-	{"status": 200, "string": output_blueprint},
-	{"predicate": pavao.predicates.status_error, "string": pavao.error_blueprint}
-])
+@pavao.generatesJson(string=output_blueprint)
 @pavao.acceptsJson(string=input_blueprint)
-async def process(response, db_connection, parsed_json):
-	login = parsed_json['login']
+async def process(request, response, db_connection, parsed_json):
+	localizer = localization.create_localizer(request)
 
+	login = parsed_json['login']
 	row = await db_connection.fetchrow(
 		select_auth_from_login,
 		login)
@@ -25,13 +24,13 @@ async def process(response, db_connection, parsed_json):
 	if None == row:
 		await asyncio.sleep(3)
 		response.set_status(401)
-		return {"error": "Invalid Credentials"}
+		return {"error": localizer.get_message("INVALID_CREDENTIALS")}
 
 	authId, active, storedPassword, needsChange = row
 
 	if not active:
 		response.set_status(401)
-		return {"error": "This user is disabled"}
+		return {"error": localizer.get_message("DISABLED_USER")}
 
 	try:
 		hasher = argon2.PasswordHasher()
@@ -41,13 +40,13 @@ async def process(response, db_connection, parsed_json):
 	except argon2.exceptions.VerifyMismatchError:
 		await asyncio.sleep(3)
 		response.set_status(401)
-		return {"error": "Invalid Credentials"}
+		return {"error": localizer.get_message("INVALID_CREDENTIALS")}
 
 	except Exception as e:
 		msg = f"Error authenticating user '{login}': {e}"
 		pavao.Logger.error(msg)
 		response.set_status(500)
-		return {"error": "Error verifying credentials"}
+		return {"error": localizer.get_message("INTERNAL_ERROR")}
 
 	renewedHash = storedPassword
 	if hasher.check_needs_rehash(storedPassword):
