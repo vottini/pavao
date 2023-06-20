@@ -1,6 +1,7 @@
 
 import asyncio
 import argon2
+import time
 import pavao
 
 input_blueprint = pavao.include('input.jbp')
@@ -10,6 +11,36 @@ update_auth = pavao.include('update_auth.sql')
 
 localized_messages = pavao.include('messages.ini')
 localization = pavao.Localization(localized_messages)
+
+#-------------------------------------------------------------------------------
+
+_token_schema = {
+	"issuer": str,
+	"access_validity_min": 10,
+	"refresh_validity_min": 360
+}
+
+token_settings = None
+async def setup(settings, db_connection):
+	global token_settings
+
+	token_settings = settings.getSetting(
+		"pavao.token",
+		_token_schema)
+
+
+def create_claims(subject):
+	now = int(time.time())
+	expiration = now + 60 * token_settings['access_validity_min']
+
+	return {
+		"iss": token_settings['issuer'],
+		"sub": subject,
+		"exp": expiration,
+		"iat": now
+	}
+
+#-------------------------------------------------------------------------------
 
 @pavao.generatesJson(string=output_blueprint)
 @pavao.acceptsJson(string=input_blueprint)
@@ -48,12 +79,17 @@ async def process(request, response, db_connection, parsed_json):
 		response.set_status(500)
 		return {"error": localizer.get_message("INTERNAL_ERROR")}
 
-	renewedHash = storedPassword
+	updatedHash = storedPassword
 	if hasher.check_needs_rehash(storedPassword):
-		renewedHash = hasher.hash(sentPassword)
+		updatedHash = hasher.hash(sentPassword)
 
-	await db_connection.execute(update_auth, authId, renewedHash)
-	return {"message": "Autorizado!"}
+	await db_connection.execute(update_auth, authId, updatedHash)
+	claims = create_claims(login)
+
+	return {
+		"change_password": needsChange,
+		"token": pavao.http.generateToken(claims),
+	}
 
 
 def pavao_endpoint():
@@ -61,6 +97,7 @@ def pavao_endpoint():
 		'method': 'POST',
 		'path': '/login',
 		'processor': process,
+		'init': setup,
 		'public': True
 	}
 

@@ -22,7 +22,6 @@ class Handler:
 		self.settings = None
 		self.endpoints_dir = endpoints_dir
 		self.db_pool = DatabasePool()
-		self.loaded_scripts = list()
 		self.builtin_scripts = list()
 
 		async def init():
@@ -30,15 +29,17 @@ class Handler:
 			self.settings = loadSettings(config_file)
 			startLogging(self.settings)
 
-			registry = self.load_external_endpoints()
-			if len(self.loaded_scripts) == 0:
+			self.load_builtin_endpoints()
+			await self.db_pool.setup(self.settings)
+			registry = await self.load_external_endpoints()
+
+			if registry is None:
 				Logger.warning("No endpoints loaded, aborting...")
-				stopLogging()
+				await stop()
 				return False
 
-			self.load_builtin_endpoints()
-			self.register_builtin_endpoints(registry)
-			await self.db_pool.setup(self.settings)
+			await self.register_builtin(registry)
+			self.httpHandler.update_registry(registry)
 			Logger.info("Pavão started!")
 			return True
 
@@ -58,10 +59,18 @@ class Handler:
 			self.function = specs['processor']
 			self.public = specs.get('public', False)
 			self.functionality = specs.get('functionality')
+			self.init = specs.get('init')
+
+		async def setup(self, settings, db_pool):
+			if self.init is not None:
+				async with db_pool.connection() as db_conn:
+					await self.init(settings, db_conn)
 
 
-	def load_external_endpoints(self):
+	async def load_external_endpoints(self):
 		loaded_scripts = load_dir(self.endpoints_dir)
+		if len(loaded_scripts) == 0:
+			return None
 
 		new_registry = http.Registry()
 		routing_destructor = operator.itemgetter('method', 'path')
@@ -72,8 +81,8 @@ class Handler:
 				method_and_path = routing_destructor(specs)
 				processor = Handler.Endpoint(specs)
 
-				new_registry.add_endpoint(
-					*method_and_path,
+				await processor.setup(self.settings, self.db_pool)
+				new_registry.add_endpoint(*method_and_path,
 					processor)
 
 			except KeyError as e:
@@ -84,8 +93,6 @@ class Handler:
 				Logger.warning(f"Unable to process specs from file '{file_path}': {e}")
 				continue
 
-		self.loaded_scripts = loaded_scripts
-		self.httpHandler.update_registry(new_registry)
 		return new_registry
 
 	#-------------------------------------------------------------------------------
@@ -96,7 +103,7 @@ class Handler:
 		self.builtin_scripts = load_dir(builtins_path)
 
 
-	def register_builtin_endpoints(self, registry):
+	async def register_builtin(self, registry):
 		routing_destructor = operator.itemgetter('method', 'path')
 		for file_path, file_hash, specs_fnc in self.builtin_scripts:
 
@@ -104,8 +111,8 @@ class Handler:
 			method_and_path = routing_destructor(specs)
 			processor = Handler.Endpoint(specs)
 
-			registry.add_endpoint(
-				*method_and_path,
+			await processor.setup(self.settings, self.db_pool)
+			registry.add_endpoint(*method_and_path,
 				processor)
 
 	#-------------------------------------------------------------------------------

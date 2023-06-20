@@ -56,12 +56,10 @@ def base64url(contents):
 	return base64_decoded.strip('=')
 
 
-class JsonCompanion:
-	compact_separators = (',', ':')
-
-	def serializedToBase64(contents):
-		serialized = json.dumps(contents, separators=JsonCompanion.compact_separators)
-		return base64url(serialized.encode())
+_compact_separators = (',', ':')
+def _serializedToBase64(contents):
+	serialized = json.dumps(contents, separators=_compact_separators)
+	return base64url(serialized.encode())
 
 #-------------------------------------------------------------------------------
 
@@ -85,12 +83,11 @@ def generateToken(claims):
 		"kid": _current.ident
 	}
 
-	header_base64 = JsonCompanion.serializedToBase64(header)
-	payload_base64 = JsonCompanion.serializedToBase64(claims)
+	header_base64 = _serializedToBase64(header)
+	payload_base64 = _serializedToBase64(claims)
 	contents = header_base64 + "." + payload_base64
 	signature = calcCurrentSignature(contents)
 	return contents + "." + signature
-
 
 
 def validateToken(token):

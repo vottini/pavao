@@ -1,5 +1,6 @@
 
 root {
-	message: string
+	token: string,
+	change_password: bool
 }
 
