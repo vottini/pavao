@@ -1,12 +1,16 @@
 
 import asyncio
 import argon2
-import time
+import secrets
+from datetime import datetime, timedelta, timezone
+import hashlib
 import pavao
 
 input_blueprint = pavao.include('input.jbp')
 output_blueprint = pavao.include('output.jbp')
+
 select_auth_from_login = pavao.include('select_auth_from_login.sql')
+insert_refresh = pavao.include('insert_refresh.sql')
 update_auth = pavao.include('update_auth.sql')
 
 localized_messages = pavao.include('messages.ini')
@@ -16,8 +20,10 @@ localization = pavao.Localization(localized_messages)
 
 _token_schema = {
 	"issuer": str,
-	"access_validity_min": 10,
-	"refresh_validity_min": 360
+	"validity": {
+		"access_minutes": 10,
+		"refresh_minutes": 360
+	}
 }
 
 token_settings = None
@@ -28,16 +34,21 @@ async def setup(settings, db_connection):
 		"pavao.token",
 		_token_schema)
 
+access_validity = 'access_minutes'
+refresh_validity = 'refresh_minutes'
 
-def create_claims(subject):
-	now = int(time.time())
-	expiration = now + 60 * token_settings['access_validity_min']
+def create_claims(subject, issue_time, minutes_validity):
+	validities = token_settings['validity']
+	expiration = issue_time + timedelta(minutes=validities[minutes_validity])
+	issuer = token_settings['issuer']
 
 	return {
-		"iss": token_settings['issuer'],
+		"iss": issuer,
 		"sub": subject,
-		"exp": expiration,
-		"iat": now
+		"aud": issuer,
+		"exp": expiration.timestamp(),
+		"nbf": issue_time.timestamp(),
+		"iat": issue_time.timestamp(),
 	}
 
 #-------------------------------------------------------------------------------
@@ -83,12 +94,24 @@ async def process(request, response, db_connection, parsed_json):
 	if hasher.check_needs_rehash(storedPassword):
 		updatedHash = hasher.hash(sentPassword)
 
-	await db_connection.execute(update_auth, authId, updatedHash)
-	claims = create_claims(login)
+	now = datetime.now(timezone.utc)
+	access_claims = create_claims(login, now, access_validity)
+	refresh_claims = create_claims(login, now, refresh_validity)
+	refresh_id = secrets.token_urlsafe(10)
+
+	refresh_claims['jti'] = refresh_id
+	refresh_hash = hashlib.md5(refresh_id.encode()).digest().hex()
+	refresh_expiry = now + timedelta(minutes=token_settings['validity']
+		[refresh_validity])
+
+	async with db_connection.transaction():
+		await db_connection.execute(update_auth, authId, updatedHash)
+		await db_connection.execute(insert_refresh, login, refresh_hash,
+			refresh_expiry)
 
 	return {
 		"change_password": needsChange,
-		"token": pavao.http.generateToken(claims),
+		"token": pavao.http.generateToken(refresh_claims),
 	}
 
 
