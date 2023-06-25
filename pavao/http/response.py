@@ -18,7 +18,7 @@ class Response:
 		return self
 
 	def add_cookie(self, cookie):
-		self.cookies[cookie.name] = cookie
+		self.cookies[cookie.get_identifier()] = cookie
 		return self
 
 	def set_content(self, content_type, content):
@@ -36,6 +36,9 @@ async def emit(response):
 
 	if None != response.content_length:
 		headers.append((b'content-length', str(response.content_length)))
+
+	for cookie in response.cookies.values():
+		headers.append((b'set-cookie', str(cookie).encode()))
 
 	await response.send_fnc({
 		'type': 'http.response.start',

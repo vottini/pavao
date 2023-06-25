@@ -46,9 +46,9 @@ def create_claims(subject, issue_time, minutes_validity):
 		"iss": issuer,
 		"sub": subject,
 		"aud": issuer,
-		"exp": expiration.timestamp(),
-		"nbf": issue_time.timestamp(),
-		"iat": issue_time.timestamp(),
+		"exp": int(expiration.timestamp()),
+		"nbf": int(issue_time.timestamp()),
+		"iat": int(issue_time.timestamp()),
 	}
 
 #-------------------------------------------------------------------------------
@@ -97,7 +97,7 @@ async def process(request, response, db_connection, parsed_json):
 	now = datetime.now(timezone.utc)
 	access_claims = create_claims(login, now, access_validity)
 	refresh_claims = create_claims(login, now, refresh_validity)
-	refresh_id = secrets.token_urlsafe(10)
+	refresh_id = secrets.token_urlsafe(32)
 
 	refresh_claims['jti'] = refresh_id
 	refresh_hash = hashlib.md5(refresh_id.encode()).digest().hex()
@@ -109,9 +109,19 @@ async def process(request, response, db_connection, parsed_json):
 		await db_connection.execute(insert_refresh, login, refresh_hash,
 			refresh_expiry)
 
+	access_token = pavao.http.generateToken(access_claims)
+	refresh_token = pavao.http.generateToken(refresh_claims)
+
+	response.add_cookie(
+		pavao.http.Cookie('refresh-token', refresh_token)
+			.set_sameSite(pavao.http.SameSite.STRICT)
+			.set_path('/token-refresh')
+			.set_httpOnly()
+	)
+
 	return {
 		"change_password": needsChange,
-		"token": pavao.http.generateToken(refresh_claims),
+		"token": access_token,
 	}
 
 
