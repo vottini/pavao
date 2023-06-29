@@ -1,5 +1,13 @@
 
-from ..exception import PavaoException
+import string
+
+# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
+# https://stackoverflow.com/questions/1969232/what-are-allowed-characters-in-cookies
+# https://www.ietf.org/rfc/rfc6265.txt
+
+_alphanumeric = string.ascii_letters + string.digits
+_allowed_name_chars = _alphanumeric + r"!#$%&'*+-.^_`|~"
+_allowed_value_chars = _alphanumeric + r"!#$%&'()*+-./:<=>?@[]^_`{|}~"
 
 class SameSite:
 	STRICT = 0
@@ -12,18 +20,29 @@ _same_site_options = {
 	SameSite.NONE: "None"
 }
 
+from ..exception import PavaoException
+class CookieException(PavaoException):
+	pass
 
-# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
-# https://stackoverflow.com/questions/1969232/what-are-allowed-characters-in-cookies
-# https://www.ietf.org/rfc/rfc6265.txt
+#-------------------------------------------------------------------------------
 
 class Cookie:
 	def __init__(self, name, value):
 		self.name = name
 		self.value = str(value)
+
+		for char in self.name:
+			if char not in _allowed_name_chars:
+				msg = f"Character '{hex(ord(char))}' is not allowed in a cookie name"
+				raise CookieException(msg)
+
+		for char in self.value:
+			if char not in _allowed_value_chars:
+				msg = f"Character '{hex(ord(char))}' is not allowed in a cookie value"
+				raise CookieException(msg)
+
 		self.domain = None
 		self.path = None
-
 		self.httpOnly = False
 		self.expires = None
 		self.maxAge = None
@@ -58,7 +77,7 @@ class Cookie:
 
 	def set_sameSite(self, value):
 		if not value in _same_site_options:
-			raise PavaoException("Not a valid SameSite value")
+			raise CookieException("Not a valid SameSite value")
 
 		value = _same_site_options[value]
 		self.sameSite = value
@@ -114,12 +133,19 @@ class Cookie:
 
 	def __str__(self):
 		result = f"{self.name}={self.value}"
-		result = self.append_domain(result)
-		result = self.append_path(result)
-		result = self.append_maxAge(result)
-		result = self.append_expires(result)
-		result = self.append_sameSite(result)
-		result = self.append_secure(result)
-		result = self.append_httpOnly(result)
+		for appender in _appenders:
+			result = appender(self, result)
+
 		return result
+
+
+_appenders = [
+	Cookie.append_domain,
+	Cookie.append_path,
+	Cookie.append_maxAge,
+	Cookie.append_expires,
+	Cookie.append_sameSite,
+	Cookie.append_secure,
+	Cookie.append_httpOnly
+]
 

@@ -92,21 +92,19 @@ INSERT INTO
 
 ADMIN_ASSIGNMENT="
 INSERT INTO
-  pavao.assignment (
-	  account,
-		class)
+  pavao.assignment (account, cls)
 
-	SELECT 
-	  acc.id,
-		cls.id
+  SELECT 
+    acc.id,
+    cls.id
 
-	FROM
-		pavao.account acc CROSS JOIN
-		pavao.class cls
+  FROM
+    pavao.account acc CROSS JOIN
+    pavao.class cls
 
-	WHERE
-		acc.login = '${ADMIN_LOGIN}' AND
-		cls.name = '${ADMINISTRATOR_GROUP}';
+  WHERE
+    acc.login = '${ADMIN_LOGIN}' AND
+    cls.name = '${ADMINISTRATOR_GROUP}';
 "
 
 PGPASSWORD=${DATABASE_PASSWORD}

@@ -22,6 +22,7 @@ echo "Creating pavao structures"
 if [ "#$PGPASSWORD" = "#" ]; then
 	echo -n "Type the password for role '${DB_LOGIN}': "
 	read -s PGPASSWORD
+	echo ""
 fi
 
 TABLES_DIR=tables
