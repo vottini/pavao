@@ -39,7 +39,7 @@ class Handler:
 				return False
 
 			await self.register_builtin(registry)
-			self.httpHandler.update_registry(registry)
+			await self.httpHandler.init(registry)
 			Logger.info("Pavão started!")
 			return True
 

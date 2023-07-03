@@ -122,7 +122,7 @@ async def process(request, response, db_connection, parsed_json):
 	async with db_connection.transaction():
 		await db_connection.execute(update_auth, authId, updatedHash)
 		await db_connection.execute(insert_refresh, login, refresh_hash,
-			refresh_expiry)
+			refresh_expiry, access_claims['jti'])
 
 	access_token = pavao.http.generateToken(access_claims)
 	refresh_token = pavao.http.generateToken(refresh_claims)
@@ -130,7 +130,7 @@ async def process(request, response, db_connection, parsed_json):
 	response.add_cookie(
 		pavao.http.Cookie('refresh-token', refresh_token)
 			.set_sameSite(pavao.http.SameSite.STRICT)
-			.set_path('/token-refresh')
+			.set_path('/refresh')
 			.set_httpOnly()
 	)
 

@@ -16,8 +16,14 @@ class HttpHandler:
 		self.registry = Registry()
 
 
-	def update_registry(self, registry):
+	def set_registry(self, registry):
 		self.registry = registry
+
+
+	async def init(self, registry):
+		self.set_registry(registry)
+		async with self.db_pool.connection() as db_connection:
+			await self.authorizer.setup(db_connection)
 
 
 	async def handle(self, scope, receive, send):
@@ -36,24 +42,27 @@ class HttpHandler:
 				return
 
 			endpoint, path_variables = found_endpoint
+			has_access, auth_data = await self.authorizer.validate_access(
+				request, endpoint)
+
+			if not has_access:
+				response.set_status(403)
+				await emit(response)
+				return
+
+			handler = endpoint.function
+			handler_nargs = handler.__code__.co_argcount
+			handler_lvars = handler.__code__.co_varnames
+			handler_params = handler_lvars[0:handler_nargs]
+
 			async with self.db_pool.connection() as db_connection:
-				has_access = await self.authorizer.validate_access(
-					request, endpoint, db_connection)
-
-				if not has_access:
-					response.set_status(403)
-					await emit(response)
-					return
-
-				handler = endpoint.function
-				handler_nargs = handler.__code__.co_argcount
-				handler_lvars = handler.__code__.co_varnames
-				handler_params = handler_lvars[0:handler_nargs]
 
 				all_args = {
+					'handler': self,
 					'request': request,
 					'path_variables': path_variables,
 					'db_connection': db_connection,
+					'auth_data': auth_data,
 					'response': response,
 					'receive': receive
 				}

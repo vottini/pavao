@@ -1,8 +1,9 @@
 
 CREATE TABLE pavao.refresh_token (
-  account     INTEGER REFERENCES pavao.account(id) ON DELETE CASCADE,
-  hashed_jti  TEXT,
-  expiry      TIMESTAMP WITH TIME ZONE,
-  PRIMARY KEY (account, hashed_jti)
+  id                  INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  account             INTEGER REFERENCES pavao.account(id) ON DELETE CASCADE,
+  hashed_jti          TEXT,
+  expiration          TIMESTAMP WITH TIME ZONE,
+  access_token        TEXT
 );
 
