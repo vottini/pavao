@@ -1,10 +1,11 @@
 
 import asyncio
 import argon2
-import secrets
 from datetime import datetime, timedelta, timezone
 import hashlib
+
 import pavao
+import auth.credentials as credentials
 
 input_blueprint = pavao.include('input.jbp')
 output_blueprint = pavao.include('output.jbp')
@@ -19,42 +20,6 @@ localization = pavao.Localization(localized_messages)
 
 #-------------------------------------------------------------------------------
 
-_token_schema = {
-	"issuer": str,
-	"validity": {
-		"access_minutes": 10,
-		"refresh_minutes": 360
-	}
-}
-
-token_settings = None
-async def setup(settings, db_connection):
-	global token_settings
-
-	token_settings = settings.getSetting(
-		"pavao.token",
-		_token_schema)
-
-access_validity = 'access_minutes'
-refresh_validity = 'refresh_minutes'
-
-def create_claims(subject, issue_time, minutes_validity):
-	validities = token_settings['validity']
-	expiration = issue_time + timedelta(minutes=validities[minutes_validity])
-	issuer = token_settings['issuer']
-
-	return {
-		"iss": issuer,
-		"sub": subject,
-		"aud": issuer,
-		"exp": int(expiration.timestamp()),
-		"nbf": int(issue_time.timestamp()),
-		"iat": int(issue_time.timestamp()),
-		"jti": secrets.token_urlsafe(32)
-	}
-
-#-------------------------------------------------------------------------------
-
 @pavao.generatesJson(string=output_blueprint)
 @pavao.acceptsJson(string=input_blueprint)
 async def process(request, response, db_connection, parsed_json):
@@ -65,7 +30,7 @@ async def process(request, response, db_connection, parsed_json):
 		select_auth_from_login,
 		login)
 
-	if None == row:
+	if row is None:
 		await asyncio.sleep(3)
 		response.set_status(401)
 		return {"error": localizer.get_message("INVALID_CREDENTIALS")}
@@ -92,9 +57,15 @@ async def process(request, response, db_connection, parsed_json):
 		response.set_status(500)
 		return {"error": localizer.get_message("INTERNAL_ERROR")}
 
+	updatedHash = storedPassword
+	if hasher.check_needs_rehash(storedPassword):
+		updatedHash = hasher.hash(sentPassword)
+
+	await db_connection.execute(update_auth, authId, updatedHash)
+
 	now = datetime.now(timezone.utc)
-	access_claims = create_claims(login, now, access_validity)
-	access_expiry = access_claims['exp']
+	access_claims = credentials.create_claims(login, now,
+		credentials.access_validity)
 
 	if changePassword:
 		access_claims['cls'] = ""
@@ -103,41 +74,35 @@ async def process(request, response, db_connection, parsed_json):
 		return {
 			"token": access_token,
 			"change_password": True,
-			"expires": access_expiry
+			"expires": access_claims['exp']
 		}
 
 	classes = await db_connection.fetch(select_classes_from_login, login)
 	classes_ids = [ str(cls['id']) for cls in classes ]
 	access_claims['cls'] = ",".join(classes_ids)
 
-	refresh_claims = create_claims(login, now, refresh_validity)
+	refresh_claims = credentials.create_claims(login, now,
+		credentials.refresh_validity)
+
 	refresh_hash = hashlib.md5(refresh_claims['jti'].encode()).digest().hex()
-	refresh_expiry = now + timedelta(minutes=token_settings['validity']
-		[refresh_validity])
-
-	updatedHash = storedPassword
-	if hasher.check_needs_rehash(storedPassword):
-		updatedHash = hasher.hash(sentPassword)
-
-	async with db_connection.transaction():
-		await db_connection.execute(update_auth, authId, updatedHash)
-		await db_connection.execute(insert_refresh, login, refresh_hash,
-			refresh_expiry, access_claims['jti'])
+	refresh_expiry = datetime.utcfromtimestamp(refresh_claims['exp'])
+	await db_connection.execute(insert_refresh, login, refresh_hash,
+		refresh_expiry, access_claims['jti'])
 
 	access_token = pavao.http.generateToken(access_claims)
 	refresh_token = pavao.http.generateToken(refresh_claims)
 
 	response.add_cookie(
-		pavao.http.Cookie('refresh-token', refresh_token)
+		pavao.http.Cookie('token', refresh_token)
 			.set_sameSite(pavao.http.SameSite.STRICT)
-			.set_path('/refresh')
+			.set_path('/refresh-token')
 			.set_httpOnly()
 	)
 
 	return {
 		"token": access_token,
 		"change_password": False,
-		"expires": access_expiry
+		"expires": access_claims['exp']
 	}
 
 #-------------------------------------------------------------------------------
@@ -147,7 +112,7 @@ def pavao_endpoint():
 		'method': 'POST',
 		'path': '/login',
 		'processor': process,
-		'init': setup,
+		'init': credentials.setup,
 		'public': True
 	}
 

@@ -1,11 +1,15 @@
 
+import re
 import urllib
 
 from ..exception import PavaoException
 class RequestException(PavaoException):
 	pass
 
+_cookie = "cookie"
+_cookie_pattern = re.compile(r"([^=]+)=(\S*)")
 _set_cookie = "set-cookie"
+
 _utf8_decode = lambda content : content.decode('utf-8')
 _enlist_value = lambda value : value if isinstance(value, list) else [value]
 
@@ -24,11 +28,31 @@ class Request:
 		self.source = Request.Address(*scope['client'])
 
 		self.headers = dict()
+		self.cookies = dict()
+
 		for header_name, header_value in scope['headers']:
 
 			try:
 				decoded_name = _utf8_decode(header_name)
 				decoded_value = _utf8_decode(header_value)
+
+				if decoded_name == _cookie:
+					cookie_pairs = decoded_value.split(';')
+					cookie_pairs = [ cookie_pair.strip() for cookie_pair in cookie_pairs ]
+
+					for cookie_pair in cookie_pairs:
+						found_values = _cookie_pattern.search(cookie_pair)
+						if found_values is None:
+							continue
+
+						try:
+							name, value = found_values.groups()
+							self.cookies[name] = value
+
+						except Exception:							
+							continue
+
+					continue
 
 				# 'set-cookie' has its own semantics
 				# https://www.rfc-editor.org/rfc/rfc7230#section-3.2.2
@@ -71,6 +95,7 @@ class Request:
 			except (UnicodeError, UnicodeDecodeError) as e:
 				msg = f"Error decoding params: '{e}'"
 				raise RequestException(msg)
+
 
 	def __str__(self): # pragma: no cover
 		return f"""

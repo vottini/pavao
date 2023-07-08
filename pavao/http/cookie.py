@@ -1,5 +1,6 @@
 
 import string
+from datetime import datetime
 
 # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
 # https://stackoverflow.com/questions/1969232/what-are-allowed-characters-in-cookies
@@ -27,7 +28,7 @@ class CookieException(PavaoException):
 #-------------------------------------------------------------------------------
 
 class Cookie:
-	def __init__(self, name, value):
+	def __init__(self, name, value=""):
 		self.name = name
 		self.value = str(value)
 
@@ -128,6 +129,12 @@ class Cookie:
 		return (result + '; HttpOnly'
 			if self.httpOnly
 			else result)
+
+	#---------------------------------------------------------------------------
+
+	def set_to_be_removed(self):
+		epoch = datetime.utcfromtimestamp(0)
+		return self.set_expires(epoch)
 
 	#---------------------------------------------------------------------------
 

@@ -9,6 +9,12 @@ async def process(handler, request, response, db_connection, auth_data):
 	await db_connection.execute(delete_refresh,
 		auth_data.login, auth_data.token)
 
+	response.add_cookie(
+		pavao.http.Cookie('token')
+			.set_path('/refresh-token')
+			.set_to_be_removed()
+	)
+
 
 def pavao_endpoint():
 	return {
