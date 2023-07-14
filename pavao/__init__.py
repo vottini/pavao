@@ -9,6 +9,7 @@ from . import predicates
 from .utils import *
 from .exception import *
 from .config import *
+from .parameters import *
 from .logger import *
 from .database import *
 from .lifespan import *
@@ -22,6 +23,7 @@ class Handler:
 		self.settings = None
 		self.endpoints_dir = endpoints_dir
 		self.db_pool = DatabasePool()
+		self.parameters = Parameters(self.db_pool)
 		self.builtin_scripts = list()
 
 		async def init():

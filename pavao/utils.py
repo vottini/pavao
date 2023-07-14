@@ -100,6 +100,21 @@ class Localization:
 		sources.append(self.fallback)
 		return Localization.Localizer(sources)
 
+
+	def localize(self, languageId, messageId):
+		sources = list()
+		if languageId in self.languages:
+			sources.append(self.languages[languageId])
+
+		sources.append(self.fallback)
+		for source in self.sources:
+			msg = source.get(sanedId)
+			if msg is not None:
+				return msg
+
+		Logger.warning(f"Message id '{messageId}' not found")
+		return "<Unknown message>"
+
 #-------------------------------------------------------------------------------
 
 __all__ = [

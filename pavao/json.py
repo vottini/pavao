@@ -101,11 +101,13 @@ def _trial_predicate(predicate):
 		msg = f"predicate is not valid: {e}"
 		raise PavaoException(msg)
 
+
 def _warn_unused(container, used, candidates):
 	for candidate in candidates:
 		if candidate in container:
 			msg = f"'{candidate}' specified, but '{used}' takes precedence"
 			pavao.Logger.warning(msg)
+
 
 def generatesJson(dispatchers=None, string=None, file=None):
 	processed_dispatchers = list()

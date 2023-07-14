@@ -76,6 +76,7 @@ async def process(request, response, db_connection):
 
 	return {
 		"token": access_token,
+		"change_password": False,
 		"expires": access_claims['exp']
 	}
 

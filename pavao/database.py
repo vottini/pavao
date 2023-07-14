@@ -7,6 +7,7 @@ from .exception import PavaoException
 class DatabaseException(PavaoException):
 	pass
 
+
 _database_schema = {
 	"host": str,
 	"database": str,
@@ -14,6 +15,7 @@ _database_schema = {
 	"port": 5432,
 	"password": ""
 }
+
 
 class DatabasePool:
 	def __init__(self):

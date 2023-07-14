@@ -25,7 +25,6 @@ class Authorizer:
 
 	async def setup(self, db_conn):
 		accesses = await db_conn.fetch(list_classes)
-		print(f"Access is {accesses}")
 
 		for class_id, functionality in accesses:
 			func_set = self.class_access.get(class_id, set())
