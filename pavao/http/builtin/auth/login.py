@@ -107,12 +107,13 @@ async def process(request, response, db_connection, parsed_json):
 
 #-------------------------------------------------------------------------------
 
-def pavao_endpoint():
+async def pavao_endpoint(settings):
+	await credentials.setup(settings)
+
 	return {
 		'method': 'POST',
 		'path': '/login',
 		'processor': process,
-		'init': credentials.setup,
 		'public': True
 	}
 

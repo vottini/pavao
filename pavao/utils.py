@@ -1,5 +1,6 @@
 
 import sys
+import asyncio
 import inspect
 import configparser
 import os
@@ -53,8 +54,10 @@ class Localization:
 
 			for source in self.sources:
 				msg = source.get(sanedId)
+
 				if msg is not None:
-					return msg
+					sanedMsg = msg.strip('"')
+					return sanedMsg
 
 			Logger.warning(f"Message id '{messageId}' not found")
 			return "<Unknown message>"
@@ -102,23 +105,52 @@ class Localization:
 
 
 	def localize(self, languageId, messageId):
-		sources = list()
-		if languageId in self.languages:
-			sources.append(self.languages[languageId])
+		sanedId = messageId.lower()
 
-		sources.append(self.fallback)
-		for source in self.sources:
+		if languageId in self.languages:
+			source = self.languages[languageId]
 			msg = source.get(sanedId)
+
 			if msg is not None:
-				return msg
+				sanedMsg = msg.strip('"')
+				return sanedMsg
+
+		msg = self.fallback.get(sanedId)
+		if msg is not None:
+			sanedMsg = msg.strip('"')
+			return sanedMsg
 
 		Logger.warning(f"Message id '{messageId}' not found")
 		return "<Unknown message>"
 
 #-------------------------------------------------------------------------------
 
+def adapter(fnc):
+	fnc_nParams = fnc.__code__.co_argcount
+	fnc_localVars = fnc.__code__.co_varnames
+	fnc_params = fnc_localVars[0:fnc_nParams]
+
+	utilized_params = list()
+	for param_name in fnc_params:
+		utilized_params.append(param_name)
+
+	isAwaitable = inspect.iscoroutinefunction(fnc)
+
+	async def wrapped_call(variables):
+		selected_args = list()
+		for param in utilized_params:
+			selected_args.append(variables[param])
+
+		if isAwaitable: return await fnc(*selected_args)
+		else: return fnc(*selected_args)
+
+	return wrapped_call
+
+#-------------------------------------------------------------------------------
+
 __all__ = [
 	"include",
-	"Localization"
+	"Localization",
+	"adapter"
 ]
 

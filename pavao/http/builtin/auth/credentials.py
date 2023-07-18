@@ -12,7 +12,7 @@ _token_schema = {
 }
 
 token_settings = None
-async def setup(settings, db_connection):
+async def setup(settings):
 	global token_settings
 
 	token_settings = settings.getSetting(

@@ -27,7 +27,10 @@ class Parameters:
 
 	async def get(self, name):
 		async with self.db_pool.connection() as db_connection:
-			typ, value = await db_connection.fetchrow(get_query, name)
+			row = await db_connection.fetchrow(get_query, name)
+			if row is None: return None
+
+			typ, value = row
 			list_search = list_pattern.search(value)
 			ctor = getattr(builtins, typ)
 

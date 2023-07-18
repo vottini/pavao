@@ -66,7 +66,7 @@ class Authorizer:
 			if endpoint.functionality is not None:
 				for cls in subject_classes:
 					accesses = self.class_access.get(cls)
-					if access is not None and endpoint.functionality in accesses:
+					if accesses is not None and endpoint.functionality in accesses:
 						break
 
 				else:

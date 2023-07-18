@@ -1,6 +1,7 @@
 
 import asyncio
 import inspect
+import traceback
 
 from ..logger import Logger
 
@@ -29,6 +30,8 @@ class LifespanHandler:
 
 		except Exception as e:
 			Logger.error(f"Exception occured during startup: {e}")
+			print(traceback.format_exc())
+
 			try: await _secure_call(self.shutdown_callback)
 			finally: await send({'type': 'lifespan.startup.failed'})
 

@@ -1,6 +1,7 @@
 
 import asyncio
 import inspect
+import traceback
 
 from ..logger import Logger
 from .request import Request
@@ -51,10 +52,6 @@ class HttpHandler:
 				return
 
 			handler = endpoint.function
-			handler_nargs = handler.__code__.co_argcount
-			handler_lvars = handler.__code__.co_varnames
-			handler_params = handler_lvars[0:handler_nargs]
-
 			async with self.db_pool.connection() as db_connection:
 
 				all_args = {
@@ -67,15 +64,13 @@ class HttpHandler:
 					'receive': receive
 				}
 
-				selected_args = list()
-				for param_name in handler_params:
-					selected_args.append(all_args[param_name])
-
-				await handler(*selected_args)
+				await handler(all_args)
 				await emit(response)
 
 		except Exception as e:
 			Logger.error(f"Error processing request: {e}")
+			print(traceback.format_exc())
+
 			response.set_status(500)
 			await emit(response)
 

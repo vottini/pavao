@@ -2,31 +2,25 @@
 import asyncio
 import pavao
 
-list_functionalities = pavao.include('list_functionalities.sql')
+from access.registering import localize_functionality
+list_functionalities = "SELECT name FROM pavao.functionality;"
+string_list = "root string[]"
 
+
+@pavao.generatesJson(string=string_list)
 async def process(request, response, db_connection):
-	handler.authorizer.blacklist(auth_data)
-	await db_connection.execute(delete_refresh,
-		auth_data.login, auth_data.token)
-
-	response.add_cookie(
-		pavao.http.Cookie('token')
-			.set_path('/refresh-token')
-			.set_to_be_removed()
-	)
+	result = await db_connection.fetch(list_functionalities)
+	return [ row[0] for row in result ]
 
 
-async def pavao_endpoint(parameters):
-	localized_functionalities = pavao.include('functionalities.ini')
-
-	localization = pavao.Localization(localized_functionalities)
-	language = await parameters.get('language')
-	functionality = localization.localize(language, "LIST_FUNCTIONALITIES")
+async def pavao_endpoint(db_connection, parameters):
+	func_name = await localize_functionality("LIST_FUNCTIONALITIES",
+		db_connection, parameters)
 
 	return {
 		'method': 'GET',
-		'path': '/admin/list_functionalities',
-		'functionality': functionality,
+		'path': '/access/functionalities',
+		'functionality': func_name,
 		'processor': process
 	}
 

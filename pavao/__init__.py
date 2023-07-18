@@ -58,15 +58,15 @@ class Handler:
 
 	class Endpoint:
 		def __init__(self, specs):
-			self.function = specs['processor']
+			self.function = adapter(specs['processor'])
 			self.public = specs.get('public', False)
 			self.functionality = specs.get('functionality')
 			self.init = specs.get('init')
 
-		async def setup(self, settings, db_pool):
-			if self.init is not None:
-				async with db_pool.connection() as db_conn:
-					await self.init(settings, db_conn)
+		#async def setup(self, settings, db_pool):
+		#	if self.init is not None:
+		#		async with db_pool.connection() as db_conn:
+		#			await self.init(settings, db_conn)
 
 
 	async def load_external_endpoints(self):
@@ -76,24 +76,33 @@ class Handler:
 
 		new_registry = http.Registry()
 		routing_destructor = operator.itemgetter('method', 'path')
-		for file_path, file_hash, specs_fnc in loaded_scripts:
 
-			try:
-				specs = specs_fnc()
-				method_and_path = routing_destructor(specs)
-				processor = Handler.Endpoint(specs)
+		async with self.db_pool.connection() as db_connection:
 
-				await processor.setup(self.settings, self.db_pool)
-				new_registry.add_endpoint(*method_and_path,
-					processor)
+			all_args = {
+				'settings': self.settings,
+				'db_connection': db_connection,
+				'parameters': self.parameters
+			}
 
-			except KeyError as e:
-				Logger.warning(f"Incomplete spec in '{file_path}': missing field {e}")
-				continue
+			for file_path, file_hash, specs_fnc in loaded_scripts:
 
-			except Exception as e:
-				Logger.warning(f"Unable to process specs from file '{file_path}': {e}")
-				continue
+				try:
+					wrapped_fnc = adapter(specs_fnc)
+					specs = await wrapped_fnc(all_args)
+
+					method_and_path = routing_destructor(specs)
+					processor = Handler.Endpoint(specs)
+					new_registry.add_endpoint(*method_and_path,
+						processor)
+
+				except KeyError as e:
+					Logger.warning(f"Incomplete spec in '{file_path}': missing field {e}")
+					continue
+
+				except Exception as e:
+					Logger.warning(f"Unable to process specs from file '{file_path}': {e}")
+					continue
 
 		return new_registry
 
@@ -107,15 +116,23 @@ class Handler:
 
 	async def register_builtin(self, registry):
 		routing_destructor = operator.itemgetter('method', 'path')
-		for file_path, file_hash, specs_fnc in self.builtin_scripts:
 
-			specs = specs_fnc()
-			method_and_path = routing_destructor(specs)
-			processor = Handler.Endpoint(specs)
+		async with self.db_pool.connection() as db_connection:
 
-			await processor.setup(self.settings, self.db_pool)
-			registry.add_endpoint(*method_and_path,
-				processor)
+			all_args = {
+				'settings': self.settings,
+				'db_connection': db_connection,
+				'parameters': self.parameters
+			}
+
+			for file_path, file_hash, specs_fnc in self.builtin_scripts:
+				wrapped_fnc = adapter(specs_fnc)
+				specs = await wrapped_fnc(all_args)
+
+				method_and_path = routing_destructor(specs)
+				processor = Handler.Endpoint(specs)
+				registry.add_endpoint(*method_and_path,
+					processor)
 
 	#-------------------------------------------------------------------------------
 

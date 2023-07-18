@@ -68,8 +68,8 @@ source ${LOCALIZATION_DIR}/${CHOSEN_LANG}.sh
 ADMIN_AUTH=$(./create_authentication.py ${ADMIN_LOGIN} ${ADMIN_PASSWORD})
 
 ADMIN_CLASS_CREATION="
-INSERT INTO pavao.class (name)
-VALUES ('${ADMINISTRATOR_GROUP}');
+INSERT INTO pavao.class (name, admin)
+VALUES ('${ADMINISTRATOR_GROUP}', TRUE);
 "
 
 SYSTEM_CREATION="
