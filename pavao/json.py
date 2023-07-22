@@ -185,7 +185,7 @@ def generatesJson(dispatchers=None, string=None, file=None):
 			payload = await fnc(*selected_args)
 			for predicate, blueprint in processed_dispatchers:
 				if predicate(response.status):
-					serialized = blueprint.serialize(payload)
+					serialized = str(blueprint.serialize(payload))
 					response.set_content('application/json', serialized.encode())
 					return
 

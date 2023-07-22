@@ -1,5 +1,6 @@
 
 import asyncio
+import asyncpg
 import argon2
 import pavao
 
@@ -16,20 +17,20 @@ add_user = """
 
 add_authentication = """
 
-INSERT INTO
-	pavao.authentication (
-		account,
-		hash,
-		active,
-		needs_change,
-		last_login)
+	INSERT INTO
+		pavao.authentication (
+			account,
+			hash,
+			active,
+			needs_change,
+			last_login)
 
-	VALUES (
-		$1,
-		$2,
-		TRUE,
-		FALSE,
-		CURRENT_TIMESTAMP);
+		VALUES (
+			$1,
+			$2,
+			TRUE,
+			FALSE,
+			CURRENT_TIMESTAMP);
 
 """
 
@@ -44,20 +45,39 @@ user_blueprint = """
 
 """
 
+user_id = "root integer"
+localized_messages = pavao.include('messages.ini')
+localization = pavao.Localization(localized_messages)
+
+@pavao.generatesJson(string=user_id)
 @pavao.acceptsJson(string=user_blueprint)
-async def process(parsed_json, response, db_connection):
+async def process(request, response, parsed_json, db_connection):
 	hashedPassword = argon2.PasswordHasher().hash(parsed_json['password'])
+	localizer = localization.create_localizer(request)
 
 	user_args = (
 		parsed_json['login'],
 		parsed_json['first_name'],
 		parsed_json.get('last_name'))
 
-	async with db_connection.transaction():
-		userId = await db_connection.fetchval(add_user, *user_args)
-		await db_connection.execute(add_authentication, userId, hashedPassword)
+	try:
+		async with db_connection.transaction():
+			userId = await db_connection.fetchval(add_user, *user_args)
+			await db_connection.execute(add_authentication, userId, hashedPassword)
+
+	except asyncpg.UniqueViolationError as e:
+		response.set_status(409)
+		return {"error": localizer.get_message("LOGIN_EXISTS")}
+
+	except asyncpg.PostgresError as e:
+		msg = f"Error creating user: {e}"
+		pavao.Logger.error(msg)
+
+		response.set_status(500)
+		return {"error": localizer.get_message("UNEXPECTED_ERROR")}
 
 	response.set_status(201)
+	return userId
 
 
 async def pavao_endpoint(db_connection, parameters):
