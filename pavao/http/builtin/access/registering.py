@@ -37,3 +37,10 @@ async def localize_functionality(functionality, db_connection, parameters):
 	await assert_admin_access(db_connection, func_name)
 	return func_name
 
+#-------------------------------------------------------------------------------
+
+def capitalize(text):
+	if text is None: return None
+	components = [comp.capitalize() for comp in text.strip().split()]
+	return " ".join(components)
+

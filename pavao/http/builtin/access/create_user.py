@@ -4,7 +4,7 @@ import asyncpg
 import argon2
 import pavao
 
-from access.registering import localize_functionality
+from access.registering import localize_functionality, capitalize
 
 add_user = """
 
@@ -56,9 +56,10 @@ async def process(request, response, parsed_json, db_connection):
 	localizer = localization.create_localizer(request)
 
 	user_args = (
-		parsed_json['login'],
-		parsed_json['first_name'],
-		parsed_json.get('last_name'))
+		parsed_json['login'].lower(),
+		capitalize(parsed_json['first_name']),
+		capitalize(parsed_json.get('last_name'))
+	)
 
 	try:
 		async with db_connection.transaction():

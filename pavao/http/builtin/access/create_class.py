@@ -1,14 +1,16 @@
 
 import asyncio
+import asyncpg
 import pavao
 
-from access.registering import localize_functionality
+from access.registering import localize_functionality, capitalize
 
 add_class = """
 
 	INSERT INTO
 		pavao.class (name, description)
-		VALUES ($1, $2);
+		VALUES ($1, $2)
+		RETURNING id;
 
 """
 
@@ -21,14 +23,35 @@ class_blueprint = """
 
 """
 
+class_id = "root integer"
+localized_messages = pavao.include('messages.ini')
+localization = pavao.Localization(localized_messages)
+
+@pavao.generatesJson(string=class_id)
 @pavao.acceptsJson(string=class_blueprint)
-async def process(parsed_json, response, db_connection):
-	query_args = (parsed_json['name'], parsed_json.get['description'])
+async def process(request, response, parsed_json, db_connection):
+	localizer = localization.create_localizer(request)
+	description = parsed_json.get('description')
+	description = description.strip() if description is not None else None
 
 	try:
-		classId = await db_connection.execute(add_authentication, *query_args)
+		classId = await db_connection.fetchval(add_class,
+			capitalize(parsed_json['name']),
+			description)
+
+	except asyncpg.UniqueViolationError as e:
+		response.set_status(409)
+		return {"error": localizer.get_message("CLASS_EXISTS")}
+
+	except asyncpg.PostgresError as e:
+		msg = f"Error creating class: {e}"
+		pavao.Logger.error(msg)
+
+		response.set_status(500)
+		return {"error": localizer.get_message("UNEXPECTED_ERROR")}
 
 	response.set_status(201)
+	return classId
 
 
 async def pavao_endpoint(db_connection, parameters):
