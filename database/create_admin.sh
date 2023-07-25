@@ -68,13 +68,21 @@ source ${LOCALIZATION_DIR}/${CHOSEN_LANG}.sh
 ADMIN_AUTH=$(./create_authentication.py ${ADMIN_LOGIN} ${ADMIN_PASSWORD})
 
 ADMIN_CLASS_CREATION="
-INSERT INTO pavao.class (name, admin)
-VALUES ('${ADMINISTRATOR_GROUP}', TRUE);
+INSERT INTO
+  pavao.class (name, admin)
+  VALUES ('${ADMINISTRATOR_GROUP}', TRUE);
 "
 
 SYSTEM_CREATION="
-INSERT INTO pavao.account (login, first_name)
-VALUES ('system', '${SYSTEM_USER}');
+INSERT INTO
+  pavao.account (login, first_name)
+  VALUES ('system', '${SYSTEM_USER}');
+"
+
+SET_LANGUAGE="
+INSERT INTO
+  pavao.parameters (name, type, value)
+  VALUES ('language', 'str', '$CHOSEN_LANG');
 "
 
 ADMIN_CREATION="
@@ -114,6 +122,7 @@ if [ "#$PGPASSWORD" = "#" ]; then
 fi
 
 psql -q --dbname $DB --username ${DB_LOGIN} --command "${SYSTEM_CREATION}"
+psql -q --dbname $DB --username ${DB_LOGIN} --command "${SET_LANGUAGE}"
 psql -q --dbname $DB --username ${DB_LOGIN} --command "${ADMIN_CLASS_CREATION}"
 psql -q --dbname $DB --username ${DB_LOGIN} --command "${ADMIN_CREATION}"
 psql -q --dbname $DB --username ${DB_LOGIN} --command "${ADMIN_ASSIGNMENT}"

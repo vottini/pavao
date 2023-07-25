@@ -3,19 +3,28 @@ import asyncio
 import pavao
 
 search_functionality = """
-	SELECT id FROM pavao.functionality
-	WHERE name = $1;
+
+	SELECT id
+		FROM pavao.functionality
+		WHERE name = $1;
+
 """
 
 insert_functionality = """
-	INSERT INTO pavao.functionality (name)
-	VALUES ($1) RETURNING id;
+
+	INSERT INTO
+		pavao.functionality (name)
+		VALUES ($1) RETURNING id;
+
 """
 
 insert_admin_access = """
-	INSERT INTO pavao.access (functionality, cls)
-	SELECT $1, cls.id FROM pavao.class cls
-		WHERE cls.admin;
+
+	INSERT INTO
+		pavao.access (functionality, cls)
+		SELECT $1, cls.id FROM pavao.class cls
+			WHERE cls.admin;
+
 """
 
 async def assert_admin_access(db_connection, func_name):

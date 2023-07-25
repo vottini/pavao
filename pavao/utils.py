@@ -115,13 +115,25 @@ class Localization:
 				sanedMsg = msg.strip('"')
 				return sanedMsg
 
+		# look for closest match if
+		# no exact language was found
+
+		for existing_language in self.languages.keys():
+			if languageId.startswith(existing_language):
+				source = self.languages[existing_language]
+				msg = source.get(sanedId)
+
+				if msg is not None:
+					sanedMsg = msg.strip('"')
+					return sanedMsg
+
 		msg = self.fallback.get(sanedId)
 		if msg is not None:
 			sanedMsg = msg.strip('"')
 			return sanedMsg
 
 		Logger.warning(f"Message id '{messageId}' not found")
-		return "<Unknown message>"
+		return "<Unknown>"
 
 #-------------------------------------------------------------------------------
 
