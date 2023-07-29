@@ -24,29 +24,12 @@ assignments_blueprint = """
 
 """
 
-localized_messages = pavao.include('messages.ini')
-localization = pavao.Localization(localized_messages)
-
 @pavao.generatesJson(string=assignments_blueprint)
 async def process(request, response, db_connection, path_variables):
-	localizer = localization.create_localizer(request)
-	raw_userId = path_variables['user']
-
-	try:
-		userId = int(raw_userId)
-		userData = await db_connection.fetchrow(find_user, userId)
-
-	except ValueError as e:
-		response.set_status(400)
-		return {'error': localizer.get_message("INVALID_USERID")}
-
-	if userData is None:
-		response.set_status(404)
-		return {'error': localizer.get_message("USER_INEXISTENT")}
+	userId = path_variables['user']
 
 	result = list()
-	accesses = await db_connection.fetch(list_assignments, userId)
-	for classId, className in accesses:
+	for classId, className in await db_connection.fetch(list_assignments, userId):
 		entry = {'id': classId, 'name': className}
 		result.append(entry)
 
@@ -59,7 +42,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'GET',
-		'path': '/access/assignments/{user}',
+		'path': '/access/assignments/{user:int}',
 		'functionality': func_name,
 		'processor': process
 	}
