@@ -2,14 +2,14 @@
 import asyncio
 import pavao
 
-from access.registering import localize_functionality
+from admin.common import localize_functionality
 
 list_accesses = """
 
 	SELECT cls.id, cls.name, func.id, func.name FROM pavao.access acs
 		INNER JOIN pavao.class cls ON acs.cls = cls.id 
 		INNER JOIN pavao.functionality func ON acs.functionality = func.id
-		WHERE cls.admin;
+		WHERE NOT cls.admin;
 
 """
 
@@ -53,7 +53,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'GET',
-		'path': '/access/accesses',
+		'path': '/admin/accesses',
 		'functionality': func_name,
 		'processor': process
 	}

@@ -3,7 +3,7 @@ import asyncio
 import asyncpg
 import pavao
 
-from access.registering import localize_functionality, capitalize
+from admin.common import localize_functionality, capitalize
 
 add_class = """
 
@@ -60,7 +60,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'POST',
-		'path': '/access/class',
+		'path': '/admin/classes',
 		'functionality': func_name,
 		'processor': process
 	}

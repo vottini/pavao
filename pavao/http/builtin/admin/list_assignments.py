@@ -2,16 +2,14 @@
 import asyncio
 import pavao
 
-from access.registering import localize_functionality
-
-find_user = "SELECT * FROM pavao.account WHERE id = $1"
+from admin.common import localize_functionality
 
 list_assignments = """
 
 	SELECT cls.id, cls.name FROM pavao.assignment assign 
 		INNER JOIN pavao.account acc ON assign.account = acc.id
 		INNER JOIN pavao.class cls ON assign.cls = cls.id
-		WHERE cls.admin AND acc.id = $1;
+		WHERE NOT cls.admin AND acc.id = $1;
 
 """
 
@@ -42,7 +40,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'GET',
-		'path': '/access/assignments/{user:int}',
+		'path': '/admin/assignments/{user:int}',
 		'functionality': func_name,
 		'processor': process
 	}

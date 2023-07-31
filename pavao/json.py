@@ -43,11 +43,17 @@ def acceptsJson(string=None, file=None):
 	blueprint = _load_blueprint(string, file)
 
 	def wrapper(fnc):
+		fnc_nargs = fnc.__code__.co_argcount
+		fnc_lvars = fnc.__code__.co_varnames
+		fnc_params = fnc_lvars[0:fnc_nargs]
+
 		@functools.wraps(fnc)
 		async def wrapped(
+			handler,
 			request,
 			path_variables,
 			db_connection,
+			auth_data,
 			response,
 			receive):
 
@@ -70,17 +76,15 @@ def acceptsJson(string=None, file=None):
 				return { 'error': str(outcome) }
 
 			all_args = {
+				'handler': handler,
 				'request': request,
 				'path_variables': path_variables,
 				'db_connection': db_connection,
+				'auth_data': auth_data,
 				'response': response,
 				'receive': receive,
 				'parsed_json': outcome
 			}
-
-			fnc_nargs = fnc.__code__.co_argcount
-			fnc_lvars = fnc.__code__.co_varnames
-			fnc_params = fnc_lvars[0:fnc_nargs]
 
 			selected_args = list()
 			for param_name in fnc_params:
@@ -158,25 +162,29 @@ def generatesJson(dispatchers=None, string=None, file=None):
 			raise PavaoException(msg)
 
 	def wrapper(fnc):
+		fnc_nargs = fnc.__code__.co_argcount
+		fnc_lvars = fnc.__code__.co_varnames
+		fnc_params = fnc_lvars[0:fnc_nargs]
+
 		@functools.wraps(fnc)
 		async def wrapped(
+			handler,
 			request,
 			path_variables,
 			db_connection,
+			auth_data,
 			response,
 			receive):
 
 			all_args = {
+				'handler': handler,
 				'request': request,
 				'path_variables': path_variables,
 				'db_connection': db_connection,
+				'auth_data': auth_data,
 				'response': response,
 				'receive': receive
 			}
-
-			fnc_nargs = fnc.__code__.co_argcount
-			fnc_lvars = fnc.__code__.co_varnames
-			fnc_params = fnc_lvars[0:fnc_nargs]
 
 			selected_args = list()
 			for param_name in fnc_params:

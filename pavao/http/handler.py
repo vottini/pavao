@@ -16,6 +16,17 @@ class HttpHandler:
 		self.authorizer = Authorizer()
 		self.registry = Registry()
 
+		self.arguments = [
+			'request',
+			'path_variables',
+			'db_connection',
+			'auth_data',
+			'response',
+			'receive'
+		]
+
+	def get_arguments(self):
+		return ['handler'] + self.arguments
 
 	def set_registry(self, registry):
 		self.registry = registry
@@ -53,16 +64,11 @@ class HttpHandler:
 
 			handler = endpoint.function
 			async with self.db_pool.connection() as db_connection:
+				all_args = {'handler': self}
 
-				all_args = {
-					'handler': self,
-					'request': request,
-					'path_variables': path_variables,
-					'db_connection': db_connection,
-					'auth_data': auth_data,
-					'response': response,
-					'receive': receive
-				}
+				for arg in self.arguments:
+					current_value = locals()[arg]
+					all_args[arg] = current_value
 
 				await handler(all_args)
 				await emit(response)

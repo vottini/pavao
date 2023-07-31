@@ -2,5 +2,5 @@
 
 export LANG_NAME="Italiano"
 export SYSTEM_USER="Sistema"
-export ADMINISTRATOR_GROUP="Ammininistratore"
+export ADMINISTRATOR_GROUP="Amministratore"
 

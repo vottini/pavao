@@ -3,7 +3,7 @@ import asyncio
 import asyncpg
 import pavao
 
-from access.registering import localize_functionality
+from admin.common import localize_functionality
 
 grant_query = """
 
@@ -42,18 +42,13 @@ classes_list = """
 
 @pavao.acceptsJson(string=classes_list)
 async def process(request, response, parsed_json, path_variables, db_connection):
-	raw_userId = path_variables['user']
+	userId = path_variables['user']
 	classes = parsed_json
 
-	try:
-		userId = int(raw_userId)
-		async with db_connection.transaction():
-			await db_connection.execute(grant_query, classes, userId)
-			await db_connection.execute(revoke_query, classes, userId)
-
-	except ValueError as e:
-		response.set_status(400)
-		return
+	userId = int(raw_userId)
+	async with db_connection.transaction():
+		await db_connection.execute(grant_query, classes, userId)
+		await db_connection.execute(revoke_query, classes, userId)
 
 
 async def pavao_endpoint(db_connection, parameters):
@@ -62,7 +57,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'PUT',
-		'path': '/access/assignments/{user}',
+		'path': '/admin/assignments/{user:int}',
 		'functionality': func_name,
 		'processor': process
 	}

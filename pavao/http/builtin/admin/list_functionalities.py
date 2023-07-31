@@ -2,7 +2,7 @@
 import asyncio
 import pavao
 
-from access.registering import localize_functionality
+from admin.common import localize_functionality
 list_functionalities = "SELECT name FROM pavao.functionality;"
 string_list = "root string[]"
 
@@ -19,7 +19,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'GET',
-		'path': '/access/functionalities',
+		'path': '/admin/functionalities',
 		'functionality': func_name,
 		'processor': process
 	}

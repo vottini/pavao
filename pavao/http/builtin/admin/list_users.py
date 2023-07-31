@@ -2,12 +2,20 @@
 import asyncio
 import pavao
 
-from access.registering import localize_functionality
-list_users = "SELECT login, first_name, last_name FROM pavao.account;"
+from admin.common import localize_functionality
+
+list_users = """
+
+  SELECT id, login, first_name, last_name
+    FROM pavao.account
+    WHERE NOT managerial;
+
+"""
 
 user_blueprint = """
 
   root {
+    id: integer,
     login: string,
     firstName: string,
     optional lastName: string
@@ -18,6 +26,7 @@ user_blueprint = """
 def mapUser(userData):
 
 	result = {
+		"id": userData['id'],
 		"login": userData['login'],
 		"firstName": userData['first_name']
 	}
@@ -41,7 +50,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'GET',
-		'path': '/access/users',
+		'path': '/admin/users',
 		'functionality': func_name,
 		'processor': process
 	}

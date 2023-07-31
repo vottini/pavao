@@ -6,8 +6,19 @@ import time
 from ..utils import include
 from .token import validateToken
 
-list_classes = include('queries/list_classes.sql')
 _bearer_pattern = re.compile(r"^Bearer (\S+)$")
+
+list_classes = """
+
+	SELECT
+		cls.id AS class_id,
+		func.name AS func_name
+
+		FROM pavao.access acs
+			INNER JOIN pavao.class cls ON acs.cls = cls.id 
+			INNER JOIN pavao.functionality func ON acs.functionality = func.id;
+
+"""
 
 class AuthData:
 	def __init__(self, login, token, expiration):

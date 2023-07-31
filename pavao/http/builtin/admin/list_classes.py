@@ -2,15 +2,22 @@
 import asyncio
 import pavao
 
-from access.registering import localize_functionality
-list_classes = "SELECT name, description, admin FROM pavao.class;"
+from admin.common import localize_functionality
+
+list_classes = """
+
+  SELECT id, name, description
+    FROM pavao.class
+    WHERE NOT admin;
+
+"""
 
 class_blueprint = """
 
   root {
+    id: integer,
     name: string,
-    optional description: string,
-    isAdmin: bool
+    optional description: string
   } []
 
 """
@@ -18,8 +25,8 @@ class_blueprint = """
 def mapClass(classData):
 
 	result = {
-		"name": classData['name'],
-		"isAdmin": classData['admin']
+		"id": classData['id'],
+		"name": classData['name']
 	}
 
 	description = classData['description']
@@ -41,7 +48,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'GET',
-		'path': '/access/classes',
+		'path': '/admin/classes',
 		'functionality': func_name,
 		'processor': process
 	}

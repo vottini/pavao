@@ -75,8 +75,8 @@ INSERT INTO
 
 SYSTEM_CREATION="
 INSERT INTO
-  pavao.account (login, first_name)
-  VALUES ('system', '${SYSTEM_USER}');
+  pavao.account (login, first_name, managerial)
+  VALUES ('system', '${SYSTEM_USER}', TRUE);
 "
 
 SET_LANGUAGE="
