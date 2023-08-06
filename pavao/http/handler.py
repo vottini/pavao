@@ -9,12 +9,38 @@ from .response import Response, emit
 from .authorizer import Authorizer
 from .registry import Registry
 
+_http_schema = {
+	"CORS": {
+		"origins": [str],
+		"headers": [str]
+	}
+}
+
+_enlist_value = lambda value : value if isinstance(value, list) else [value]
+_all_methods = ["GET", "POST", "PUT", "DELETE"]
+
+# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
+# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers
+# https://developer.mozilla.org/en-US/docs/Glossary/CORS-safelisted_request_header
+
+_cors_req_methods = 'access-control-request-method'
+_cors_req_headers = 'access-control-request-headers'
+_cors_allow_origin = 'access-control-allow-origin'
+_cors_allow_headers = 'access-control-allow-headers'
 
 class HttpHandler:
 	def __init__(self, db_pool):
 		self.db_pool = db_pool
 		self.authorizer = Authorizer()
 		self.registry = Registry()
+
+		self.cors_origins = list()
+		self.cors_headers = set([
+			'accept',
+			'accept-language',
+			'content-language',
+			'content-type',
+		])
 
 		self.arguments = [
 			'request',
@@ -31,8 +57,14 @@ class HttpHandler:
 	def set_registry(self, registry):
 		self.registry = registry
 
+	async def init(self, settings, registry):
+		http_settings = settings.getSetting("pavao.http", _http_schema)
 
-	async def init(self, registry):
+		if http_settings is not None:
+			cors_settings = http_settings.get('CORS', dict())
+			self.cors_headers.update(cors_settings.get('headers', list()))
+			self.cors_origins = cors_settings.get('origins', list())
+
 		self.set_registry(registry)
 		async with self.db_pool.connection() as db_connection:
 			await self.authorizer.setup(db_connection)
@@ -43,6 +75,53 @@ class HttpHandler:
 		try:
 			request = Request(scope)
 			response = Response(send)
+
+			if (sent_origin := request.headers.get('origin')) is not None:
+				for allowed_cors_origin in self.cors_origins:
+					if sent_origin == allowed_cors_origin:
+						response.add_header(_cors_allow_origin, sent_origin)
+						break
+
+			if request.method == "OPTIONS":
+				requested_methods = request.headers.get(_cors_req_methods)
+				requested_methods = _enlist_value(requested_methods or _all_methods)
+				found_methods = list()
+
+				for method in requested_methods:
+					found_endpoint = self.registry.find_endpoint(
+						method, request.path)
+
+					if found_endpoint is not None:
+						endpoint, path_variables = found_endpoint
+						has_access, _ = await self.authorizer.validate_access(
+							request, endpoint)
+
+						if has_access:
+							found_methods.append(method)
+
+				if 0 == len(found_methods):
+					response.set_status(404)
+					await emit(response)
+					return
+
+				joined_methods = ", ".join(found_methods)
+				response.add_header("allow", joined_methods)
+
+				requested_headers = request.headers.get(_cors_req_headers)
+				requested_headers = _enlist_value(requested_headers or list())
+
+				allowed_headers = ([
+					header for header in requested_headers
+						if header in self.cors_headers
+				])
+
+				if len(allowed_headers) > 0:
+					joined_headers = ", ".join(allowed_headers)
+					response.add_header(_cors_allow_headers,
+						joined_headers)
+
+				await emit(response)
+				return
 
 			found_endpoint = self.registry.find_endpoint(
 				request.method,

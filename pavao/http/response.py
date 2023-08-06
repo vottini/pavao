@@ -21,29 +21,32 @@ class Response:
 		self.cookies[cookie.get_identifier()] = cookie
 		return self
 
+	def add_header(self, header_name, header_value):
+		self.headers[header_name] = header_value
+		return self
+
 	def set_content(self, content_type, content):
 		self.content = content
-		self.content_type = content_type.encode()
-		self.content_length = len(content)
+		self.headers['content-type'] = content_type
+		self.headers['content-length'] = str(len(content))
 		return self
 
 
 async def emit(response):
-	headers = list()
-
-	if None != response.content_type:
-		headers.append((b'content-type', response.content_type))
-
-	if None != response.content_length:
-		headers.append((b'content-length', str(response.content_length)))
+	sent_headers = list()
+	for header_name, header_value in response.headers.items():
+		sent_headers.append((
+			header_name.encode(),
+			header_value.encode()
+		))
 
 	for cookie in response.cookies.values():
-		headers.append((b'set-cookie', str(cookie).encode()))
+		sent_headers.append((b'set-cookie', str(cookie).encode()))
 
 	await response.send_fnc({
 		'type': 'http.response.start',
 		'status': response.status,
-		'headers': headers
+		'headers': sent_headers
 	})
 
 	await response.send_fnc({

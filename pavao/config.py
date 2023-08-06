@@ -60,6 +60,7 @@ def processConfig(configured, entry, schema):
 			msg = f"List on schema ({entry}) needs to have only one element"
 			raise ConfigException(msg)
 
+		configured = configured if configured is not None else list()
 		if not isinstance(configured, list):
 			msg = f"'{entry}' needs to be a list"
 			raise ConfigException(msg)
