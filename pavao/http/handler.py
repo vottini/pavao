@@ -25,6 +25,9 @@ _all_methods = ["GET", "POST", "PUT", "DELETE"]
 
 _cors_req_methods = 'access-control-request-method'
 _cors_req_headers = 'access-control-request-headers'
+
+_cors_allow_methods = 'access-control-allow-methods'
+_cors_allow_credentials = 'access-control-allow-credentials'
 _cors_allow_origin = 'access-control-allow-origin'
 _cors_allow_headers = 'access-control-allow-headers'
 
@@ -40,6 +43,7 @@ class HttpHandler:
 			'accept-language',
 			'content-language',
 			'content-type',
+			'authorization',
 		])
 
 		self.arguments = [
@@ -80,6 +84,7 @@ class HttpHandler:
 				for allowed_cors_origin in self.cors_origins:
 					if sent_origin == allowed_cors_origin:
 						response.add_header(_cors_allow_origin, sent_origin)
+						response.add_header(_cors_allow_credentials, 'true')
 						break
 
 			if request.method == "OPTIONS":
@@ -92,12 +97,7 @@ class HttpHandler:
 						method, request.path)
 
 					if found_endpoint is not None:
-						endpoint, path_variables = found_endpoint
-						has_access, _ = await self.authorizer.validate_access(
-							request, endpoint)
-
-						if has_access:
-							found_methods.append(method)
+						found_methods.append(method)
 
 				if 0 == len(found_methods):
 					response.set_status(404)
@@ -105,7 +105,7 @@ class HttpHandler:
 					return
 
 				joined_methods = ", ".join(found_methods)
-				response.add_header("allow", joined_methods)
+				response.add_header(_cors_allow_methods, joined_methods)
 
 				requested_headers = request.headers.get(_cors_req_headers)
 				requested_headers = _enlist_value(requested_headers or list())
