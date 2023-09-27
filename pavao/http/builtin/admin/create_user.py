@@ -18,19 +18,8 @@ add_user = """
 add_authentication = """
 
 	INSERT INTO
-		pavao.authentication (
-			account,
-			hash,
-			active,
-			needs_change,
-			last_login)
-
-		VALUES (
-			$1,
-			$2,
-			TRUE,
-			FALSE,
-			CURRENT_TIMESTAMP);
+		pavao.authentication (account, hash, needs_change)
+		VALUES ($1, $2, FALSE);
 
 """
 

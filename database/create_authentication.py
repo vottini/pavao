@@ -16,16 +16,12 @@ INSERT INTO
 	pavao.authentication (
 		account,
 		hash,
-		active,
-		needs_change,
-		last_login)
+		needs_change)
 
 	SELECT
 		id,
 		'{passwordHash}',
-		TRUE,
-		FALSE,
-		CURRENT_TIMESTAMP
+		FALSE
 
 	FROM pavao.account
 	WHERE login = '{login}';

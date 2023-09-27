@@ -4,7 +4,9 @@ CREATE TABLE pavao.account (
   login           TEXT NOT NULL UNIQUE,
   first_name      TEXT NOT NULL,
   last_name       TEXT,
+  active          BOOLEAN DEFAULT TRUE,
   creation        TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  last_login      TIMESTAMP WITH TIME ZONE,
   managerial      BOOL DEFAULT FALSE
 );
 

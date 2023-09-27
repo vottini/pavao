@@ -14,6 +14,7 @@ insert_refresh = pavao.include('insert_refresh.sql')
 select_auth_from_login = pavao.include('select_auth_from_login.sql')
 select_classes_from_login = pavao.include('select_classes_from_login.sql')
 update_auth = pavao.include('update_auth.sql')
+touch_account = pavao.include('touch_account.sql')
 
 localized_messages = pavao.include('messages.ini')
 localization = pavao.Localization(localized_messages)
@@ -60,8 +61,8 @@ async def process(request, response, db_connection, parsed_json):
 	updatedHash = storedPassword
 	if hasher.check_needs_rehash(storedPassword):
 		updatedHash = hasher.hash(sentPassword)
-
-	await db_connection.execute(update_auth, authId, updatedHash)
+		await db_connection.execute(update_auth,
+			authId, updatedHash)
 
 	now = datetime.now(timezone.utc)
 	access_claims = credentials.create_claims(login, now,
@@ -91,6 +92,7 @@ async def process(request, response, db_connection, parsed_json):
 
 	access_token = pavao.http.generateToken(access_claims)
 	refresh_token = pavao.http.generateToken(refresh_claims)
+	await db_connection.execute(touch_account, login)
 
 	response.add_cookie(
 		pavao.http.Cookie('token', refresh_token)

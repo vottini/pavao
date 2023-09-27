@@ -72,7 +72,13 @@ class Authorizer:
 			if (subject, token_id) in self.blacklisted:
 				return False, None			
 
-			subject_classes = [ int(cls) for cls in tokenClaims['cls'].split(',') ]
+			classes = list(filter(
+				lambda x : len(x) > 0,
+				tokenClaims['cls'].split(',')))
+
+			subject_classes = ([ int(cls) for cls in classes ]
+				if len(classes) > 0
+				else list())
 
 			if endpoint.functionality is not None:
 				for cls in subject_classes:
