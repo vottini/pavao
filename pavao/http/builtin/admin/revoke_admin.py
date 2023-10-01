@@ -7,7 +7,7 @@ from admin.common import localize_functionality
 remove_admin = """
 
 	DELETE FROM pavao.assignment WHERE
-		cls in (SELECT id FROM pavao.class WHERE admin) AND
+		"role" in (SELECT id FROM pavao."role" WHERE admin) AND
 		account = $1;
 
 """

@@ -12,7 +12,7 @@ def valid_login(login):
 	found = _allowed_pattern.search(login)
 	return found is not None
 
-@pavao.generatesJson(string="root bool")
+@pavao.generatesJson(stringBlueprint="root bool")
 async def process(request, response, db_connection):
 	if not 'login' in request.params:
 		response.set_status(400)

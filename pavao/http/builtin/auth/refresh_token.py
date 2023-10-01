@@ -6,32 +6,31 @@ import hashlib
 import pavao
 import auth.credentials as credentials
 
-output_blueprint = pavao.include('output.jbp')
+find_refresh = pavao.include('queries/find_refresh.sql')
+select_roles_from_login = pavao.include('queries/select_roles_from_login.sql')
+remove_refresh = pavao.include('queries/remove_refresh.sql')
+insert_refresh = pavao.include('queries/insert_refresh.sql')
 
-find_refresh = pavao.include('find_refresh.sql')
-select_classes_from_login = pavao.include('select_classes_from_login.sql')
-remove_refresh = pavao.include('remove_refresh.sql')
-insert_refresh = pavao.include('insert_refresh.sql')
-
+blueprints = pavao.pathTo('blueprints.jbp')
 localized_messages = pavao.include('messages.ini')
 localization = pavao.Localization(localized_messages)
 
 #-------------------------------------------------------------------------------
 
-@pavao.generatesJson(string=output_blueprint)
+@pavao.generatesJson(fileBlueprint=blueprints, withRoot="tokenInfo")
 async def process(request, response, db_connection):
 	localizer = localization.create_localizer(request)
 	token = request.cookies.get('token')
 
 	if token is None:
 		response.set_status(400)
-		return {"error": localizer.get_message("MISSING_TOKEN")}
+		return localizer.create_error("MISSING_TOKEN")
 
 	refresh_claims = pavao.validateToken(token)
 
 	if refresh_claims is None:
 		response.set_status(400)
-		return {"error": localizer.get_message("INVALID_TOKEN")}
+		return localizer.create_error("INVALID_TOKEN")
 	
 	login = refresh_claims['sub']
 	refresh_hash = hashlib.md5(refresh_claims['jti'].encode()).digest().hex()
@@ -39,19 +38,19 @@ async def process(request, response, db_connection):
 
 	if found_refresh is None:
 		response.set_status(400)
-		return {"error": localizer.get_message("INVALID_TOKEN")}
+		return localizer.create_error("INVALID_TOKEN")
 
 	now = datetime.now(timezone.utc)
 	if found_refresh['expiration'] < now:
 		response.set_status(400)
-		return {"error": localizer.get_message("INVALID_TOKEN")}
+		return localizer.create_error("INVALID_TOKEN")
 
 	access_claims = credentials.create_claims(login, now,
 		credentials.access_validity)
 
-	classes = await db_connection.fetch(select_classes_from_login, login)
-	classes_ids = [ str(cls['id']) for cls in classes ]
-	access_claims['cls'] = ",".join(classes_ids)
+	roles = await db_connection.fetch(select_roles_from_login, login)
+	roles_ids = [ str(role['id']) for role in roles ]
+	access_claims['roles'] = ",".join(roles_ids)
 
 	refresh_claims = credentials.create_claims(login, now,
 		credentials.refresh_validity)

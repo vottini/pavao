@@ -1,7 +1,0 @@
-
-root {
-	token: string,
-	change_password: bool,
-	expires: integer
-}
-

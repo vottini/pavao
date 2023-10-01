@@ -27,7 +27,7 @@ accesses_blueprint = """
 
 """
 
-@pavao.generatesJson(string=accesses_blueprint)
+@pavao.generatesJson(stringBlueprint=accesses_blueprint)
 async def process(request, db_connection):
 	accesses = await db_connection.fetch(list_accesses)
 	classes = dict()

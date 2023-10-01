@@ -9,8 +9,8 @@ list_admins = """
   SELECT acc.id, acc.first_name, acc.last_name, acc.login = $1 AS my_account
     FROM pavao.assignment assig
       INNER JOIN pavao.account acc ON assig.account = acc.id
-      INNER JOIN pavao.class cls ON assig.cls = cls.id 
-    WHERE cls.admin;
+      INNER JOIN pavao."role" rl ON assig."role" = rl.id 
+    WHERE rl.admin;
 
 """
 

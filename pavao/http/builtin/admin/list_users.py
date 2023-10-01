@@ -38,7 +38,7 @@ def mapUser(userData):
 	return result
 
 
-@pavao.generatesJson(string=user_blueprint)
+@pavao.generatesJson(stringBlueprint=user_blueprint)
 async def process(request, response, db_connection):
 	result = await db_connection.fetch(list_users)
 	return [ mapUser(row) for row in result ]

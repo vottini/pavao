@@ -1,0 +1,12 @@
+
+node credentials {
+	login: string (minLength=2, maxLength=128),
+	password: string (minLength=8, maxLength=128)
+}
+
+node tokenInfo {
+	token: string,
+	change_password: bool,
+	expires: integer
+}
+

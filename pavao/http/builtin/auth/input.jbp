@@ -1,6 +1,0 @@
-
-root {
-	login: string (minLength=2, maxLength=128),
-	password: string (minLength=8, maxLength=128)
-}
-

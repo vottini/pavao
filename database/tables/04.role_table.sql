@@ -1,5 +1,5 @@
 
-CREATE TABLE pavao.class (
+CREATE TABLE pavao."role" (
   id              INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
   name            TEXT NOT NULL UNIQUE,
   description     TEXT,

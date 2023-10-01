@@ -19,7 +19,7 @@ _user_info_blueprint = """
 
 """
 
-@pavao.generatesJson(string=_user_info_blueprint)
+@pavao.generatesJson(stringBlueprint=_user_info_blueprint)
 async def process(db_connection, auth_data):
 	retrieved = await db_connection.fetchrow(_select_user,
 		auth_data.login)

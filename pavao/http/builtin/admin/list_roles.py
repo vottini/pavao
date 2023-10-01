@@ -4,15 +4,15 @@ import pavao
 
 from admin.common import localize_functionality
 
-list_classes = """
+list_roles = """
 
   SELECT id, name, description
-    FROM pavao.class
+    FROM pavao."role"
     WHERE NOT admin;
 
 """
 
-class_blueprint = """
+role_blueprint = """
 
   root {
     id: integer,
@@ -36,19 +36,19 @@ def mapClass(classData):
 	return result
 
 
-@pavao.generatesJson(string=class_blueprint)
+@pavao.generatesJson(stringBlueprint=role_blueprint)
 async def process(request, db_connection):
-	result = await db_connection.fetch(list_classes)
+	result = await db_connection.fetch(list_roles)
 	return [ mapClass(row) for row in result ]
 
 
 async def pavao_endpoint(db_connection, parameters):
-	func_name = await localize_functionality("LIST_CLASSES",
+	func_name = await localize_functionality("LIST_ROLES",
 		db_connection, parameters)
 
 	return {
 		'method': 'GET',
-		'path': '/admin/classes',
+		'path': '/admin/roles',
 		'functionality': func_name,
 		'processor': process
 	}

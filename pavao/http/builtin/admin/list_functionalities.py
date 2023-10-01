@@ -7,7 +7,7 @@ list_functionalities = "SELECT name FROM pavao.functionality;"
 string_list = "root string[]"
 
 
-@pavao.generatesJson(string=string_list)
+@pavao.generatesJson(stringBlueprint=string_list)
 async def process(request, response, db_connection):
 	result = await db_connection.fetch(list_functionalities)
 	return [ row[0] for row in result ]

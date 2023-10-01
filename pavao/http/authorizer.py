@@ -8,14 +8,14 @@ from .token import validateToken
 
 _bearer_pattern = re.compile(r"^Bearer (\S+)$")
 
-list_classes = """
+list_roles = """
 
 	SELECT
-		cls.id AS class_id,
+		rl.id AS role_id,
 		func.name AS func_name
 
 		FROM pavao.access acs
-			INNER JOIN pavao.class cls ON acs.cls = cls.id 
+			INNER JOIN pavao."role" rl ON acs."role" = rl.id 
 			INNER JOIN pavao.functionality func ON acs.functionality = func.id;
 
 """
@@ -29,18 +29,18 @@ class AuthData:
 
 class Authorizer:
 	def __init__(self):
-		self.class_access = dict()
+		self.roles_access = dict()
 		self.users_modification = dict()
 		self.blacklisted = dict()
 
 
 	async def setup(self, db_conn):
-		accesses = await db_conn.fetch(list_classes)
+		accesses = await db_conn.fetch(list_roles)
 
-		for class_id, functionality in accesses:
-			func_set = self.class_access.get(class_id, set())
+		for role_id, functionality in accesses:
+			func_set = self.roles_access.get(role_id, set())
 			func_set.add(functionality)
-			self.class_access[class_id] = func_set
+			self.roles_access[role_id] = func_set
 
 
 	def blacklist(self, auth_data):
@@ -72,17 +72,17 @@ class Authorizer:
 			if (subject, token_id) in self.blacklisted:
 				return False, None			
 
-			classes = list(filter(
+			roles = list(filter(
 				lambda x : len(x) > 0,
-				tokenClaims['cls'].split(',')))
+				tokenClaims['roles'].split(',')))
 
-			subject_classes = ([ int(cls) for cls in classes ]
-				if len(classes) > 0
+			subject_roles = ([ int(role) for role in roles ]
+				if len(roles) > 0
 				else list())
 
 			if endpoint.functionality is not None:
-				for cls in subject_classes:
-					accesses = self.class_access.get(cls)
+				for role in subject_roles:
+					accesses = self.roles_access.get(role)
 					if accesses is not None and endpoint.functionality in accesses:
 						break
 

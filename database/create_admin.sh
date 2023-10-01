@@ -67,9 +67,9 @@ echo ""
 source ${LOCALIZATION_DIR}/${CHOSEN_LANG}.sh
 ADMIN_AUTH=$(./create_authentication.py ${ADMIN_LOGIN} ${ADMIN_PASSWORD})
 
-ADMIN_CLASS_CREATION="
+ADMIN_ROLE_CREATION="
 INSERT INTO
-  pavao.class (name, admin)
+  pavao.\"role\" (name, admin)
   VALUES ('${ADMINISTRATOR_GROUP}', TRUE);
 "
 
@@ -98,32 +98,32 @@ INSERT INTO
 		'${LAST_NAME}');
 "
 
-ADMIN_ASSIGNMENT="
+ADMIN_ASSIGNMENT="""
 INSERT INTO
-  pavao.assignment (account, cls)
+  pavao.assignment (account, \"role\")
 
   SELECT 
     acc.id,
-    cls.id
+    rl.id
 
   FROM
     pavao.account acc CROSS JOIN
-    pavao.class cls
+    pavao.\"role\" rl
 
   WHERE
     acc.login = '${ADMIN_LOGIN}' AND
-    cls.name = '${ADMINISTRATOR_GROUP}';
+    rl.name = '${ADMINISTRATOR_GROUP}';
 "
 
 PGPASSWORD=${DATABASE_PASSWORD}
 if [ "#$PGPASSWORD" = "#" ]; then
-	read -s -p "Type the password for role '${DB_LOGIN}': " PGPASSWORD
+	read -s -p "Type the password for database role '${DB_LOGIN}': " PGPASSWORD
 	echo ""
 fi
 
 psql -q --dbname $DB --username ${DB_LOGIN} --command "${SYSTEM_CREATION}"
 psql -q --dbname $DB --username ${DB_LOGIN} --command "${SET_LANGUAGE}"
-psql -q --dbname $DB --username ${DB_LOGIN} --command "${ADMIN_CLASS_CREATION}"
+psql -q --dbname $DB --username ${DB_LOGIN} --command "${ADMIN_ROLE_CREATION}"
 psql -q --dbname $DB --username ${DB_LOGIN} --command "${ADMIN_CREATION}"
 psql -q --dbname $DB --username ${DB_LOGIN} --command "${ADMIN_ASSIGNMENT}"
 psql -q --dbname $DB --username ${DB_LOGIN} --command "${ADMIN_AUTH}"

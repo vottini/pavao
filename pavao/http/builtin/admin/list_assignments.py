@@ -6,10 +6,10 @@ from admin.common import localize_functionality
 
 list_assignments = """
 
-	SELECT cls.id, cls.name FROM pavao.assignment assign 
+	SELECT rl.id, rl.name FROM pavao.assignment assign 
 		INNER JOIN pavao.account acc ON assign.account = acc.id
-		INNER JOIN pavao.class cls ON assign.cls = cls.id
-		WHERE NOT cls.admin AND acc.id = $1;
+		INNER JOIN pavao."role" rl ON assign."role" = rl.id
+		WHERE NOT rl.admin AND acc.id = $1;
 
 """
 
@@ -22,7 +22,7 @@ assignments_blueprint = """
 
 """
 
-@pavao.generatesJson(string=assignments_blueprint)
+@pavao.generatesJson(stringBlueprint=assignments_blueprint)
 async def process(request, response, db_connection, path_variables):
 	userId = path_variables['user']
 

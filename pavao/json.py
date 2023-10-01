@@ -1,17 +1,20 @@
 
 import asyncio
 import functools
+from datetime import datetime, timezone
 import jsonbp
 
 from .logger import Logger
 from .exception import PavaoException
+from .mapper import convert_to_object
 from . import predicates
 
 error_blueprint = '''
 
 root {
 	error: string,
-	optional description: string
+	description: string,
+	timestamp: instant
 }
 
 '''
@@ -24,7 +27,7 @@ _valid_content_types = (
 )
 
 
-def _load_blueprint(string, file):
+def _load_blueprint(string, file, root=None):
 	arguments = (string, file)
 	if all(value is None for value in arguments):
 		msg = "Either 'string' or 'file' parameters must be specified"
@@ -34,13 +37,23 @@ def _load_blueprint(string, file):
 		msg = "Both 'string' and 'file' parameters were specified, using 'string'"
 		Logger.warning(msg)
 
-	return (
+	loaded = (
 		jsonbp.loadFile(file) if string is None else
 		jsonbp.loadString(string))
 
+	return (loaded if root is None
+		else loaded.chooseRoot(root))
 
-def acceptsJson(string=None, file=None):
-	blueprint = _load_blueprint(string, file)
+
+def acceptsJson(
+	stringBlueprint=None,
+	fileBlueprint=None,
+	withRoot=None):
+
+	blueprint = _load_blueprint(
+		stringBlueprint,
+		fileBlueprint,
+		withRoot)
 
 	def wrapper(fnc):
 		fnc_nargs = fnc.__code__.co_argcount
@@ -60,7 +73,12 @@ def acceptsJson(string=None, file=None):
 			content_type = request.headers.get('content-type')
 			if content_type is None or content_type not in _valid_content_types:
 				response.set_status(400)
-				return { 'error': 'Bad content type'}
+
+				return {
+					'error': "BAD_REQUEST",
+					'description': 'Bad content type',
+					'timestamp': datetime.now(timezone.utc)
+				}
 
 			received = await receive()
 			payload = received['body']
@@ -73,7 +91,12 @@ def acceptsJson(string=None, file=None):
 
 			if not success:
 				response.set_status(400)
-				return { 'error': str(outcome) }
+
+				return {
+					'error': "BAD_REQUEST",
+					'description': str(outcome),
+					'timestamp': datetime.now(timezone.utc)
+				}
 
 			all_args = {
 				'handler': handler,
@@ -83,7 +106,7 @@ def acceptsJson(string=None, file=None):
 				'auth_data': auth_data,
 				'response': response,
 				'receive': receive,
-				'parsed_json': outcome
+				'parsed_json': convert_to_object(outcome)
 			}
 
 			selected_args = list()
@@ -113,11 +136,16 @@ def _warn_unused(container, used, candidates):
 			pavao.Logger.warning(msg)
 
 
-def generatesJson(dispatchers=None, string=None, file=None):
+def generatesJson(
+	dispatchers=None,
+	stringBlueprint=None,
+	fileBlueprint=None,
+	withRoot=None):
+
 	processed_dispatchers = list()
 
 	if dispatchers is None:
-		blueprint = _load_blueprint(string, file)
+		blueprint = _load_blueprint(stringBlueprint, fileBlueprint, withRoot)
 		processed_dispatchers.append((predicates.status_non_error, blueprint))
 		processed_dispatchers.append((predicates.status_error, _error_bp))
 

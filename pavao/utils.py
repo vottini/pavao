@@ -3,6 +3,7 @@ import sys
 import asyncio
 import inspect
 import configparser
+from datetime import datetime, timezone
 import os
 import re
 
@@ -13,6 +14,13 @@ _quality_matcher = re.compile(r'^q=(1|0.[0-9]{1,3})$')
 _any_language = '*'
 
 #-------------------------------------------------------------------------------
+
+def pathTo(filename):
+	callerFrame = inspect.stack()[1]
+	callerPath = os.path.abspath(callerFrame.filename)
+	callerDir = os.path.dirname(callerPath)
+	return os.path.join(callerDir, filename)
+
 
 def include(filename):
 	callerFrame = inspect.stack()[1]
@@ -49,6 +57,7 @@ class Localization:
 		def __init__(self, sources):
 			self.sources = sources
 
+
 		def get_message(self, messageId):
 			sanedId = messageId.lower()
 
@@ -61,6 +70,16 @@ class Localization:
 
 			Logger.warning(f"Message id '{messageId}' not found")
 			return "<Unknown message>"
+
+
+		def create_error(self, messageId):
+			desc = self.get_message(messageId)
+
+			return {
+				"error": messageId,
+				"description": desc,
+				"timestamp": datetime.now(timezone.utc)
+			}
 
 
 	# see more on
@@ -161,6 +180,7 @@ def adapter(fnc):
 #-------------------------------------------------------------------------------
 
 __all__ = [
+	"pathTo",
 	"include",
 	"Localization",
 	"adapter"

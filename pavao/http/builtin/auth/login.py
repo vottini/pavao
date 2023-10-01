@@ -7,26 +7,24 @@ import hashlib
 import pavao
 import auth.credentials as credentials
 
-input_blueprint = pavao.include('input.jbp')
-output_blueprint = pavao.include('output.jbp')
+insert_refresh = pavao.include('queries/insert_refresh.sql')
+select_auth_from_login = pavao.include('queries/select_auth_from_login.sql')
+select_roles_from_login = pavao.include('queries/select_roles_from_login.sql')
+update_auth = pavao.include('queries/update_auth.sql')
+touch_account = pavao.include('queries/touch_account.sql')
 
-insert_refresh = pavao.include('insert_refresh.sql')
-select_auth_from_login = pavao.include('select_auth_from_login.sql')
-select_classes_from_login = pavao.include('select_classes_from_login.sql')
-update_auth = pavao.include('update_auth.sql')
-touch_account = pavao.include('touch_account.sql')
-
+blueprints = pavao.pathTo('blueprints.jbp')
 localized_messages = pavao.include('messages.ini')
 localization = pavao.Localization(localized_messages)
 
 #-------------------------------------------------------------------------------
 
-@pavao.generatesJson(string=output_blueprint)
-@pavao.acceptsJson(string=input_blueprint)
+@pavao.generatesJson(fileBlueprint=blueprints, withRoot="tokenInfo")
+@pavao.acceptsJson(fileBlueprint=blueprints, withRoot="credentials")
 async def process(request, response, db_connection, parsed_json):
 	localizer = localization.create_localizer(request)
 
-	login = parsed_json['login']
+	login = parsed_json.login
 	row = await db_connection.fetchrow(
 		select_auth_from_login,
 		login)
@@ -34,29 +32,29 @@ async def process(request, response, db_connection, parsed_json):
 	if row is None:
 		await asyncio.sleep(3)
 		response.set_status(401)
-		return {"error": localizer.get_message("INVALID_CREDENTIALS")}
+		return localizer.create_error("INVALID_CREDENTIALS")
 
 	authId, active, storedPassword, changePassword = row
 
 	if not active:
 		response.set_status(401)
-		return {"error": localizer.get_message("DISABLED_USER")}
+		return localizer.create_error("DISABLED_USER")
 
 	try:
 		hasher = argon2.PasswordHasher()
-		sentPassword = parsed_json['password']
+		sentPassword = parsed_json.password
 		hasher.verify(storedPassword, sentPassword)
 
 	except argon2.exceptions.VerifyMismatchError:
 		await asyncio.sleep(3)
 		response.set_status(401)
-		return {"error": localizer.get_message("INVALID_CREDENTIALS")}
+		return localizer.create_error("INVALID_CREDENTIALS")
 
 	except Exception as e:
 		msg = f"Error authenticating user '{login}': {e}"
 		pavao.Logger.error(msg)
 		response.set_status(500)
-		return {"error": localizer.get_message("INTERNAL_ERROR")}
+		return localizer.create_error("INTERNAL_ERROR")
 
 	updatedHash = storedPassword
 	if hasher.check_needs_rehash(storedPassword):
@@ -69,7 +67,7 @@ async def process(request, response, db_connection, parsed_json):
 		credentials.access_validity)
 
 	if changePassword:
-		access_claims['cls'] = ""
+		access_claims['roles'] = ""
 		access_token = pavao.http.generateToken(access_claims)
 
 		return {
@@ -78,9 +76,9 @@ async def process(request, response, db_connection, parsed_json):
 			"expires": access_claims['exp']
 		}
 
-	classes = await db_connection.fetch(select_classes_from_login, login)
-	classes_ids = [ str(cls['id']) for cls in classes ]
-	access_claims['cls'] = ",".join(classes_ids)
+	roles = await db_connection.fetch(select_roles_from_login, login)
+	roles_ids = [ str(role['id']) for role in roles ]
+	access_claims['roles'] = ",".join(roles_ids)
 
 	refresh_claims = credentials.create_claims(login, now,
 		credentials.refresh_validity)

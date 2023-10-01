@@ -2,7 +2,7 @@
 import asyncio
 import pavao
 
-delete_refresh = pavao.include('delete_refresh.sql')
+delete_refresh = pavao.include('queries/delete_refresh.sql')
 
 async def process(handler, response, db_connection, auth_data):
 	handler.authorizer.blacklist(auth_data)

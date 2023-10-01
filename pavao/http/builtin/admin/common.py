@@ -21,9 +21,9 @@ insert_functionality = """
 insert_admin_access = """
 
 	INSERT INTO
-		pavao.access (functionality, cls)
-		SELECT $1, cls.id FROM pavao.class cls
-			WHERE cls.admin;
+		pavao.access (functionality, "role")
+		SELECT $1, rl.id FROM pavao."role" rl
+			WHERE rl.admin;
 
 """
 

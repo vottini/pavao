@@ -23,13 +23,13 @@ add_authentication = """
 
 """
 
-user_blueprint = """
+credentials_blueprint = """
 
 	root {
-		login: string(minLength=5),
+		login: string(minLength=5, format="^[a-z][a-z0-9]*(?:.[a-z0-9]+)?$"),
 		password: string(minLength=8),
-		first_name: string(minLength=1),
-		optional last_name: string(minLength=1)
+		firstName: string(minLength=1),
+		optional lastName: string(minLength=1)
 	}
 
 """
@@ -38,16 +38,18 @@ user_id = "root integer"
 localized_messages = pavao.include('messages.ini')
 localization = pavao.Localization(localized_messages)
 
-@pavao.generatesJson(string=user_id)
-@pavao.acceptsJson(string=user_blueprint)
-async def process(request, response, parsed_json, db_connection):
-	hashedPassword = argon2.PasswordHasher().hash(parsed_json['password'])
+@pavao.generatesJson(stringBlueprint=user_id)
+@pavao.acceptsJson(stringBlueprint=credentials_blueprint)
+async def process(request, response, db_connection, parsed_json):
+	hashedPassword = argon2.PasswordHasher().hash(parsed_json.password)
 	localizer = localization.create_localizer(request)
 
 	user_args = (
-		parsed_json['login'].lower(),
-		capitalize(parsed_json['first_name']),
-		capitalize(parsed_json.get('last_name'))
+		parsed_json.login.lower(),
+		capitalize(parsed_json.firstName),
+		(capitalize(parsed_json.lastName)
+			if pavao.has_optional_field(parsed_json, 'lastName')
+			else None)
 	)
 
 	try:
@@ -57,14 +59,13 @@ async def process(request, response, parsed_json, db_connection):
 
 	except asyncpg.UniqueViolationError as e:
 		response.set_status(409)
-		return {"error": localizer.get_message("LOGIN_EXISTS")}
+		return localizer.create_message("LOGIN_EXISTS")
 
 	except asyncpg.PostgresError as e:
-		msg = f"Error creating user: {e}"
-		pavao.Logger.error(msg)
-
+		pavao.Logger.error(f"Error creating user: {e}")
 		response.set_status(500)
-		return {"error": localizer.get_message("UNEXPECTED_ERROR")}
+
+		return localizer.create_message("UNEXPECTED_ERROR")
 
 	response.set_status(201)
 	return userId
