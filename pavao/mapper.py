@@ -101,12 +101,47 @@ def convert_to_object(value):
 
 	return value
 
+
+def assemble_dicts(*base, **named):
+	result = dict()
+
+	for entry in base:
+		for key, value in entry.items():
+			if value is not None:
+				result[key] = value
+
+	for field, entry in named.items():
+		if isinstance(entry, list):
+			scoped = list()
+
+			for item in entry:
+				assembled = assemble_dicts(item)
+				scoped.append(assembled)
+
+			result[field] = scoped
+
+		elif isinstance(entry, dict):
+			scoped = dict()
+
+			for key, value in entry.items():
+				if value is not None:
+					scoped[key] = value
+
+			result[field] = scoped
+
+		else:
+			result[field] = entry
+
+	mapped = translate_case(result, Case.CAMEL)
+	return mapped
+
 #-------------------------------------------------------------------------------
 
 __all__ = [
 	"Case",
 	"translate_case",
 	"convert_to_object",
-	"has_optional_field"
+	"has_optional_field",
+	"assemble_dicts"
 ]
 

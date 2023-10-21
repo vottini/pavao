@@ -88,21 +88,21 @@ class EndpointNode:
 		self.endpoints = dict()
 
 
-	def add_leaf(self, method, url_tokens, handler):
+	def add_leaf(self, method, url_tokens, endpoint_data):
 
 		if len(url_tokens) == 0:
 			if method in self.endpoints:
 				msg = "Endpoint already registered"
 				raise EndpointException(msg)
 
-			self.endpoints[method] = handler
+			self.endpoints[method] = endpoint_data
 			return
 
 		current_token, *remaining_tokens = url_tokens
 		destination_children = self.raw_children
 		new_arc = RawArc(current_token)
 
-		if 	(capture_match := _capture_pattern.search(current_token)) is not None:
+		if (capture_match := _capture_pattern.search(current_token)) is not None:
 			current_token = capture_match.group(1)
 			transform = _identity
 
@@ -123,10 +123,10 @@ class EndpointNode:
 		if None != existing_arc:
 			existing_node = existing_arc.node
 			return existing_node.add_leaf(method, remaining_tokens,
-				handler)
+				endpoint_data)
 
 		new_node = EndpointNode(self)
-		new_node.add_leaf(method, remaining_tokens, handler)
+		new_node.add_leaf(method, remaining_tokens, endpoint_data)
 		insert_sorted(destination_children, new_arc)
 		new_arc.set_node(new_node)
 
@@ -168,7 +168,7 @@ class Registry:
 		self.max_depth = max_depth
 
 
-	def add_endpoint(self, method, path, handler):
+	def add_endpoint(self, method, path, endpoint_data):
 		raw_tokens = path.strip("/").split("/")
 		valid_tokens = tuple(filter(_not_empty, raw_tokens))
 
@@ -179,7 +179,7 @@ class Registry:
 		self.root.add_leaf(
 			method,
 			valid_tokens,
-			handler
+			endpoint_data
 		)
 
 

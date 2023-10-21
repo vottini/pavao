@@ -17,7 +17,7 @@ _http_schema = {
 }
 
 _enlist_value = lambda value : value if isinstance(value, list) else [value]
-_all_methods = ["GET", "POST", "PUT", "DELETE"]
+_all_methods = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
 # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers
@@ -155,7 +155,6 @@ class HttpHandler:
 		except Exception as e:
 			Logger.error(f"Error processing request: {e}")
 			print(traceback.format_exc())
-
 			response.set_status(500)
 			await emit(response)
 

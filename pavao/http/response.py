@@ -9,9 +9,7 @@ class Response:
 		self.status = 200
 		self.headers = dict()
 		self.cookies = dict()
-		self.content_type = None
-		self.content_length = None
-		self.content = None
+		self.content = b""
 
 	def set_status(self, status):
 		self.status = status

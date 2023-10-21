@@ -58,17 +58,12 @@ class Handler:
 
 	#-------------------------------------------------------------------------------
 
-	class Endpoint:
+	class EndpointData:
 		def __init__(self, specs):
 			self.function = adapter(specs['processor'])
-			self.public = specs.get('public', False)
+			self.package = specs.get('package')
 			self.functionality = specs.get('functionality')
-			self.init = specs.get('init')
-
-		#async def setup(self, settings, db_pool):
-		#	if self.init is not None:
-		#		async with db_pool.connection() as db_conn:
-		#			await self.init(settings, db_conn)
+			self.public = specs.get('public', False)
 
 
 	async def load_external_endpoints(self):
@@ -91,19 +86,20 @@ class Handler:
 
 				try:
 					wrapped_fnc = adapter(specs_fnc)
-					specs = await wrapped_fnc(all_args)
+					endpoint_specs = await wrapped_fnc(all_args)
 
-					method_and_path = routing_destructor(specs)
-					processor = Handler.Endpoint(specs)
-					new_registry.add_endpoint(*method_and_path,
-						processor)
+					method, path = routing_destructor(endpoint_specs)
+					new_registry.add_endpoint(method, path,
+						Handler.EndpointData(endpoint_specs))
 
 				except KeyError as e:
-					Logger.warning(f"Incomplete spec in '{file_path}': missing field {e}")
+					msg = f"Incomplete spec in '{file_path}': missing field {e}"
+					Logger.warning(msg)
 					continue
 
 				except Exception as e:
-					Logger.warning(f"Unable to process specs from file '{file_path}': {e}")
+					msg = f"Unable to process specs from file '{file_path}': {e}"
+					Logger.warning(msg)
 					continue
 
 		return new_registry
@@ -131,10 +127,9 @@ class Handler:
 				wrapped_fnc = adapter(specs_fnc)
 				specs = await wrapped_fnc(all_args)
 
-				method_and_path = routing_destructor(specs)
-				processor = Handler.Endpoint(specs)
-				registry.add_endpoint(*method_and_path,
-					processor)
+				method, path = routing_destructor(specs)
+				registry.add_endpoint(method, path,
+					Handler.EndpointData(specs))
 
 	#-------------------------------------------------------------------------------
 

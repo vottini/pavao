@@ -33,7 +33,7 @@ revoke_query = """
 
 functionalities_list = """
 
-	root string (minLength=2) []
+	root string[]
 
 """
 

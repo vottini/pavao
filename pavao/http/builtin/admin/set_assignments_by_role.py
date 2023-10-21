@@ -8,12 +8,11 @@ from admin.common import localize_functionality
 grant_query = """
 
 	WITH to_add AS (
-		SELECT rl.id FROM pavao."role" rl
-			WHERE rl.id = any($1::INTEGER[]) AND
-			NOT rl.admin
+		SELECT acc.id FROM pavao.account acc
+			WHERE acc.id = any($1::INTEGER[])
 	)
 	
-	INSERT INTO pavao.assignment ("role", account)
+	INSERT INTO pavao.assignment (account, "role")
 		SELECT collected.id, $2 FROM to_add collected
 		ON CONFLICT DO NOTHING;
 
@@ -22,33 +21,31 @@ grant_query = """
 revoke_query = """
 
 	WITH to_remove AS (
-		SELECT rl.id FROM pavao."role" rl
-			WHERE NOT rl.id = any($1::INTEGER[]) AND
-			NOT rl.admin
+		SELECT acc.id FROM pavao.account acc
+			WHERE NOT acc.id = any($1::INTEGER[])
 	)
 
 	DELETE FROM pavao.assignment assign WHERE
-		assign."role" IN (SELECT id FROM to_remove) AND
-		assign.account = $2;
+		assign.account IN (SELECT id FROM to_remove) AND
+		assign."role" = $2;
 
 """
 
-roles_list = """
+user_list = """
 
 	root integer[]
 
 """
 
 
-@pavao.acceptsJson(stringBlueprint=roles_list)
+@pavao.acceptsJson(stringBlueprint=user_list)
 async def process(request, response, parsed_json, path_variables, db_connection):
-	userId = path_variables['user']
-	roles = parsed_json
+	role_id = path_variables['role']
+	users = parsed_json
 
-	userId = int(raw_userId)
 	async with db_connection.transaction():
-		await db_connection.execute(grant_query, roles, userId)
-		await db_connection.execute(revoke_query, roles, userId)
+		await db_connection.execute(grant_query, users, role_id)
+		await db_connection.execute(revoke_query, users, role_id)
 
 
 async def pavao_endpoint(db_connection, parameters):
@@ -57,7 +54,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'PUT',
-		'path': '/admin/assignments/{user:int}',
+		'path': '/admin/assignments/role/{role:int}',
 		'functionality': func_name,
 		'processor': process
 	}

@@ -168,10 +168,7 @@ def adapter(fnc):
 	isAwaitable = inspect.iscoroutinefunction(fnc)
 
 	async def wrapped_call(variables):
-		selected_args = list()
-		for param in utilized_params:
-			selected_args.append(variables[param])
-
+		selected_args = [ variables[param] for param in utilized_params ]
 		if isAwaitable: return await fnc(*selected_args)
 		else: return fnc(*selected_args)
 

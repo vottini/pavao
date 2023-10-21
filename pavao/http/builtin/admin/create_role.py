@@ -37,7 +37,7 @@ async def process(request, response, parsed_json, db_connection):
 		else None)
 
 	try:
-		classId = await db_connection.fetchval(add_role,
+		roleId = await db_connection.fetchval(add_role,
 			capitalize(parsed_json.name),
 			description)
 
@@ -52,7 +52,7 @@ async def process(request, response, parsed_json, db_connection):
 		return localizer.create_error("UNEXPECTED_ERROR")
 
 	response.set_status(201)
-	return classId
+	return roleId
 
 
 async def pavao_endpoint(db_connection, parameters):
