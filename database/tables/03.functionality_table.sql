@@ -4,7 +4,7 @@ CREATE TABLE pavao.functionality (
   package         TEXT,
   name            TEXT NOT NULL,
   enabled         BOOL DEFAULT TRUE,
-  in_use          BOOL DEFAULT TRUE,
+  active          BOOL DEFAULT TRUE,
   UNIQUE (package, name)
 );
 

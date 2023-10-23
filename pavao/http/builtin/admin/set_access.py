@@ -9,7 +9,7 @@ grant_query = """
 
 	WITH to_add AS (
 		SELECT func.id FROM pavao.functionality func
-			WHERE func.name = any($1::TEXT[])
+			WHERE func.name = ANY($1::TEXT[])
 	)
 	
 	INSERT INTO pavao.access (functionality, "role")
@@ -22,7 +22,7 @@ revoke_query = """
 
 	WITH to_remove AS (
 		SELECT id FROM pavao.functionality func
-			WHERE NOT func.name = any($1::TEXT[])
+			WHERE NOT func.name = ANY($1::TEXT[])
 	)
 
 	DELETE FROM pavao.access acs WHERE
@@ -49,12 +49,13 @@ async def process(request, response, parsed_json, path_variables, db_connection)
 
 
 async def pavao_endpoint(db_connection, parameters):
-	func_name = await localize_functionality("SET_ACCESSES",
+	package_name, func_name = await localize_functionality("SET_ACCESSES",
 		db_connection, parameters)
 
 	return {
 		'method': 'PUT',
 		'path': '/admin/accesses/{role:int}',
+		'package': package_name,
 		'functionality': func_name,
 		'processor': process
 	}

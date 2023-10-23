@@ -88,6 +88,13 @@ class EndpointNode:
 		self.endpoints = dict()
 
 
+	def list_endpoints(self):
+		result = [ specs for specs in self.endpoints.values() ]
+		for arc in self.raw_children: result += arc.node.list_endpoints()
+		for arc in self.capture_children: result += arc.node.list_endpoints()
+		return result
+
+
 	def add_leaf(self, method, url_tokens, endpoint_data):
 
 		if len(url_tokens) == 0:
@@ -192,6 +199,10 @@ class Registry:
 		captured = dict()
 		result = self.root.lookup_endpoint(method, valid_tokens, captured)
 		return (result, captured) if None != result else None
+
+
+	def list_endpoints(self):
+		return self.root.list_endpoints()
 
 #-------------------------------------------------------------------------------
 

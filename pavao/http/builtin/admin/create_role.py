@@ -56,12 +56,13 @@ async def process(request, response, parsed_json, db_connection):
 
 
 async def pavao_endpoint(db_connection, parameters):
-	func_name = await localize_functionality("CREATE_ROLES",
+	package_name, func_name = await localize_functionality("CREATE_ROLES",
 		db_connection, parameters)
 
 	return {
 		'method': 'POST',
 		'path': '/admin/roles',
+		'package': package_name,
 		'functionality': func_name,
 		'processor': process
 	}

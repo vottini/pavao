@@ -26,12 +26,13 @@ async def process(request, response, db_connection):
 	return False
 
 async def pavao_endpoint(db_connection, parameters):
-	func_name = await localize_functionality("CHECK_LOGIN",
+	package_name, func_name = await localize_functionality("CHECK_LOGIN",
 		db_connection, parameters)
 
 	return {
 		'method': 'GET',
 		'path': '/admin/check-login',
+		'package': package_name,
 		'functionality': func_name,
 		'processor': process
 	}

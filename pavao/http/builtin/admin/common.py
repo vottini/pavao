@@ -47,11 +47,10 @@ localization = pavao.Localization(localized_functionalities)
 
 async def localize_functionality(functionality, db_connection, parameters):
 	language = await parameters.get('language')
-
 	package_name = localization.localize(language, "PACKAGE")
 	func_name = localization.localize(language, functionality)
 	await assert_admin_access(db_connection, package_name, func_name)
-	return func_name
+	return package_name, func_name
 
 #-------------------------------------------------------------------------------
 

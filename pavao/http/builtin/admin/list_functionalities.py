@@ -4,7 +4,7 @@ import pavao
 
 list_functionalities = """
 
-	SELECT COALESCE(package, ''), id, name, enabled
+	SELECT COALESCE(package, ''), id, name AS functionality, enabled, active
 		FROM pavao.functionality;
 
 """
@@ -16,7 +16,8 @@ functionalities_list = """
 		functionalities: {
 			id: integer,
 			functionality: string,
-			enabled: bool
+			enabled: bool,
+			active: bool
 		} []
 	} []
 
@@ -27,16 +28,11 @@ async def process(request, response, db_connection):
 	functionalities = await db_connection.fetch(list_functionalities)
 	grouped = dict()
 
-	for package, func_id, functionality, enabled in functionalities:
-		pack = grouped.get(package, list())
-
-		pack.append({
-			'id': func_id,
-			'functionality': functionality,
-			'enabled': enabled
-		})
-
-		grouped[package] = pack
+	for functionality in functionalities:
+		package = functionality[0]
+		package_funcs = grouped.get(package, list())
+		package_funcs.append(dict(functionality))
+		grouped[package] = package_funcs
 
 	result = [
 		{ 'package': package, 'functionalities': funcs }
@@ -48,12 +44,13 @@ async def process(request, response, db_connection):
 
 from admin.common import localize_functionality
 async def pavao_endpoint(db_connection, parameters):
-	func_name = await localize_functionality("LIST_FUNCTIONALITIES",
+	package_name, func_name = await localize_functionality("LIST_FUNCTIONALITIES",
 		db_connection, parameters)
 
 	return {
 		'method': 'GET',
 		'path': '/admin/functionalities',
+		'package': package_name,
 		'functionality': func_name,
 		'processor': process
 	}

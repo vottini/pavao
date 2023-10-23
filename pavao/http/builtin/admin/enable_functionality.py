@@ -7,26 +7,32 @@ enable_query = """
 	UPDATE pavao.functionality 
 		SET enabled = TRUE 
 		WHERE id = $1
-		RETURNING id;
+		RETURNING name;
 
 """
 
-async def process(request, response, db_connection, path_variables):
-	updated = await db_connection.fetchval(enable_query,
+async def process(request, response, db_connection, path_variables, handler):
+	updated_functionality = await db_connection.fetchval(enable_query,
 		path_variables['functionality'])
 
-	if updated is None:
+	if updated_functionality is None:
 		response.set_status(404)
+		return
+
+	authorizer = handler.authorizer
+	await authorizer.enable_functionality(db_connection,
+		updated_functionality)
 
 
 from admin.common import localize_functionality
 async def pavao_endpoint(db_connection, parameters):
-	func_name = await localize_functionality("MANAGE_FUNCTIONALITIES",
+	package_name, func_name = await localize_functionality("MANAGE_FUNCTIONALITIES",
 		db_connection, parameters)
 
 	return {
 		'method': 'PUT',
 		'path': '/admin/functionalities/enable/{functionality:int}',
+		'package': package_name,
 		'functionality': func_name,
 		'processor': process
 	}

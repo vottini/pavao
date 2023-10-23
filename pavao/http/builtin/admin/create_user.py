@@ -72,12 +72,13 @@ async def process(request, response, db_connection, parsed_json):
 
 
 async def pavao_endpoint(db_connection, parameters):
-	func_name = await localize_functionality("CREATE_USERS",
+	package_name, func_name = await localize_functionality("CREATE_USERS",
 		db_connection, parameters)
 
 	return {
 		'method': 'POST',
 		'path': '/admin/users',
+		'package': package_name,
 		'functionality': func_name,
 		'processor': process
 	}

@@ -2,6 +2,8 @@
 import asyncio
 import pavao
 
+from admin.common import localize_functionality
+
 _select_user = """
 
 	SELECT
@@ -82,10 +84,15 @@ async def process(db_connection, path_variables):
 	return result
 
 
-async def pavao_endpoint():
+async def pavao_endpoint(db_connection, parameters):
+	package_name, func_name = await localize_functionality("VIEW_USER",
+		db_connection, parameters)
+
 	return {
 		'method': 'GET',
 		'path': '/admin/users/{userId:int}',
+		'package': package_name,
+		'functionality': func_name,
 		'processor': process
 	}
 

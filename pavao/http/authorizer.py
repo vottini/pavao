@@ -10,10 +10,7 @@ _bearer_pattern = re.compile(r"^Bearer (\S+)$")
 
 list_roles_accesses = """
 
-	SELECT
-		rl.id AS role_id,
-		func.name AS func_name
-
+	SELECT rl.id, func.name
 		FROM pavao.access acs
 			INNER JOIN pavao."role" rl ON acs."role" = rl.id 
 			INNER JOIN pavao.functionality func ON acs.functionality = func.id
@@ -22,7 +19,18 @@ list_roles_accesses = """
 
 """
 
-create_or_retrieve_functionality = """
+list_functionality_roles = """
+
+	SELECT rl.id
+		FROM pavao.access acs
+			INNER JOIN pavao."role" rl ON acs."role" = rl.id 
+			INNER JOIN pavao.functionality func ON acs.functionality = func.id
+
+		WHERE func.name = $1;
+
+"""
+
+assert_functionality_exists = """
 
 	WITH
 	
@@ -43,15 +51,22 @@ create_or_retrieve_functionality = """
 						FROM pavao.functionality fnc
 
 						WHERE
-							fnc.package = $1
+							fnc.package = $1 AND
 							fnc."name" = $2
 				)
 	
 		RETURNING id, enabled
 	)
 	
-	SELECT * FROM existing UNION ALL
-	SELECT * FROM created;
+	SELECT id FROM existing UNION ALL
+	SELECT id FROM created;
+
+"""
+
+set_active_functionalities = """
+
+	UPDATE pavao.functionality
+		SET active = (id = ANY($1::INTEGER[]));
 
 """
 
@@ -70,7 +85,7 @@ class Authorizer:
 		self.blacklisted = dict()
 
 
-	async def setup(self, db_conn):
+	async def setup(self, db_conn, funcs):
 		accesses = await db_conn.fetch(
 			list_roles_accesses)
 
@@ -79,15 +94,35 @@ class Authorizer:
 			func_set.add(functionality)
 			self.roles_access[role_id] = func_set
 
+		verified_ids = list()
+		for package, functionality in funcs:
+			verified_ids.append(await db_conn.fetchval(
+					assert_functionality_exists,
+					package, functionality))
+
+		await db_conn.execute(
+			set_active_functionalities,
+			verified_ids)
+
 
 	def blacklist(self, auth_data):
 		key = (auth_data.login, auth_data.token)
 		self.blacklisted[key] = auth_data.expiration
 
 
-	def enable_functionality(self, functionality, value):
-		# TODO
-		pass
+	async def enable_functionality(self, db_conn, functionality):
+		roles_with_func = await db_conn.fetch(
+			list_functionality_roles,
+			functionality)
+
+		for role_id in roles_with_func:
+			func_set = self.roles_access.get(role_id)
+			func_set.add(functionality)
+
+
+	def disable_functionality(self, functionality):
+		for func_set in self.roles_access.values():
+			func_set.discard(functionality)
 
 
 	async def validate_access(self, request, endpoint):
