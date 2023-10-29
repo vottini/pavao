@@ -18,7 +18,7 @@ async def process(request, response, db_connection, path_variables):
 
 
 async def pavao_endpoint(db_connection, parameters):
-	package_name, func_name = await localize_functionality("REMOVE_ADMIN",
+	package_name, func_name = await localize_functionality("MODIFY_ADMIN",
 		db_connection, parameters)
 
 	return {

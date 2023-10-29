@@ -116,8 +116,9 @@ class Authorizer:
 			functionality)
 
 		for role_id in roles_with_func:
-			func_set = self.roles_access.get(role_id)
+			func_set = self.roles_access.get(role_id, set())
 			func_set.add(functionality)
+			self.roles_access[role_id] = func_set
 
 
 	def disable_functionality(self, functionality):

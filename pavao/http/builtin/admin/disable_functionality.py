@@ -25,7 +25,7 @@ disable_funcionality_query = """
 """
 
 async def process(request, response, db_connection, path_variables, handler):
-	functionality_id = path_variables['functionality']
+	functionality_id = path_variables['functionalityId']
 	admin_roles = await db_connection.fetchval(check_admin,
 		functionality_id)
 
@@ -53,7 +53,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'PUT',
-		'path': '/admin/functionalities/disable/{functionality:int}',
+		'path': '/admin/functionalities/{functionalityId:int}/disable',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

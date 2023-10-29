@@ -13,7 +13,7 @@ enable_query = """
 
 async def process(request, response, db_connection, path_variables, handler):
 	updated_functionality = await db_connection.fetchval(enable_query,
-		path_variables['functionality'])
+		path_variables['functionalityId'])
 
 	if updated_functionality is None:
 		response.set_status(404)
@@ -31,7 +31,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'PUT',
-		'path': '/admin/functionalities/enable/{functionality:int}',
+		'path': '/admin/functionalities/{functionalityId:int}/enable',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

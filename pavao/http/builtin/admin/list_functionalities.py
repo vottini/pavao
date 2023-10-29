@@ -4,7 +4,13 @@ import pavao
 
 list_functionalities = """
 
-	SELECT COALESCE(package, ''), id, name AS functionality, enabled, active
+	SELECT
+		id,
+		COALESCE(package, '') AS package,
+		name AS functionality,
+		enabled,
+		active
+
 		FROM pavao.functionality;
 
 """
@@ -24,12 +30,12 @@ functionalities_list = """
 """
 
 @pavao.generatesJson(stringBlueprint=functionalities_list)
-async def process(request, response, db_connection):
+async def process(request, db_connection):
 	functionalities = await db_connection.fetch(list_functionalities)
-	grouped = dict()
 
+	grouped = dict()
 	for functionality in functionalities:
-		package = functionality[0]
+		package = functionality['package']
 		package_funcs = grouped.get(package, list())
 		package_funcs.append(dict(functionality))
 		grouped[package] = package_funcs
