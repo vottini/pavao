@@ -32,7 +32,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'PUT',
-		'path': '/admin/admins/{user:int}',
+		'path': '/admin/users/admins/{user:int}',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

@@ -6,9 +6,10 @@ from admin.common import localize_functionality
 
 list_users = """
 
-  SELECT id, login, first_name, last_name
+  SELECT id, first_name, last_name, active
     FROM pavao.account
-    WHERE NOT managerial;
+    WHERE NOT managerial
+	ORDER BY first_name;
 
 """
 
@@ -16,32 +17,17 @@ user_blueprint = """
 
   root {
     id: integer,
-    login: string,
     firstName: string,
-    optional lastName: string
+    optional lastName: string,
+	active: bool
   } []
 
 """
 
-def mapUser(userData):
-
-	result = {
-		"id": userData['id'],
-		"login": userData['login'],
-		"firstName": userData['first_name']
-	}
-
-	lastName = userData['last_name']
-	if lastName is not None:
-		result['lastName'] = lastName
-
-	return result
-
-
 @pavao.generatesJson(stringBlueprint=user_blueprint)
 async def process(request, response, db_connection):
 	result = await db_connection.fetch(list_users)
-	return [ mapUser(row) for row in result ]
+	return [ pavao.assemble_dicts(row) for row in result ]
 
 
 async def pavao_endpoint(db_connection, parameters):

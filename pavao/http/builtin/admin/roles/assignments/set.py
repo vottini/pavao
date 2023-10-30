@@ -40,7 +40,7 @@ user_list = """
 
 @pavao.acceptsJson(stringBlueprint=user_list)
 async def process(request, response, parsed_json, path_variables, db_connection):
-	role_id = path_variables['role']
+	role_id = path_variables['roleId']
 	users = parsed_json
 
 	async with db_connection.transaction():
@@ -54,7 +54,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'PUT',
-		'path': '/admin/assignments/role/{role:int}',
+		'path': '/admin/roles/{roleId:int}/assignments',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

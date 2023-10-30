@@ -23,7 +23,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'DELETE',
-		'path': '/admin/admins/{user:int}',
+		'path': '/admin/users/admins/{user:int}',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

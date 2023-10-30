@@ -4,6 +4,7 @@ import asyncpg
 import pavao
 
 from admin.common import localize_functionality
+from admin.common import message_localization
 
 options_blueprint = """
 
@@ -14,12 +15,10 @@ options_blueprint = """
 
 """
 
-localized_messages = pavao.include('messages.ini')
-localization = pavao.Localization(localized_messages)
 
 @pavao.acceptsJson(stringBlueprint=options_blueprint)
 async def process(request, response, parsed_json, db_connection, path_variables):
-	localizer = localization.create_localizer(request)
+	localizer = message_localization().create_localizer(request)
 	roleId = path_variables['role']
 
 	async with db_connection.transaction():

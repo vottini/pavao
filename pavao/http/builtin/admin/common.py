@@ -54,6 +54,14 @@ async def localize_functionality(functionality, db_connection, parameters):
 
 #-------------------------------------------------------------------------------
 
+localized_messages = pavao.include('messages.ini')
+_message_localization = pavao.Localization(localized_messages)
+
+def message_localization():
+	return _message_localization
+
+#-------------------------------------------------------------------------------
+
 def capitalize(text):
 	if text is None: return None
 	components = [comp.capitalize() for comp in text.strip().split()]

@@ -12,6 +12,7 @@ def valid_login(login):
 	found = _allowed_pattern.search(login)
 	return found is not None
 
+
 @pavao.generatesJson(stringBlueprint="root bool")
 async def process(request, response, db_connection):
 	if not 'login' in request.params:
@@ -24,6 +25,7 @@ async def process(request, response, db_connection):
 		return 0 == count
 
 	return False
+
 
 async def pavao_endpoint(db_connection, parameters):
 	package_name, func_name = await localize_functionality("CHECK_LOGIN",

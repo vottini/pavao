@@ -52,7 +52,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'GET',
-		'path': '/admin/admins',
+		'path': '/admin/users/admins',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

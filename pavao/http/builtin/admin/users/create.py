@@ -5,6 +5,7 @@ import argon2
 import pavao
 
 from admin.common import localize_functionality, capitalize
+from admin.common import message_localization
 
 add_user = """
 
@@ -34,15 +35,11 @@ credentials_blueprint = """
 
 """
 
-user_id = "root integer"
-localized_messages = pavao.include('messages.ini')
-localization = pavao.Localization(localized_messages)
-
-@pavao.generatesJson(stringBlueprint=user_id)
+@pavao.generatesJson(stringBlueprint="root integer")
 @pavao.acceptsJson(stringBlueprint=credentials_blueprint)
 async def process(request, response, db_connection, parsed_json):
 	hashedPassword = argon2.PasswordHasher().hash(parsed_json.password)
-	localizer = localization.create_localizer(request)
+	localizer = message_localization().create_localizer(request)
 
 	user_args = (
 		parsed_json.login.lower(),
