@@ -34,7 +34,7 @@ async def process(request, response, db_connection, parsed_json):
 		response.set_status(401)
 		return localizer.create_error("INVALID_CREDENTIALS")
 
-	authId, active, storedPassword, changePassword = row
+	account_id, authId, active, storedPassword, changePassword = row
 
 	if not active:
 		response.set_status(401)
@@ -63,7 +63,7 @@ async def process(request, response, db_connection, parsed_json):
 			authId, updatedHash)
 
 	now = datetime.now(timezone.utc)
-	access_claims = credentials.create_claims(login, now,
+	access_claims = credentials.create_claims(account_id, now,
 		credentials.access_validity)
 
 	if changePassword:
@@ -80,7 +80,7 @@ async def process(request, response, db_connection, parsed_json):
 	roles_ids = [ str(role['id']) for role in roles ]
 	access_claims['roles'] = ",".join(roles_ids)
 
-	refresh_claims = credentials.create_claims(login, now,
+	refresh_claims = credentials.create_claims(account_id, now,
 		credentials.refresh_validity)
 
 	refresh_hash = hashlib.md5(refresh_claims['jti'].encode()).digest().hex()

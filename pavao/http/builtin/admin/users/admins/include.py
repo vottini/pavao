@@ -13,9 +13,9 @@ add_admin = """
 
 	INSERT INTO pavao.assignment (account, "role")
 		SELECT found.id, rl.id
-				FROM found_user found
-				CROSS JOIN pavao."role" rl
-				WHERE rl.admin
+			FROM found_user found
+			CROSS JOIN pavao."role" rl
+			WHERE rl.admin
 
 		ON CONFLICT DO NOTHING;
 
@@ -23,7 +23,7 @@ add_admin = """
 
 async def process(request, response, db_connection, path_variables):
 	await db_connection.execute(add_admin,
-		path_variables['user'])
+		path_variables['userId'])
 
 
 async def pavao_endpoint(db_connection, parameters):
@@ -32,7 +32,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'PUT',
-		'path': '/admin/users/admins/{user:int}',
+		'path': '/admin/users/admins/{userId:int}',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

@@ -37,6 +37,8 @@ _user_info_blueprint = """
 		login: string,
 		firstName: string,
 		optional lastName: string,
+		creation: instant,
+		lastLogin: nullable instant,
 		active: bool,
 		admin: bool,
 
@@ -56,7 +58,9 @@ async def process(db_connection, path_variables):
 	result = {
 		"login": infos["login"],
 		"firstName": infos["first_name"],
-		"active": infos["active"]
+		"active": infos["active"],
+		"creation": infos["creation"],
+		"lastLogin": infos["last_login"]
 	}
 
 	lastName = infos['last_name']

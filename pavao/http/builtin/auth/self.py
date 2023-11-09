@@ -6,7 +6,7 @@ _select_user = """
 
 	SELECT first_name, last_name
 		FROM pavao.account
-		WHERE login = $1;
+		WHERE id = $1;
 
 """
 
@@ -21,17 +21,12 @@ _user_info_blueprint = """
 
 @pavao.generatesJson(stringBlueprint=_user_info_blueprint)
 async def process(db_connection, auth_data):
-	retrieved = await db_connection.fetchrow(_select_user,
-		auth_data.login)
-
-	result = { "firstName": retrieved["first_name"] }
-	if (lastName := retrieved["last_name"]) is not None:
-		result["lastName"] = lastName
-	
-	return result
+	retrieved = await db_connection.fetchrow(_select_user, auth_data.account_id)
+	return pavao.assemble_dicts(retrieved)
 
 
-async def pavao_endpoint():
+def pavao_endpoint():
+
 	return {
 		'method': 'GET',
 		'path': '/self',

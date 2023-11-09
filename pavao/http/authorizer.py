@@ -72,8 +72,8 @@ set_active_functionalities = """
 
 
 class AuthData:
-	def __init__(self, login, token, expiration):
-		self.login = login
+	def __init__(self, account_id, token, expiration):
+		self.account_id = account_id
 		self.token = token
 		self.expiration = expiration
 
@@ -106,7 +106,7 @@ class Authorizer:
 
 
 	def blacklist(self, auth_data):
-		key = (auth_data.login, auth_data.token)
+		key = (auth_data.account_id, auth_data.token)
 		self.blacklisted[key] = auth_data.expiration
 
 
