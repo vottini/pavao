@@ -6,8 +6,11 @@ delete_refresh = pavao.include('queries/delete_refresh.sql')
 
 async def process(handler, response, db_connection, auth_data):
 	handler.authorizer.blacklist(auth_data)
-	await db_connection.execute(delete_refresh,
-		auth_data.account_id, auth_data.token)
+
+	await db_connection.execute(
+		delete_refresh,
+		auth_data.account_id,
+		auth_data.token)
 
 	response.add_cookie(
 		pavao.http.Cookie('token')

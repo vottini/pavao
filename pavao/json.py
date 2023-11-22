@@ -11,11 +11,11 @@ from . import predicates
 
 error_blueprint = '''
 
-root {
-	error: string,
-	description: string,
-	timestamp: instant
-}
+	root {
+		error: string,
+		description: string,
+		timestamp: instant
+	}
 
 '''
 
@@ -41,8 +41,10 @@ def _load_blueprint(string, file, root=None):
 		jsonbp.loadFile(file) if string is None else
 		jsonbp.loadString(string))
 
-	return (loaded if root is None
-		else loaded.chooseRoot(root))
+	return (
+		loaded if root is None
+		else loaded.chooseRoot(root)
+	)
 
 
 def acceptsJson(

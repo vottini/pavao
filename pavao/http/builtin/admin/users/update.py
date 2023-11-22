@@ -34,9 +34,13 @@ async def process(request, response, parsed_json, db_connection, path_variables)
 					set {snake_case_column} = $1
 					WHERE
 						id = $2 AND
-						COALESCE({snake_case_column}, '') <> $1;
+						COALESCE({snake_case_column}, '') <> COALESCE($1, '');
 
 			"""
+
+			print(query)
+			print(f"$1 = {getattr(parsed_json, column)}")
+			print(f"$2 = {userId}")
 
 			try:
 				await db_connection.execute(query,

@@ -22,24 +22,10 @@ role_blueprint = """
 
 """
 
-def mapClass(classData):
-
-	result = {
-		"id": classData['id'],
-		"name": classData['name']
-	}
-
-	description = classData['description']
-	if description is not None:
-		result['description'] = description
-
-	return result
-
-
 @pavao.generatesJson(stringBlueprint=role_blueprint)
 async def process(request, db_connection):
 	result = await db_connection.fetch(list_roles)
-	return [ mapClass(row) for row in result ]
+	return [ pavao.assemble_dicts(row) for row in result ]
 
 
 async def pavao_endpoint(db_connection, parameters):

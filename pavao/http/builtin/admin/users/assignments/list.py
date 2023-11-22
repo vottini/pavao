@@ -4,34 +4,56 @@ import pavao
 
 from admin.common import localize_functionality
 
+retrieve_user_data = """
+
+	SELECT first_name, last_name FROM pavao.account
+		WHERE id = $1;
+
+"""
+
+
 list_assignments = """
 
-	SELECT rl.id, rl.name FROM pavao.assignment assign 
-		INNER JOIN pavao.account acc ON assign.account = acc.id
-		INNER JOIN pavao."role" rl ON assign."role" = rl.id
-		WHERE NOT rl.admin AND acc.id = $1;
+	SELECT
+		rl.id,
+		rl.name,
+		assign.account IS NOT NULL AS assigned
+
+		FROM pavao."role" rl
+			LEFT JOIN pavao.assignment assign ON
+				assign."role" = rl.id AND
+				assign.account = $1
+
+		WHERE NOT rl.admin;
 
 """
 
 assignments_blueprint = """
 
 	root {
-		id: integer,
-		name: string
-	} []
+		firstName: string,
+		optional lastName: string,
+
+		assignments: {
+			id: integer,
+			name: string,
+			assigned: bool
+		} []
+	}
 
 """
 
 @pavao.generatesJson(stringBlueprint=assignments_blueprint)
 async def process(request, response, db_connection, path_variables):
-	userId = path_variables['user']
+	user_data = await db_connection.fetchrow(retrieve_user_data,
+		path_variables['userId'])
 
-	result = list()
-	for classId, className in await db_connection.fetch(list_assignments, userId):
-		entry = {'id': classId, 'name': className}
-		result.append(entry)
+	if user_data is None:
+		response.set_status(404)
+		return
 
-	return result
+	assignments = await db_connection.fetch(list_assignments, path_variables['userId'])
+	return pavao.assemble_dicts(user_data, assignments=assignments)
 
 
 async def pavao_endpoint(db_connection, parameters):
@@ -40,7 +62,7 @@ async def pavao_endpoint(db_connection, parameters):
 
 	return {
 		'method': 'GET',
-		'path': '/admin/assignments/{user:int}',
+		'path': '/admin/users/{userId:int}/assignments',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process
