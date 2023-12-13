@@ -20,23 +20,24 @@ add_authentication = """
 
 	INSERT INTO
 		pavao.authentication (account, hash, needs_change)
-		VALUES ($1, $2, FALSE);
+		VALUES ($1, $2, $3);
 
 """
 
-credentials_blueprint = """
+user_info_blueprint = """
 
 	root {
 		login: string(minLength=5, format="^[a-z][a-z0-9]*(?:.[a-z0-9]+)?$"),
 		password: string(minLength=8),
 		firstName: string(minLength=1),
-		optional lastName: string(minLength=1)
+		optional lastName: string(minLength=1),
+		changePassword: bool
 	}
 
 """
 
 @pavao.generatesJson(stringBlueprint="root integer")
-@pavao.acceptsJson(stringBlueprint=credentials_blueprint)
+@pavao.acceptsJson(stringBlueprint=user_info_blueprint)
 async def process(request, response, db_connection, parsed_json):
 	hashedPassword = argon2.PasswordHasher().hash(parsed_json.password)
 	localizer = message_localization().create_localizer(request)
@@ -52,7 +53,8 @@ async def process(request, response, db_connection, parsed_json):
 	try:
 		async with db_connection.transaction():
 			userId = await db_connection.fetchval(add_user, *user_args)
-			await db_connection.execute(add_authentication, userId, hashedPassword)
+			await db_connection.execute(add_authentication, userId,
+				hashedPassword, parsed_json.changePassword)
 
 	except asyncpg.UniqueViolationError as e:
 		response.set_status(409)

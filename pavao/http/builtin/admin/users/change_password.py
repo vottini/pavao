@@ -45,9 +45,11 @@ async def process(request, response, db_connection, parsed_json, path_variables)
 
 	except asyncpg.PostgresError as e:
 		pavao.Logger.error(f"Error changing password: {e}")
-		response.set_status(500)
 
-		return localizer.create_error("UNEXPECTED_ERROR")
+		response.set_status(500)
+		return localizer.create_error(
+			"UNEXPECTED_ERROR"
+		)
 
 	response.set_status(204)
 	return found_account

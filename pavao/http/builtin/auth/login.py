@@ -37,6 +37,7 @@ async def process(request, response, db_connection, parsed_json):
 	account_id, authId, active, storedPassword, changePassword = row
 
 	if not active:
+		await asyncio.sleep(3)
 		response.set_status(401)
 		return localizer.create_error("DISABLED_USER")
 
