@@ -9,13 +9,13 @@ get_query = "SELECT type, value FROM pavao.parameters WHERE name = $1"
 
 upsert_query = """
 
-INSERT INTO
-	pavao.parameters (name, type, value) 
-	VALUES ($1, $2, $3)
+	INSERT INTO
+		pavao.parameters (name, type, value)
+		VALUES ($1, $2, $3)
 
-	ON CONFLICT (name) DO UPDATE 
-		SET type = excluded.type, 
-			value = excluded.value;
+		ON CONFLICT (name) DO UPDATE
+			SET type = excluded.type,
+				value = excluded.value;
 
 """
 
@@ -39,8 +39,8 @@ class Parameters:
 				return [ ctor(vle) for vle in list_content.split("::") ]
 
 			return ctor(value)
-			
-	
+
+
 	def monitor(self, name, callback):
 		key_listeners = self.listeners.get(name, list())
 		key_listeners.append(callback)

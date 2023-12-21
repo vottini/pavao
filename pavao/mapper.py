@@ -84,10 +84,6 @@ class _convertedDict:
 		self.__dict__.update(sane)
 
 
-def has_optional_field(converted_dict, fieldName):
-	return hasattr(converted_dict, fieldName)
-
-
 def convert_to_object(value):
 	if isinstance(value, dict):
 		return _convertedDict(value)

@@ -5,22 +5,28 @@ sys.path.append('..')
 import pytest
 import pavao
 
+
+class IntValued:
+	def __init__(self, value): self.value = value
+	def get_value(self): return self.value
+
+
 def testListSorting():
-	contents = [ 3, 1, 7, 2, 4, 3, 9, 3 ]
+	contents = [IntValued(x) for x in [ 3, 1, 7, 2, 4, 3, 9, 3 ]]
 
 	listage = list()
 	for value in contents:
 		pavao.http.insert_sorted(listage, value)
 
 	for idx in range(1, len(listage)):
-		assert listage[idx] > listage[idx-1]
-	
-	for value in contents:
-		assert pavao.http.search_sorted(listage, value) != None
+		assert listage[idx].get_value() > listage[idx-1].get_value()
 
-	not_included = [ 5, 0, 6 ]
+	for value in contents:
+		assert pavao.http.search_sorted(listage, value.get_value()) != None
+
+	not_included = [IntValued(x) for x in [ 5, 0, 6 ]]
 	for value in not_included:
-		assert pavao.http.search_sorted(listage, value) == None
+		assert pavao.http.search_sorted(listage, value.get_value()) == None
 
 #-------------------------------------------------------------------------------
 

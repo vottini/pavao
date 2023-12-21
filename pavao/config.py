@@ -34,7 +34,7 @@ def unflatten(config):
 
 #-------------------------------------------------------------------------------
 
-def requiresDefinition(schema):
+def requires_definition(schema):
 	if isinstance(schema, list): return False
 	if isinstance(schema, type): return True
 
@@ -42,15 +42,15 @@ def requiresDefinition(schema):
 		for key, value in schema.items():
 			if isinstance(value, type):
 				return True
-			
+
 			if isinstance(value, dict):
-				if requiresDefinition(value):
+				if requires_definition(value):
 					return True
 
 	return False
 
 
-def processConfig(configured, entry, schema):
+def process_config(configured, entry, schema):
 
 	# first look if it expects a list of items
 	# and if yes then just map each item recursively
@@ -65,14 +65,14 @@ def processConfig(configured, entry, schema):
 			msg = f"'{entry}' needs to be a list"
 			raise ConfigException(msg)
 
-		innerSchema = schema[0]
-		if not isinstance(innerSchema, (type, dict)):
+		inner_schema = schema[0]
+		if not isinstance(inner_schema, (type, dict)):
 			msg = f"Bad description for list in schema ({entry}), needs to be a type or a dict"
 			raise ConfigException(msg)
 
 		result = list()
 		for idx, value in enumerate(configured):
-			innerResult = processConfig(value, f"{entry}[{idx}]", innerSchema)
+			innerResult = process_config(value, f"{entry}[{idx}]", inner_schema)
 			result.append(innerResult)
 
 		return result
@@ -87,14 +87,16 @@ def processConfig(configured, entry, schema):
 	# comprised only of default values
 
 	if None == configured:
-		if requiresDefinition(schema):
+		if requires_definition(schema):
 			msg = f"{entry} is not defined and has no defaults"
 			raise ConfigException(msg)
-	
+
 		return schema
 
-	defaultValue = schema
-	requiredType = defaultValue if isinstance(defaultValue, type) else type(defaultValue)
+	default_value = schema
+	required_type = (default_value
+		if isinstance(default_value, type)
+		else type(default_value))
 
 	# when the assigned value matches a enviroment
 	# variable format, try to retrieve and convert it to
@@ -102,20 +104,20 @@ def processConfig(configured, entry, schema):
 
 	if isinstance(configured, str):
 		varMatch = VAR_PATTERN.search(configured)
-	
+
 		if None != varMatch:
 			varName = varMatch.group(1)
-	
+
 			if not varName in os.environ:
 				msg = f"Environment variable '${{{varName}}}' not found while processing '{entry}'"
 				raise ConfigException(msg)
-	
+
 			try:
 				retrievedValue = os.environ.get(varName)
-				return requiredType(retrievedValue)
+				return required_type(retrievedValue)
 
 			except ValueError as e:
-				msg = f"Unable to convert '{retrievedValue}' to {requiredType}"
+				msg = f"Unable to convert '{retrievedValue}' to {required_type}"
 				raise ConfigException(msg) from None
 
 	# if no default is set, (only the expected type
@@ -133,11 +135,11 @@ def processConfig(configured, entry, schema):
 	# simple type, just check its type and return
 	# accordingly
 
-	if not isinstance(defaultValue, dict):
-		if isinstance(configured, requiredType):
+	if not isinstance(default_value, dict):
+		if isinstance(configured, required_type):
 			return configured
 
-		msg = f"'{entry}' expects {requiredType} but got {type(configured)}"
+		msg = f"'{entry}' expects {required_type} but got {type(configured)}"
 		raise ConfigException(msg)
 
 	# finally, if the schema is a dictionary
@@ -145,13 +147,13 @@ def processConfig(configured, entry, schema):
 	# retrieving the final definitions
 
 	result = dict()
-	for key, innerSchema in defaultValue.items():
-		innerConfigured = configured.get(key)
-	
-		result[key] = processConfig(
-			innerConfigured,
+	for key, inner_schema in default_value.items():
+		inner_configured = configured.get(key)
+
+		result[key] = process_config(
+			inner_configured,
 			f"{entry}.{key}",
-			innerSchema)
+			inner_schema)
 
 	return result
 
@@ -161,32 +163,32 @@ class _Settings:
 	def __init__(self, settings):
 		self.settings = settings
 
-	def getSetting(self, entry, schema):
-		components = entry.split('.') 
+	def get_setting(self, entry, schema):
+		components = entry.split('.')
 		node = self.settings
-	
+
 		counter = 0
 		while node != None and counter < len(components):
 			node = node.get(components[counter])
 			counter += 1
-	
-		if None != node: return processConfig(node, entry, schema)
+
+		if None != node: return process_config(node, entry, schema)
 		return None
 
 
-def loadSettings(configFile="application.yml"):
-	Logger.info(f"Loading configuration file '{configFile}'")
+def load_settings(config_file="application.yml"):
+	Logger.info(f"Loading configuration file '{config_file}'")
 
 	try:
-		with open(configFile) as config_fd:
+		with open(config_file) as config_fd:
 			flattened = yaml.safe_load(config_fd)
 			structured = unflatten(flattened)
 			return _Settings(structured)
 
 	except OSError as e:
-		cause = f"Unable to read configuration file '{configFile}'"
+		cause = f"Unable to read configuration file '{config_file}'"
 		raise ConfigException(cause) from None
-	
+
 	except yaml.error.MarkedYAMLError as e:
 		cause = f"Unable to parse YAML: {e}"
 		raise ConfigException(cause) from None
@@ -195,6 +197,6 @@ def loadSettings(configFile="application.yml"):
 
 __all__ = [
 	'ConfigException',
-	'loadSettings'
+	'load_settings'
 ]
 

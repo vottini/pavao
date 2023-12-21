@@ -4,7 +4,7 @@ import asyncio
 import time
 
 from ..utils import include
-from .token import validateToken
+from .token import validate_token
 
 _bearer_pattern = re.compile(r"^Bearer (\S+)$")
 
@@ -12,7 +12,7 @@ list_roles_accesses = """
 
 	SELECT rl.id, func.name
 		FROM pavao.access acs
-			INNER JOIN pavao."role" rl ON acs."role" = rl.id 
+			INNER JOIN pavao."role" rl ON acs."role" = rl.id
 			INNER JOIN pavao.functionality func ON acs.functionality = func.id
 
 		WHERE func.enabled;
@@ -23,7 +23,7 @@ list_functionality_roles = """
 
 	SELECT rl.id
 		FROM pavao.access acs
-			INNER JOIN pavao."role" rl ON acs."role" = rl.id 
+			INNER JOIN pavao."role" rl ON acs."role" = rl.id
 			INNER JOIN pavao.functionality func ON acs.functionality = func.id
 
 		WHERE func.name = $1;
@@ -33,7 +33,7 @@ list_functionality_roles = """
 assert_functionality_exists = """
 
 	WITH
-	
+
 	existing AS (
 		SELECT id, enabled
 			FROM pavao.functionality func
@@ -42,7 +42,7 @@ assert_functionality_exists = """
 				func.package = $1 AND
 				func."name" = $2
 	),
-	
+
 	created AS (
 		INSERT INTO pavao.functionality (package, name)
 			SELECT $1, $2
@@ -54,10 +54,10 @@ assert_functionality_exists = """
 							fnc.package = $1 AND
 							fnc."name" = $2
 				)
-	
+
 		RETURNING id, enabled
 	)
-	
+
 	SELECT id FROM existing UNION ALL
 	SELECT id FROM created;
 
@@ -136,23 +136,23 @@ class Authorizer:
 		if None == found_token:
 			return False, None
 
-		sentToken = found_token.group(1)
-		tokenClaims = validateToken(sentToken)
-		if None == tokenClaims:
+		sent_token = found_token.group(1)
+		token_claims = validate_token(sent_token)
+		if None == token_claims:
 			return False, None
 
-		subject = tokenClaims['sub']
+		subject = token_claims['sub']
 		user_modification = self.users_modification.get(subject)
-		if user_modification is not None and user_modification > tokenClaims['iat']:
+		if user_modification is not None and user_modification > token_claims['iat']:
 			return False, None
 
-		token_id = tokenClaims['jti']
+		token_id = token_claims['jti']
 		if (subject, token_id) in self.blacklisted:
-			return False, None			
+			return False, None
 
 		roles = list(filter(
 			lambda x : len(x) > 0,
-			tokenClaims['roles'].split(',')))
+			token_claims['roles'].split(',')))
 
 		subject_roles = ([ int(role) for role in roles ]
 			if len(roles) > 0
@@ -167,6 +167,6 @@ class Authorizer:
 			else:
 				return False, None
 
-		expiration = tokenClaims['exp']
+		expiration = token_claims['exp']
 		return True, AuthData(subject, token_id, expiration)
 

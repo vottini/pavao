@@ -9,7 +9,7 @@ from .exception import PavaoException
 from .mapper import convert_to_object
 from . import predicates
 
-error_blueprint = '''
+error_contents = '''
 
 	root {
 		error: string,
@@ -19,7 +19,7 @@ error_blueprint = '''
 
 '''
 
-_error_bp = jsonbp.loadString(error_blueprint)
+error_blueprint = jsonbp.loadString(error_contents)
 
 _valid_content_types = (
 	'application/json; charset=utf-8'
@@ -47,15 +47,15 @@ def _load_blueprint(string, file, root=None):
 	)
 
 
-def acceptsJson(
-	stringBlueprint=None,
-	fileBlueprint=None,
-	withRoot=None):
+def accepts_json(
+	string_blueprint=None,
+	file_blueprint=None,
+	with_root=None):
 
 	blueprint = _load_blueprint(
-		stringBlueprint,
-		fileBlueprint,
-		withRoot)
+		string_blueprint,
+		file_blueprint,
+		with_root)
 
 	def wrapper(fnc):
 		fnc_nargs = fnc.__code__.co_argcount
@@ -88,8 +88,18 @@ def acceptsJson(
 				received = await receive()
 				payload += received['body']
 
-			json_content = payload.decode()
-			success, outcome = blueprint.deserialize(json_content)
+			try:
+				json_content = payload.decode()
+				success, outcome = blueprint.deserialize(json_content)
+
+			except Exception:
+				response.set_status(400)
+
+				return {
+					'error': "BAD_REQUEST",
+					'description': 'Unable to decode content',
+					'timestamp': datetime.now(timezone.utc)
+				}
 
 			if not success:
 				response.set_status(400)
@@ -138,24 +148,24 @@ def _warn_unused(container, used, candidates):
 			pavao.Logger.warning(msg)
 
 
-def generatesJson(
+def generates_json(
 	dispatchers=None,
-	stringBlueprint=None,
-	fileBlueprint=None,
-	withRoot=None):
+	string_blueprint=None,
+	file_blueprint=None,
+	with_root=None):
 
 	processed_dispatchers = list()
 
 	if dispatchers is None:
-		blueprint = _load_blueprint(stringBlueprint, fileBlueprint, withRoot)
+		blueprint = _load_blueprint(string_blueprint, file_blueprint, with_root)
 		processed_dispatchers.append((predicates.status_non_error, blueprint))
-		processed_dispatchers.append((predicates.status_error, _error_bp))
+		processed_dispatchers.append((predicates.status_error, error_blueprint))
 
 	else:
 		try:
 			for rule in dispatchers:
-				if rule.get('string') is error_blueprint:
-					blueprint = _error_bp
+				if rule.get('string') is error_contents:
+					blueprint = error_blueprint
 
 				else:
 					blueprint = _load_blueprint(
@@ -221,25 +231,40 @@ def generatesJson(
 				selected_args.append(all_args[param_name])
 
 			payload = await fnc(*selected_args)
+			if payload is None:
+				return
+
 			for predicate, blueprint in processed_dispatchers:
 				if predicate(response.status):
 					serialized = str(blueprint.serialize(payload))
 					response.set_content('application/json', serialized.encode())
 					return
 
-			payload = {'error': f'No known serialization for status {response.status}'}
-			response.set_content('application/json', _error_bp.serialize(payload).encode())
+			payload = {
+				'error': "JSON_SERIALIZATION",
+				'description': f'No known serialization for status {response.status}',
+				"timestamp": datetime.now(timezone.utc)
+			}
+
+			serialized = error_blueprint.serialize(payload)
+			response.set_content('application/json', serialized.encode())
 			response.set_status(500)
 
 		return wrapped
 
 	return wrapper
 
+
+def has_optional_field(converted_dict, fieldName):
+	return hasattr(converted_dict, fieldName)
+
 #-------------------------------------------------------------------------------
 
 __all__ = [
-	"acceptsJson",
-	"generatesJson",
-	"error_blueprint"
+	"accepts_json",
+	"generates_json",
+	"error_contents",
+	"error_blueprint",
+	"has_optional_field"
 ]
 

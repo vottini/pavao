@@ -17,7 +17,7 @@ _past_keys = dict()
 
 #-------------------------------------------------------------------------------
 
-def refresh_secretKey(previous_validity=None):
+def refresh_secret_key(previous_validity=None):
 	global _current, _past_keys
 
 	if None != previous_validity:
@@ -25,7 +25,7 @@ def refresh_secretKey(previous_validity=None):
 			previous_validity = timedelta(days=previous_validity)
 
 		if not isinstance(previous_validity, timedelta):
-			print("Bad argument passed to refresh_secretKey(), aborting refresh")
+			print("Bad argument passed to refresh_secret_key(), aborting refresh")
 			return False
 
 	current_time = datetime.now(tz=timezone.utc)
@@ -63,7 +63,7 @@ def _serializedToBase64(contents):
 
 #-------------------------------------------------------------------------------
 
-def calcCurrentSignature(content):
+def calc_current_signature(content):
 	global _current
 
 	signature = hmac.digest(
@@ -74,7 +74,7 @@ def calcCurrentSignature(content):
 	return base64url(signature)
 
 
-def generateToken(claims):
+def generate_token(claims):
 	global _current
 
 	header = {
@@ -86,11 +86,11 @@ def generateToken(claims):
 	header_base64 = _serializedToBase64(header)
 	payload_base64 = _serializedToBase64(claims)
 	contents = header_base64 + "." + payload_base64
-	signature = calcCurrentSignature(contents)
+	signature = calc_current_signature(contents)
 	return contents + "." + signature
 
 
-def validateToken(token):
+def validate_token(token):
 	global _current, _past_keys
 	components = token.split('.')
 	if len(components) != 3:
@@ -141,9 +141,9 @@ def validateToken(token):
 #-------------------------------------------------------------------------------
 
 __all__ = [
-	'refresh_secretKey',
-	'calcCurrentSignature',
-	'generateToken',
-	'validateToken'
+	'refresh_secret_key',
+	'calc_current_signature',
+	'generate_token',
+	'validate_token'
 ]
 

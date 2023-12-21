@@ -13,37 +13,37 @@ original_claims = {
 }
 
 def testCreation():
-	generated = pavao.http.generateToken(original_claims)
-	validated_claims = pavao.http.validateToken(generated)
+	generated = pavao.http.generate_token(original_claims)
+	validated_claims = pavao.http.validate_token(generated)
 	assert original_claims["iss"] == validated_claims["iss"]
 
 #-------------------------------------------------------------------------------
 
 def testRefresh():
 	due_tokens = list()
-	due_tokens.append(pavao.http.generateToken(original_claims))
-	pavao.http.refresh_secretKey()
+	due_tokens.append(pavao.http.generate_token(original_claims))
+	pavao.http.refresh_secret_key()
 
-	due_tokens.append(pavao.http.generateToken(original_claims))
-	pavao.http.refresh_secretKey(timedelta(microseconds=10))
+	due_tokens.append(pavao.http.generate_token(original_claims))
+	pavao.http.refresh_secret_key(timedelta(microseconds=10))
 	time.sleep(0.01)
 
 	for due_token in due_tokens:
-		assert None == pavao.http.validateToken(due_token)
+		assert None == pavao.http.validate_token(due_token)
 
 	good_tokens = list()
-	good_tokens.append(pavao.http.generateToken(original_claims))
-	pavao.http.refresh_secretKey(5) # 5 days
+	good_tokens.append(pavao.http.generate_token(original_claims))
+	pavao.http.refresh_secret_key(5) # 5 days
 
-	good_tokens.append(pavao.http.generateToken(original_claims))
-	pavao.http.refresh_secretKey(timedelta(days=5))
+	good_tokens.append(pavao.http.generate_token(original_claims))
+	pavao.http.refresh_secret_key(timedelta(days=5))
 
 	for good_token in good_tokens:
-		validated_claims = pavao.http.validateToken(good_token)
+		validated_claims = pavao.http.validate_token(good_token)
 		assert original_claims["iss"] == validated_claims["iss"]
-	
-	assert False == pavao.http.refresh_secretKey("bad argument")
-	assert False == pavao.http.refresh_secretKey(32.22)
+
+	assert False == pavao.http.refresh_secret_key("bad argument")
+	assert False == pavao.http.refresh_secret_key(32.22)
 
 #-------------------------------------------------------------------------------
 
@@ -56,13 +56,13 @@ def testFrauds():
 	]
 
 	for bad_token in bad_tokens:
-		assert None == pavao.http.validateToken(bad_token)
+		assert None == pavao.http.validate_token(bad_token)
 
-	good_token = pavao.http.generateToken(original_claims)
+	good_token = pavao.http.generate_token(original_claims)
 	header, claims, signature = good_token.split('.')
 
 	bad_claims = '{"invalid=323}'
-	bad_claims_signature = pavao.http.calcCurrentSignature(header + '.' + bad_claims)
+	bad_claims_signature = pavao.http.calc_current_signature(header + '.' + bad_claims)
 	bad_signature = "a" + signature
 
 	forged_tokens = [
@@ -71,7 +71,7 @@ def testFrauds():
 	]
 
 	for forged_token in forged_tokens:
-		assert None == pavao.http.validateToken(forged_token)
+		assert None == pavao.http.validate_token(forged_token)
 
 #-------------------------------------------------------------------------------
 
@@ -81,17 +81,17 @@ if __name__ == "__main__":
 	testFrauds()
 
 
-#token1 = generateToken({"iss": "talaria" })
-#print(f"Validated: {validateToken(token1)}")
+#token1 = generate_token({"iss": "talaria" })
+#print(f"Validated: {validate_token(token1)}")
 
 #print(token1)
 #print(_current.ident)
 #print(_current.key)
 #print(_current.exp)
 #
-#refresh_secretKey()
-#refresh_secretKey(True)
-#token2 = generateToken({
+#refresh_secret_key()
+#refresh_secret_key(True)
+#token2 = generate_token({
 #	"iss": "talaria"
 #})
 #
@@ -100,8 +100,8 @@ if __name__ == "__main__":
 #print(_current.key)
 #print(_current.exp)
 #
-#refresh_secretKey(1)
-#token3 = generateToken({
+#refresh_secret_key(1)
+#token3 = generate_token({
 #	"iss": "talaria"
 #})
 #
@@ -110,8 +110,8 @@ if __name__ == "__main__":
 #print(_current.key)
 #print(_current.exp)
 #
-#refresh_secretKey(timedelta(seconds=5))
-#token4 = generateToken({
+#refresh_secret_key(timedelta(seconds=5))
+#token4 = generate_token({
 #	"iss": "talaria"
 #})
 #
@@ -120,7 +120,7 @@ if __name__ == "__main__":
 #print(_current.key)
 #print(_current.exp)
 #
-#validateToken(token1)
-#validateToken(token2)
-#validateToken(token3)
-#validateToken(token4)
+#validate_token(token1)
+#validate_token(token2)
+#validate_token(token3)
+#validate_token(token4)

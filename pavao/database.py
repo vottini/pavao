@@ -25,7 +25,7 @@ class DatabasePool:
 		await self.close()
 
 		try:
-			db_settings = settings.getSetting("pavao.database", _database_schema)
+			db_settings = settings.get_setting("pavao.database", _database_schema)
 			self.pool = await asyncpg.create_pool(**db_settings)
 			Logger.info("Database pool connected")
 
@@ -41,20 +41,20 @@ class DatabasePool:
 			self.pool = None
 
 	#-------------------------------------------------------------------------------
-	
+
 	class Connection:
 		def __init__(self, pool):
 			self.pool = pool
 			self.conn = None
-	
+
 		async def __aenter__(self):
 			self.conn = await self.pool.acquire()
 			return self.conn
-	
+
 		async def __aexit__(self, *args):
 			await self.pool.release(self.conn)
-	
-	
+
+
 	def connection(self):
 		return DatabasePool.Connection(self.pool)
 

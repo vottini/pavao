@@ -62,7 +62,7 @@ class HttpHandler:
 		self.registry = registry
 
 	async def init(self, settings, registry):
-		http_settings = settings.getSetting("pavao.http", _http_schema)
+		http_settings = settings.get_setting("pavao.http", _http_schema)
 
 		if http_settings is not None:
 			cors_settings = http_settings.get('CORS', dict())
@@ -163,4 +163,9 @@ class HttpHandler:
 			print(traceback.format_exc())
 			response.set_status(500)
 			await emit(response)
+
+
+__all__ = [
+	"HttpHandler"
+]
 
