@@ -30,14 +30,20 @@ async def process(request, response, parsed_json, db_connection, path_variables)
 
 				UPDATE pavao."role"
 					set {column} = $1
-					WHERE id = $2;
+					WHERE id = $2
+					RETURNING id;
 
 			"""
 
 			try:
-				await db_connection.execute(query,
-					getattr(parsed_json, column),
-					roleId)
+				column_name = getattr(parsed_json, column)
+				updated = await db_connection.fetchval(query,
+					column_name, roleId)
+
+				if updated is None:
+					localizer.assign_response_error(response, "ROLE_NOT_FOUND")
+					response.set_status(404)
+					return
 
 			except asyncpg.UniqueViolationError as e:
 				localizer.assign_response_error(response, "ROLE_EXISTS")

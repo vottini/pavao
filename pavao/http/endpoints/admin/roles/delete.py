@@ -2,6 +2,8 @@
 import asyncio
 import pavao
 
+from admin.common import create_message_localizer
+
 delete_query = """
 
 	DELETE FROM pavao."role"
@@ -11,22 +13,23 @@ delete_query = """
 """
 
 async def process(request, response, db_connection, path_variables, handler):
+	localizer = create_message_localizer(request)
 
 	try:
 		deleted = await db_connection.fetchval(delete_query,
-			path_variables['roleId'] )
+			path_variables['roleId'])
 
 		if deleted is None:
+			localizer.assign_response_error(response, "ROLE_NOT_FOUND")
 			response.set_status(404)
 			return
 
-		#authorizer = handler.authorizer
-		#await authorizer.enable_functionality(db_connection,
-		#	updated_functionality)
+		response.set_status(204)
 
 	except Exception as e:
-		print(e)
-		response.set_status(403)
+		pavao.Logger.error(f"Internal error updating role: {e}")
+		localizer.assign_response_error(response, "UNEXPECTED_ERROR")
+		response.set_status(500)
 		return
 
 

@@ -1,30 +1,37 @@
 
 import asyncio
+import asyncpg
 import pavao
+
+from admin.common import create_message_localizer
 
 allow_query = """
 
-	INSERT INTO pavao."access" ("role", functionality)
+	INSERT INTO pavao."access" (functionality, "role")
 		VALUES ($1, $2)
 
 """
 
 async def process(request, response, db_connection, path_variables, handler):
-	role_id = path_variables['roleId']
-	func_id = path_variables['functionalityId']
+	localizer = create_message_localizer(request)
 
 	try:
 		await db_connection.execute(allow_query,
-			role_id, func_id)
+			path_variables['functionalityId'],
+			path_variables['roleId'])
 
 		#authorizer = handler.authorizer
 		#await authorizer.enable_functionality(db_connection,
 		#	updated_functionality)
 
+	except asyncpg.ForeignKeyViolationError:
+		localizer.assign_response_error(response, "ROLE_NOT_FOUND")
+		response.set_status(404)
+
 	except Exception as e:
-		print(e)
-		response.set_status(403)
-		return
+		pavao.Logger.error(f"Internal error giving role access: {e}")
+		localizer.assign_response_error(response, "UNEXPECTED_ERROR")
+		response.set_status(500)
 
 
 from admin.common import localize_functionality

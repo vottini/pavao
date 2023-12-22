@@ -4,6 +4,7 @@ import asyncpg
 import pavao
 
 from admin.common import localize_functionality
+from admin.common import create_message_localizer
 
 grant_query = """
 
@@ -40,12 +41,19 @@ user_list = """
 
 @pavao.accepts_json(string_blueprint=user_list)
 async def process(request, response, parsed_json, path_variables, db_connection):
+	localizer = create_message_localizer(request)
 	role_id = path_variables['roleId']
 	users = parsed_json
 
-	async with db_connection.transaction():
-		await db_connection.execute(grant_query, users, role_id)
-		await db_connection.execute(revoke_query, users, role_id)
+	try:
+		async with db_connection.transaction():
+			await db_connection.execute(grant_query, users, role_id)
+			await db_connection.execute(revoke_query, users, role_id)
+
+	except asyncpg.ForeignKeyViolationError:
+		localizer.assign_response_error(response, "ROLE_NOT_FOUND")
+		response.set_status(404)
+		return
 
 
 async def pavao_endpoint(db_connection, parameters):
