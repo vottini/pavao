@@ -41,7 +41,11 @@ async def process(request, db_connection):
 		grouped[package] = package_funcs
 
 	result = [
-		{ 'package': package, 'functionalities': funcs }
+		{
+			'package': package,
+			'functionalities': funcs
+		}
+
 		for package, funcs in grouped.items()
 	]
 
@@ -49,9 +53,9 @@ async def process(request, db_connection):
 
 
 from admin.common import localize_functionality
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("LIST_FUNCTIONALITIES",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'GET',

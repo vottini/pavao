@@ -3,7 +3,9 @@ import os
 import re
 import configparser
 from datetime import datetime, timezone
+
 from .json import error_blueprint
+from .logger import Logger
 
 _any_language = '*'
 _quality_matcher = re.compile(r'^q=(1|0.[0-9]{1,3})$')
@@ -34,7 +36,7 @@ class Localizer:
 				return sanedMsg
 
 		Logger.warning(f"Message id '{messageId}' not found")
-		return "<Unknown message>"
+		return "<Unknown>"
 
 
 	def create_error(self, messageId):

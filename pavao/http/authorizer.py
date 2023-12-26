@@ -129,7 +129,7 @@ class Authorizer:
 	async def validate_access(self, request, endpoint):
 		if endpoint.public: return True, None
 		authentication = request.headers.get("authorization")
-		if None == authentication:
+		if not isinstance(authentication, str):
 			return False, None
 
 		found_token = _bearer_pattern.search(authentication)

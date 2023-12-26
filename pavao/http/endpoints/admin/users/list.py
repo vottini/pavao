@@ -15,7 +15,7 @@ list_admins = """
 		acc.id = $1 as my_account
 
 	FROM pavao.account acc
-		LEFT JOIN pavao."assignment" assig ON assig.account = acc.id 
+		LEFT JOIN pavao."assignment" assig ON assig.account = acc.id
 		LEFT JOIN pavao."role" rl ON assig."role" = rl.id
 
 	WHERE NOT acc.managerial
@@ -42,9 +42,9 @@ async def process(request, response, auth_data, db_connection):
 	return [ pavao.assemble_dicts(row) for row in retrieved ]
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("LIST_USERS",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'GET',

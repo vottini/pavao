@@ -3,6 +3,7 @@ import asyncio
 import asyncpg
 import pavao
 
+from admin.common import localize_functionality
 from admin.common import create_message_localizer
 
 allow_query = """
@@ -34,10 +35,9 @@ async def process(request, response, db_connection, path_variables, handler):
 		response.set_status(500)
 
 
-from admin.common import localize_functionality
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("SET_ACCESSES",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'PUT',

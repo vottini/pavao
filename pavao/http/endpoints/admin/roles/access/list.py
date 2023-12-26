@@ -3,7 +3,7 @@ import asyncio
 import pavao
 
 from admin.common import localize_functionality
-
+from admin.common import create_message_localizer
 
 retrieve_role_name = """
 
@@ -51,15 +51,22 @@ accesses_blueprint = """
 
 @pavao.generates_json(string_blueprint=accesses_blueprint)
 async def process(request, response, db_connection, path_variables):
-	role_name = await db_connection.fetchval(retrieve_role_name,
-		path_variables['roleId'])
+	localizer = create_message_localizer(request)
+	role_id = path_variables['role']
 
-	if role_name is None:
-		response.set_status(404)
-		return
+	async with db_connection.transation():
+		role_name = await db_connection.fetchval(
+			retrieve_role_name,
+			role_id)
 
-	accesses = await db_connection.fetch(list_role_accesses,
-		path_variables['roleId'])
+		if role_name is None:
+			localizer.assign_response_error(response, "ROLE_NOT_FOUND")
+			response.set_status(404)
+			return
+
+		accesses = await db_connection.fetch(
+			list_role_accesses,
+			role_id)
 
 	grouped = dict()
 	for functionality in accesses:
@@ -71,19 +78,23 @@ async def process(request, response, db_connection, path_variables):
 	return {
 		"roleName": role_name,
 		"accesses": [
-			{ 'package': package, 'functionalities': funcs }
+			{
+				'package': package,
+				'functionalities': funcs
+			}
+
 			for package, funcs in grouped.items()
 		]
 	}
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("LIST_ACCESSES",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'GET',
-		'path': '/admin/roles/{roleId:int}/accesses',
+		'path': '/admin/roles/{role:int}/accesses',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

@@ -67,9 +67,9 @@ async def process(db_connection, path_variables):
 	return result
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("VIEW_ROLE",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'GET',

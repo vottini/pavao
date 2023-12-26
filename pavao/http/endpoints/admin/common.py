@@ -48,8 +48,8 @@ _functionalities_i18n = pavao.Internationalization(
 	pavao.path_to(_functionalities_path)
 )
 
-async def localize_functionality(functionality, db_connection, parameters):
-	language = await parameters.get('language')
+async def localize_functionality(functionality, db_connection, persisted_settings):
+	language = await persisted_settings.get('language')
 	package_name = _functionalities_i18n.localize(language, "PACKAGE")
 	func_name = _functionalities_i18n.localize(language, functionality)
 	await assert_admin_access(db_connection, package_name, func_name)

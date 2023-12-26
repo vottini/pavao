@@ -4,10 +4,9 @@ import uvloop
 import operator
 import os
 
-from .parameters import Parameters
-from .logger import Logger, start_logging, stop_logging
 from .utils import adapter
-from .config import load_settings
+from .config import load_settings, PersistedSettings
+from .logger import Logger, start_logging, stop_logging
 from .database import DatabasePool
 from .loader import load_dir
 
@@ -21,7 +20,7 @@ class Handler:
 		self.settings = None
 		self.endpoints_dir = endpoints_dir
 		self.db_pool = DatabasePool()
-		self.parameters = Parameters(self.db_pool)
+		self.persisted = PersistedSettings(self.db_pool)
 		self.builtin_scripts = list()
 
 		async def init():
@@ -73,9 +72,9 @@ class Handler:
 		async with self.db_pool.connection() as db_connection:
 
 			all_args = {
-				'settings': self.settings,
-				'db_connection': db_connection,
-				'parameters': self.parameters
+				'loaded_settings': self.settings,
+				'persisted_settings': self.persisted,
+				'db_connection': db_connection
 			}
 
 			for file_path, file_hash, specs_fnc in loaded_scripts:
@@ -114,9 +113,9 @@ class Handler:
 		async with self.db_pool.connection() as db_connection:
 
 			all_args = {
-				'settings': self.settings,
-				'db_connection': db_connection,
-				'parameters': self.parameters
+				'loaded_settings': self.settings,
+				'persisted_settings': self.persisted,
+				'db_connection': db_connection
 			}
 
 			for file_path, file_hash, specs_fnc in self.builtin_scripts:

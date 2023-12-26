@@ -56,9 +56,9 @@ async def process(request, response, parsed_json, db_connection):
 	return roleId
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("CREATE_ROLES",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'POST',

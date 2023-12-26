@@ -125,8 +125,8 @@ async def process(request, response, db_connection, parsed_json):
 
 #-------------------------------------------------------------------------------
 
-async def pavao_endpoint(settings):
-	await credentials.setup(settings)
+async def pavao_endpoint(loaded_settings):
+	await credentials.setup(loaded_settings)
 
 	return {
 		'method': 'POST',

@@ -12,7 +12,7 @@ grant_query = """
 			WHERE rl.id = any($1::INTEGER[]) AND
 			NOT rl.admin
 	)
-	
+
 	INSERT INTO pavao.assignment ("role", account)
 		SELECT collected.id, $2 FROM to_add collected
 		ON CONFLICT DO NOTHING;
@@ -50,9 +50,9 @@ async def process(request, response, parsed_json, path_variables, db_connection)
 		await db_connection.execute(revoke_query, roles, user_id)
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("SET_ASSIGNMENTS",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'PUT',

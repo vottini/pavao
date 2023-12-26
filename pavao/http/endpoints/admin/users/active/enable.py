@@ -18,9 +18,9 @@ async def process(request, response, db_connection, path_variables):
 		path_variables['userId'])
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("ENABLE_USERS",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'PUT',

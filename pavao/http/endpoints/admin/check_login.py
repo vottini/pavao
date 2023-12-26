@@ -27,9 +27,9 @@ async def process(request, response, db_connection):
 	return False
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("CHECK_LOGIN",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'GET',

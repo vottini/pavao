@@ -25,7 +25,7 @@ _retrieve_user_roles = """
 		rl.id, rl.name, rl.admin
 
 	FROM pavao.account acc
-		INNER JOIN pavao.assignment assig ON assig.account = acc.id 
+		INNER JOIN pavao.assignment assig ON assig.account = acc.id
 		INNER JOIN pavao."role" rl ON assig."role" = rl.id
 		WHERE acc.id = $1;
 
@@ -88,9 +88,9 @@ async def process(db_connection, path_variables):
 	return result
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("VIEW_USER",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'GET',

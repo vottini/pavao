@@ -1,71 +1,102 @@
 
-import asyncio
-import builtins
 import collections
-import re
+import functools
 
-list_pattern = re.compile(r"\[([^\]]+)\]")
-get_query = "SELECT type, value FROM pavao.parameters WHERE name = $1"
+from .exception import PavaoException
+from .i18n import Internationalization
+from .utils import path_to
 
-upsert_query = """
+internationalization = Internationalization(
+	path_to('messages')
+)
 
-	INSERT INTO
-		pavao.parameters (name, type, value)
-		VALUES ($1, $2, $3)
+def accepts_parameters(parameter_dict):
 
-		ON CONFLICT (name) DO UPDATE
-			SET type = excluded.type,
-				value = excluded.value;
+	def wrapper(fnc):
+		fnc_nargs = fnc.__code__.co_argcount
+		fnc_lvars = fnc.__code__.co_varnames
+		fnc_params = fnc_lvars[0:fnc_nargs]
 
-"""
+		@functools.wraps(fnc)
+		async def wrapped(
+			handler,
+			request,
+			path_variables,
+			db_connection,
+			auth_data,
+			response,
+			receive):
 
-class Parameters:
-	def __init__(self, db_pool):
-		self.listeners = dict()
-		self.db_pool = db_pool
+			parameters = dict()
+			for name, value in parameter_dict.items():
+				as_list = False
 
+				if isinstance(value, collections.abc.Sequence) and not isinstance(value, str):
+					if len(value) != 1 or not isinstance(value[0], type):
+						msg = f"list especification needs to have exactly one element and it needs to be a type"
+						raise PavaoException(msg)
 
-	async def get(self, name):
-		async with self.db_pool.connection() as db_connection:
-			row = await db_connection.fetchrow(get_query, name)
-			if row is None: return None
+					ctor = value[0]
+					default_value = None
+					as_list = True
 
-			typ, value = row
-			list_search = list_pattern.search(value)
-			ctor = getattr(builtins, typ)
+				if not as_list:
+					if isinstance(value, type):
+						default_value = None
+						ctor = value
 
-			if list_search is not None:
-				list_content = list_search.group(1)
-				return [ ctor(vle) for vle in list_content.split("::") ]
+					else:
+						default_value = value
+						ctor = type(default_value)
 
-			return ctor(value)
+				if not name in request.params:
+					if default_value is None:
+						localizer = internationalization.create_localizer(request)
+						localizer.assign_response_error(response, "PARAMS_MISSING")
+						response.set_status(400)
+						return
 
+					parameters[name] = default_value
+					continue
 
-	def monitor(self, name, callback):
-		key_listeners = self.listeners.get(name, list())
-		key_listeners.append(callback)
-		self.listeners[name] = key_listeners
+				try:
+					raw_value = request.params[name]
+					parameters[name] = (
+						[ ctor(element) for element in raw_value.split(',') ] if as_list
+						else ctor(raw_value)
+					)
 
+				except Exception as e:
+					localizer = internationalization.create_localizer(request)
+					localizer.assign_response_error(response, "PARAMS_INVALID")
+					response.set_status(400)
+					return
 
-	async def set(self, name, value):
-		original_value = value
+			all_args = {
+				'handler': handler,
+				'request': request,
+				'path_variables': path_variables,
+				'db_connection': db_connection,
+				'auth_data': auth_data,
+				'response': response,
+				'receive': receive,
+				'parameters': parameters
+			}
 
-		typ = type(original_value).__name__
-		if isinstance(value, collections.abc.Sequence) and not isinstance(value, str):
-			typ = type(value[0]).__name__
-			str_values = map(str, value)
-			value = f"[{'::'.join(str_values)}]"
+			selected_args = list()
+			for param_name in fnc_params:
+				selected_args.append(all_args[param_name])
 
-		async with self.db_pool.connection() as db_connection:
-			await db_connection.execute(upsert_query, name, typ, str(value))
+			result = await fnc(*selected_args)
+			return result
 
-		listeners = self.listeners.get(name, list())
-		for listener in listeners:
-			listener(original_value)
+		return wrapped
+
+	return wrapper
 
 #------------------------------------------------------------------------------
 
 __all__ = [
-	"Parameters"
+	"accepts_parameters"
 ]
 

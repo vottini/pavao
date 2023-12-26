@@ -56,9 +56,9 @@ async def process(request, response, parsed_json, path_variables, db_connection)
 		return
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("SET_ASSIGNMENTS",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'PUT',

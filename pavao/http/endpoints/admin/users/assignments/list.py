@@ -56,9 +56,9 @@ async def process(request, response, db_connection, path_variables):
 	return pavao.assemble_dicts(user_data, assignments=assignments)
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("LIST_ASSIGNMENTS",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'GET',

@@ -44,9 +44,9 @@ async def process(request, response, parsed_json, db_connection, auth_data):
 		await db_connection.execute(remove_admins, admin_id, parsed_json)
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("MODIFY_ADMIN",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'PUT',

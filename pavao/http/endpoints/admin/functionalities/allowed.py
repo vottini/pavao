@@ -2,8 +2,6 @@
 import asyncio
 import pavao
 
-from admin.common import localize_functionality
-
 select_functionalities_by_roles = """
 
 	SELECT
@@ -31,30 +29,19 @@ functionalities_blueprint = """
 """
 
 @pavao.generates_json(string_blueprint=functionalities_blueprint)
-async def process(request, response, db_connection):
-	if not 'roles' in request.params:
-		response.set_status(400)
-		return
-
-	try:
-		raw_roles = request.params['roles']
-		roles = [ int(role) for role in raw_roles.split(',') ]
-
-	except Exception as e:
-		response.set_status(400)
-		print(e)
-		return
-
+@pavao.accepts_parameters({'roles': [int]})
+async def process(parameters, response, db_connection):
 	retrieved = await db_connection.fetch(
 		select_functionalities_by_roles,
-		roles)
+		parameters['roles'])
 
 	return [ pavao.assemble_dicts(row) for row in retrieved ]
 
 
-async def pavao_endpoint(db_connection, parameters):
+from admin.common import localize_functionality
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("LIST_FUNCTIONALITIES",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'GET',

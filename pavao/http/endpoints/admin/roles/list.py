@@ -28,9 +28,9 @@ async def process(request, db_connection):
 	return [ pavao.assemble_dicts(row) for row in result ]
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("LIST_ROLES",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'GET',

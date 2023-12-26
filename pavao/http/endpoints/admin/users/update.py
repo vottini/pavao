@@ -25,7 +25,9 @@ async def process(request, response, parsed_json, db_connection, path_variables)
 
 	async with db_connection.transaction():
 		for column in ("login", "firstName", "lastName"):
-			if not pavao.has_optional_field(parsed_json, column): continue
+			if not pavao.has_optional_field(parsed_json, column):
+				continue
+
 			snake_case_column = humps.decamelize(column)
 
 			query = f"""
@@ -38,35 +40,28 @@ async def process(request, response, parsed_json, db_connection, path_variables)
 
 			"""
 
-			print(query)
-			print(f"$1 = {getattr(parsed_json, column)}")
-			print(f"$2 = {userId}")
-
 			try:
 				await db_connection.execute(query,
 					getattr(parsed_json, column),
 					userId)
 
 			except asyncpg.UniqueViolationError as e:
+				localizer.assign_response_error(response, "LOGIN_EXISTS")
 				response.set_status(409)
-				return localizer.create_error(
-					"LOGIN_EXISTS"
-				)
+				return
 
 			except asyncpg.PostgresError as e:
 				pavao.Logger.error(f"Internal error updating role: {e}")
-
+				localizer.assign_response_error(response, "UNEXPECTED_ERROR")
 				response.set_status(500)
-				return localizer.create_error(
-					"UNEXPECTED_ERROR"
-				)
+				return
 
 	response.set_status(204)
 
 
-async def pavao_endpoint(db_connection, parameters):
+async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("CREATE_USERS",
-		db_connection, parameters)
+		db_connection, persisted_settings)
 
 	return {
 		'method': 'PATCH',
