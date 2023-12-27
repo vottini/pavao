@@ -4,6 +4,7 @@ import asyncpg
 import pavao
 
 from admin.common import localize_functionality
+from admin.common import create_message_localizer
 
 grant_query = """
 
@@ -42,12 +43,22 @@ roles_list = """
 
 @pavao.accepts_json(string_blueprint=roles_list)
 async def process(request, response, parsed_json, path_variables, db_connection):
-	user_id = path_variables['userId']
+	user_id = path_variables['user']
 	roles = parsed_json
 
-	async with db_connection.transaction():
-		await db_connection.execute(grant_query, roles, user_id)
-		await db_connection.execute(revoke_query, roles, user_id)
+	try:
+		async with db_connection.transaction():
+			await db_connection.execute(grant_query, roles, user_id)
+			await db_connection.execute(revoke_query, roles, user_id)
+
+	except asyncpg.ForeignKeyViolationError:
+		localizer.assign_response_error(response, "USER_NOT_FOUND")
+		response.set_status(404)
+
+	except Exception as e:
+		pavao.Logger.error(f"Internal error assigning user: {e}")
+		localizer.assign_response_error(response, "UNEXPECTED_ERROR")
+		response.set_status(500)
 
 
 async def pavao_endpoint(db_connection, persisted_settings):
@@ -56,7 +67,7 @@ async def pavao_endpoint(db_connection, persisted_settings):
 
 	return {
 		'method': 'PUT',
-		'path': '/admin/users/{userId:int}/assignments',
+		'path': '/admin/users/{user:int}/assignments',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

@@ -30,7 +30,7 @@ changes_blueprint = """
 async def process(request, response, db_connection, parsed_json, path_variables):
 	localizer = create_message_localizer(request)
 
-	user_id = path_variables['userId']
+	user_id = path_variables['user']
 	hashed_password = argon2.PasswordHasher().hash(parsed_json.password)
 	change_afterwards = (pavao.has_optional_field(parsed_json, 'changePassword')
 		and parsed_json.changePassword)
@@ -40,19 +40,14 @@ async def process(request, response, db_connection, parsed_json, path_variables)
 			user_id, hashed_password, change_afterwards)
 
 		if found_account is None:
+			localizer.assign_response_error(response, "USER_NOT_FOUND")
 			response.set_status(404)
 			return
 
 	except asyncpg.PostgresError as e:
 		pavao.Logger.error(f"Error changing password: {e}")
-
+		localizer.assign_response_error(response, "UNEXPECTED_ERROR")
 		response.set_status(500)
-		return localizer.create_error(
-			"UNEXPECTED_ERROR"
-		)
-
-	response.set_status(204)
-	return found_account
 
 
 async def pavao_endpoint(db_connection, persisted_settings):
@@ -61,7 +56,7 @@ async def pavao_endpoint(db_connection, persisted_settings):
 
 	return {
 		'method': 'POST',
-		'path': '/admin/users/{userId:int}/change-password',
+		'path': '/admin/users/{user:int}/change-password',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

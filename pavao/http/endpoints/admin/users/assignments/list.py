@@ -3,10 +3,15 @@ import asyncio
 import pavao
 
 from admin.common import localize_functionality
+from admin.common import create_message_localizer
 
 retrieve_user_data = """
 
-	SELECT first_name, last_name FROM pavao.account
+	SELECT
+		first_name,
+		last_name
+
+		FROM pavao.account
 		WHERE id = $1;
 
 """
@@ -46,13 +51,14 @@ assignments_blueprint = """
 @pavao.generates_json(string_blueprint=assignments_blueprint)
 async def process(request, response, db_connection, path_variables):
 	user_data = await db_connection.fetchrow(retrieve_user_data,
-		path_variables['userId'])
+		path_variables['user'])
 
 	if user_data is None:
+		localizer.assign_response_error(response, "USER_NOT_FOUND")
 		response.set_status(404)
 		return
 
-	assignments = await db_connection.fetch(list_assignments, path_variables['userId'])
+	assignments = await db_connection.fetch(list_assignments, path_variables['user'])
 	return pavao.assemble_dicts(user_data, assignments=assignments)
 
 
@@ -62,7 +68,7 @@ async def pavao_endpoint(db_connection, persisted_settings):
 
 	return {
 		'method': 'GET',
-		'path': '/admin/users/{userId:int}/assignments',
+		'path': '/admin/users/{user:int}/assignments',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

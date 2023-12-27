@@ -3,6 +3,7 @@ import asyncio
 import pavao
 
 from admin.common import localize_functionality
+from admin.common import create_message_localizer
 
 enable_user = """
 
@@ -14,8 +15,15 @@ enable_user = """
 """
 
 async def process(request, response, db_connection, path_variables):
-	updated = await db_connection.fetchval(enable_user,
+	localizer = create_message_localizer(request)
+	enabled = await db_connection.fetchval(enable_user,
 		path_variables['user'])
+
+	if enabled is None:
+		localizer.assign_response_error(response, "USER_NOT_FOUND")
+		response.set_status(404)
+
+	response.set_status(204)
 
 
 async def pavao_endpoint(db_connection, persisted_settings):

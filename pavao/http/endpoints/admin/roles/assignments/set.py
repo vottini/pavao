@@ -42,7 +42,7 @@ user_list = """
 @pavao.accepts_json(string_blueprint=user_list)
 async def process(request, response, parsed_json, path_variables, db_connection):
 	localizer = create_message_localizer(request)
-	role_id = path_variables['roleId']
+	role_id = path_variables['role']
 	users = parsed_json
 
 	try:
@@ -62,7 +62,7 @@ async def pavao_endpoint(db_connection, persisted_settings):
 
 	return {
 		'method': 'PUT',
-		'path': '/admin/roles/{roleId:int}/assignments',
+		'path': '/admin/roles/{role:int}/assignments',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

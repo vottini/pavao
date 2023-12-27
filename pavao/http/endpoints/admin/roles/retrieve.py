@@ -3,6 +3,7 @@ import asyncio
 import pavao
 
 from admin.common import localize_functionality
+from admin.common import create_message_localizer
 
 _select_role = """
 
@@ -53,18 +54,24 @@ _role_info_blueprint = """
 """
 
 @pavao.generates_json(string_blueprint=_role_info_blueprint)
-async def process(db_connection, path_variables):
-	roleId = path_variables['roleId']
+async def process(request, response, db_connection, path_variables):
+	role_id = path_variables['role']
 
-	role_info = await db_connection.fetchrow(_select_role, roleId)
-	role_users = await db_connection.fetch(_retrieve_role_users, roleId)
-	role_funcs = await db_connection.fetch(_retrieve_role_funcs, roleId)
+	async with db_connection.transaction():
+		role_info = await db_connection.fetchrow(_select_role, role_id)
 
-	result = pavao.assemble_dicts(role_info,
+		if role_info is None:
+			localizer = create_message_localizer(request)
+			localizer.assign_response_error(response, "ROLE_NOT_FOUND")
+			response.set_status(404)
+			return None
+
+		role_users = await db_connection.fetch(_retrieve_role_users, role_id)
+		role_funcs = await db_connection.fetch(_retrieve_role_funcs, role_id)
+
+	return pavao.assemble_dicts(role_info,
 		functionalities=role_funcs,
 		users=role_users)
-
-	return result
 
 
 async def pavao_endpoint(db_connection, persisted_settings):
@@ -73,7 +80,7 @@ async def pavao_endpoint(db_connection, persisted_settings):
 
 	return {
 		'method': 'GET',
-		'path': '/admin/roles/{roleId:int}',
+		'path': '/admin/roles/{role:int}',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

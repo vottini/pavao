@@ -9,7 +9,7 @@ disallow_query = """
 
 	DELETE FROM pavao."access"
 		WHERE functionality = $1 AND "role" = $2
-		RETURNING id;
+		RETURNING "role";
 
 """
 
@@ -29,6 +29,8 @@ async def process(request, response, db_connection, path_variables, handler):
 		#authorizer = handler.authorizer
 		#await authorizer.enable_functionality(db_connection,
 		#	updated_functionality)
+
+		response.set_status(204)
 
 	except Exception as e:
 		pavao.Logger.error(f"Internal error removing role access: {e}")

@@ -54,7 +54,7 @@ async def process(request, response, db_connection, path_variables):
 	localizer = create_message_localizer(request)
 	role_id = path_variables['role']
 
-	async with db_connection.transation():
+	async with db_connection.transaction():
 		role_name = await db_connection.fetchval(
 			retrieve_role_name,
 			role_id)

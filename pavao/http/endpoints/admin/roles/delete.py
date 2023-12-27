@@ -2,6 +2,7 @@
 import asyncio
 import pavao
 
+from admin.common import localize_functionality
 from admin.common import create_message_localizer
 
 delete_query = """
@@ -33,7 +34,6 @@ async def process(request, response, db_connection, path_variables, handler):
 		return
 
 
-from admin.common import localize_functionality
 async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("CREATE_ROLES",
 		db_connection, persisted_settings)

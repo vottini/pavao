@@ -3,6 +3,7 @@ import asyncio
 import pavao
 
 from admin.common import localize_functionality
+from admin.common import create_message_localizer
 
 _select_user = """
 
@@ -51,9 +52,18 @@ _user_info_blueprint = """
 """
 
 @pavao.generates_json(string_blueprint=_user_info_blueprint)
-async def process(db_connection, path_variables):
-	infos = await db_connection.fetchrow(_select_user,
-		path_variables['userId'])
+async def process(request, db_connection, path_variables):
+	user_id = path_variables['user']
+
+	infos = await db_connection.fetchrow(
+		_select_user,
+		user_id)
+
+	if infos is None:
+		localizer = create_message_localizer(request)
+		localizer.assign_response_error(response, "USER_NOT_FOUND")
+		response.set_status(404)
+		return
 
 	result = {
 		"login": infos["login"],
@@ -67,8 +77,9 @@ async def process(db_connection, path_variables):
 	if lastName is not None:
 		result['lastName'] = lastName
 
-	roles = await db_connection.fetch(_retrieve_user_roles,
-		path_variables['userId'])
+	roles = await db_connection.fetch(
+		_retrieve_user_roles,
+		user_id)
 
 	isAdmin = False
 	collectedRoles = list()
@@ -94,7 +105,7 @@ async def pavao_endpoint(db_connection, persisted_settings):
 
 	return {
 		'method': 'GET',
-		'path': '/admin/users/{userId:int}',
+		'path': '/admin/users/{user:int}',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process
