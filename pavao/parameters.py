@@ -11,6 +11,33 @@ internationalization = Internationalization(
 )
 
 def accepts_parameters(parameter_dict):
+	specs = dict()
+
+	for name, value in parameter_dict.items():
+		if isinstance(value, collections.abc.Sequence) and not isinstance(value, str):
+			if len(value) != 1 or not isinstance(value[0], type):
+				msg = f"list especification needs to have exactly one element and it needs to be a type"
+				raise PavaoException(msg)
+
+			ctor = value[0]
+			default_value = None
+			as_list = True
+
+		else:
+			as_list = False
+			if isinstance(value, type):
+				default_value = None
+				ctor = value
+
+			else:
+				default_value = value
+				ctor = type(default_value)
+
+		specs[name] = (
+			as_list,
+			default_value,
+			ctor
+		)
 
 	def wrapper(fnc):
 		fnc_nargs = fnc.__code__.co_argcount
@@ -29,25 +56,7 @@ def accepts_parameters(parameter_dict):
 
 			parameters = dict()
 			for name, value in parameter_dict.items():
-				as_list = False
-
-				if isinstance(value, collections.abc.Sequence) and not isinstance(value, str):
-					if len(value) != 1 or not isinstance(value[0], type):
-						msg = f"list especification needs to have exactly one element and it needs to be a type"
-						raise PavaoException(msg)
-
-					ctor = value[0]
-					default_value = None
-					as_list = True
-
-				if not as_list:
-					if isinstance(value, type):
-						default_value = None
-						ctor = value
-
-					else:
-						default_value = value
-						ctor = type(default_value)
+				as_list, default_value, ctor = specs[name]
 
 				if not name in request.params:
 					if default_value is None:

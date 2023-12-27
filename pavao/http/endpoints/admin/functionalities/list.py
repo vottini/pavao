@@ -40,16 +40,10 @@ async def process(request, db_connection):
 		package_funcs.append(dict(functionality))
 		grouped[package] = package_funcs
 
-	result = [
-		{
-			'package': package,
-			'functionalities': funcs
-		}
-
+	return [
+		{'package': package, 'functionalities': funcs}
 		for package, funcs in grouped.items()
 	]
-
-	return result
 
 
 from admin.common import localize_functionality

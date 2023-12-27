@@ -14,8 +14,8 @@ enable_user = """
 """
 
 async def process(request, response, db_connection, path_variables):
-	await db_connection.execute(enable_user,
-		path_variables['userId'])
+	updated = await db_connection.fetchval(enable_user,
+		path_variables['user'])
 
 
 async def pavao_endpoint(db_connection, persisted_settings):
@@ -24,7 +24,7 @@ async def pavao_endpoint(db_connection, persisted_settings):
 
 	return {
 		'method': 'PUT',
-		'path': '/admin/users/{userId:int}/active',
+		'path': '/admin/users/{user:int}/active',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

@@ -77,12 +77,7 @@ async def process(request, response, db_connection, path_variables):
 
 	return {
 		"roleName": role_name,
-		"accesses": [
-			{
-				'package': package,
-				'functionalities': funcs
-			}
-
+		"accesses": [{'package': package, 'functionalities': funcs}
 			for package, funcs in grouped.items()
 		]
 	}

@@ -35,7 +35,10 @@ async def process(parameters, response, db_connection):
 		select_functionalities_by_roles,
 		parameters['roles'])
 
-	return [ pavao.assemble_dicts(row) for row in retrieved ]
+	return [
+		pavao.assemble_dicts(row)
+		for row in retrieved
+	]
 
 
 from admin.common import localize_functionality
