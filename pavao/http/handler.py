@@ -58,10 +58,8 @@ class HttpHandler:
 	def get_arguments(self):
 		return ['handler'] + self.arguments
 
-	def set_registry(self, registry):
-		self.registry = registry
 
-	async def init(self, settings, registry):
+	async def init(self, settings):
 		http_settings = settings.get_setting("pavao.http", _http_schema)
 
 		if http_settings is not None:
@@ -69,13 +67,16 @@ class HttpHandler:
 			self.cors_headers.update(cors_settings.get('headers', list()))
 			self.cors_origins = cors_settings.get('origins', list())
 
+
+	async def update_registry(self, registry):
+		self.registry = registry
 		funcs = set()
+
 		for endpoint in registry.list_endpoints():
 			if endpoint.functionality is None: continue
 			entry = (endpoint.package, endpoint.functionality)
 			funcs.add(entry)
 
-		self.set_registry(registry)
 		async with self.db_pool.connection() as db_connection:
 			await self.authorizer.setup(db_connection, funcs)
 

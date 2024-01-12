@@ -29,6 +29,9 @@ class Response:
 		self.headers['content-length'] = str(len(content))
 		return self
 
+	def set_plain_text(self, text):
+		self.set_content('text/plain', text.encode())
+
 
 async def emit(response):
 	sent_headers = list()

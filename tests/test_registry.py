@@ -28,6 +28,11 @@ def testListSorting():
 	for value in not_included:
 		assert pavao.http.search_sorted(listage, value.get_value()) == None
 
+	removed = [IntValued(x) for x in [ 3, 7, 4, 9 ]]
+	for value in removed:
+		listage = pavao.http.remove_sorted(listage, value.get_value())
+		assert pavao.http.search_sorted(listage, value.get_value()) == None
+
 #-------------------------------------------------------------------------------
 
 def testLookup():

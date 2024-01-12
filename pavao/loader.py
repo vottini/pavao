@@ -4,7 +4,6 @@ import inspect
 import sys
 import uuid
 import importlib.util
-import hashlib
 
 from .logger import Logger
 
@@ -34,6 +33,26 @@ def _find_python_scripts(path):
 	return files
 
 
+def load_file(file_path):
+	random_name = str(uuid.uuid1())
+
+	try:
+		spec = importlib.util.spec_from_file_location(random_name, file_path)
+		module = importlib.util.module_from_spec(spec)
+		spec.loader.exec_module(module)
+
+		if hasattr(module, 'pavao_endpoint'):
+			specifier = module.pavao_endpoint
+
+			if inspect.isfunction(specifier):
+				Logger.info(f"Loaded endpoint file {file_path}")
+				return specifier
+
+	except Exception as e:
+		Logger.warning(f"Unable to load file '{file_path}': {e}")
+		return None
+
+
 def load_dir(path):
 	Logger.info(f"Loading scripts at '{path}'")
 	files = _find_python_scripts(path)
@@ -42,34 +61,17 @@ def load_dir(path):
 
 	loaded = list()
 	for file_path in files:
-		random_name = str(uuid.uuid1())
+		specifier = load_file(file_path)
 
-		try:
-			spec = importlib.util.spec_from_file_location(random_name, file_path)
-			module = importlib.util.module_from_spec(spec)
-			spec.loader.exec_module(module)
-
-			if hasattr(module, 'pavao_endpoint'):
-				callback = module.pavao_endpoint
-				if inspect.isfunction(callback):
-
-					with open(file_path, 'rb') as fd:
-						hasher = hashlib.md5()
-						hasher.update(fd.read())
-						file_hash = hasher.hexdigest()
-
-						loaded.append((file_path, file_hash, callback))
-						Logger.info(f"Loaded endpoint file {file_path}")
-
-		except Exception as e:
-			Logger.warning(f"Unable to load file '{file_path}': {e}")
-			continue
+		if specifier is not None:
+			loaded.append((file_path, specifier))
 
 	return loaded
 
 #-------------------------------------------------------------------------------
 
 __all__ = [
+	"load_file",
 	"load_dir"
 ]
 

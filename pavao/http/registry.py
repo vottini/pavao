@@ -15,7 +15,7 @@ class EndpointException(PavaoException):
 
 class Valued:
 	def get_value(self):
-		pass
+		...
 
 
 def insert_sorted(listage, valued):
@@ -40,6 +40,23 @@ def insert_sorted(listage, valued):
 
 	listage.insert(index, valued)
 	return True
+
+
+def remove_sorted(listage, query_string):
+	max_index = len(listage)
+
+	index = 0
+	while index < max_index:
+		list_value = listage[index].get_value()
+		if not list_value < query_string:
+			break
+
+		index += 1
+
+	if index < max_index and list_value == query_string:
+		return listage[:index] + listage[index+1:]
+
+	return listage
 
 
 def search_sorted(listage, query_string):
@@ -88,6 +105,11 @@ class EndpointNode:
 		self.endpoints = dict()
 
 
+	def is_empty(self):
+		children_size = len(self.raw_children) + len(self.capture_children)
+		return (children_size + len(self.endpoints)) == 0
+
+
 	def list_endpoints(self):
 		result = [ specs for specs in self.endpoints.values() ]
 		for arc in self.raw_children: result += arc.node.list_endpoints()
@@ -95,10 +117,10 @@ class EndpointNode:
 		return result
 
 
-	def add_leaf(self, method, url_tokens, endpoint_data):
+	def add_leaf(self, method, url_tokens, endpoint_data, verify_existence=True):
 
 		if len(url_tokens) == 0:
-			if method in self.endpoints:
+			if verify_existence and method in self.endpoints:
 				msg = "Endpoint already registered"
 				raise EndpointException(msg)
 
@@ -129,13 +151,53 @@ class EndpointNode:
 
 		if None != existing_arc:
 			existing_node = existing_arc.node
-			return existing_node.add_leaf(method, remaining_tokens,
-				endpoint_data)
+			return existing_node.add_leaf(method,
+				remaining_tokens, endpoint_data,
+				verify_existence)
 
 		new_node = EndpointNode(self)
-		new_node.add_leaf(method, remaining_tokens, endpoint_data)
-		insert_sorted(destination_children, new_arc)
+		new_node.add_leaf(method, remaining_tokens,
+			endpoint_data, verify_existence)
+
 		new_arc.set_node(new_node)
+		insert_sorted(destination_children, new_arc)
+
+
+	def remove_endpoint(self, method, url_tokens):
+
+		if len(url_tokens) == 0:
+			popped = self.endpoints.pop(method, None)
+			return popped is not None and self.is_empty()
+
+		current_token, *remaining_tokens = url_tokens
+		source_children = self.raw_children
+		raw_origin = True
+
+		if (capture_match := _capture_pattern.search(current_token)) is not None:
+			current_token = capture_match.group(1)
+			source_children = self.capture_children
+			raw_origin = False
+
+		found_arc = search_sorted(
+			source_children,
+			current_token)
+
+		if None != found_arc:
+			node = found_arc.node
+			has_empty_child = node.remove_endpoint(method,
+				remaining_tokens)
+
+			if has_empty_child:
+				modded_children = remove_sorted(
+					source_children,
+					current_token)
+
+				if raw_origin: self.raw_children = modded_children
+				else: self.capture_children = modded_children
+				if self.is_empty():
+					return True
+
+		return False
 
 
 	def lookup_endpoint(self, method, url_tokens, captured):
@@ -190,6 +252,12 @@ class Registry:
 		)
 
 
+	def remove_endpoint(self, method, url):
+		raw_tokens = url.strip("/").split("/")
+		valid_tokens = tuple(filter(_not_empty, raw_tokens))
+		self.root.remove_endpoint(method, valid_tokens)
+
+
 	def find_endpoint(self, method, url):
 		raw_tokens = url.strip("/").split("/")
 		valid_tokens = tuple(filter(_not_empty, raw_tokens))
@@ -209,6 +277,7 @@ class Registry:
 __all__ = [
 	"EndpointException",
 	"insert_sorted",
+	"remove_sorted",
 	"search_sorted",
 	"Registry"
 ]
