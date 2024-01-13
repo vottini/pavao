@@ -94,11 +94,13 @@ class Authorizer:
 			func_set.add(functionality)
 			self.roles_access[role_id] = func_set
 
-		verified_ids = list()
-		for package, functionality in funcs:
-			verified_ids.append(await db_conn.fetchval(
-					assert_functionality_exists,
-					package, functionality))
+		verified_ids = [
+			await db_conn.fetchval(
+				assert_functionality_exists,
+				package, functionality)
+
+			for package, functionality in funcs
+		]
 
 		await db_conn.execute(
 			set_active_functionalities,

@@ -161,7 +161,7 @@ class HttpHandler:
 
 		except Exception as e:
 			Logger.error(f"Error processing request: {e}")
-			print(traceback.format_exc())
+			Logger.error(traceback.format_exc())
 			response.set_status(500)
 			await emit(response)
 

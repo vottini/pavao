@@ -170,6 +170,7 @@ class PathMonitor(FileSystemEventHandler):
 		self.observer.schedule(self, self.path, recursive=True)
 		self.observer.start()
 
+
 	def stop(self):
 		if self.running:
 			self.running = False
