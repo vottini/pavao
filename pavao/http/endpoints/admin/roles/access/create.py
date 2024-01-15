@@ -18,12 +18,13 @@ async def process(request, response, db_connection, path_variables, handler):
 
 	try:
 		await db_connection.execute(allow_query,
-			path_variables['functionalityId'],
-			path_variables['roleId'])
+			path_variables['functionality'],
+			path_variables['role'])
 
-		#authorizer = handler.authorizer
-		#await authorizer.enable_functionality(db_connection,
-		#	updated_functionality)
+		authorizer = handler.authorizer
+		await authorizer.allow_access(db_connection,
+			path_variables['functionality'],
+			path_variables['role'])
 
 	except asyncpg.ForeignKeyViolationError:
 		localizer.assign_response_error(response, "ROLE_NOT_FOUND")
@@ -41,7 +42,7 @@ async def pavao_endpoint(db_connection, persisted_settings):
 
 	return {
 		'method': 'PUT',
-		'path': '/admin/roles/{roleId:int}/access/{functionalityId:int}',
+		'path': '/admin/roles/{role:int}/access/{functionality:int}',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

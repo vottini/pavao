@@ -1,6 +1,7 @@
 
 import re
 import asyncio
+from dataclasses import dataclass
 import time
 
 from ..utils import include
@@ -10,12 +11,10 @@ _bearer_pattern = re.compile(r"^Bearer (\S+)$")
 
 list_roles_accesses = """
 
-	SELECT rl.id, func.name
+	SELECT rl.id, func.package, func.name
 		FROM pavao.access acs
 			INNER JOIN pavao."role" rl ON acs."role" = rl.id
-			INNER JOIN pavao.functionality func ON acs.functionality = func.id
-
-		WHERE func.enabled;
+			INNER JOIN pavao.functionality func ON acs.functionality = func.id;
 
 """
 
@@ -70,12 +69,36 @@ set_active_functionalities = """
 
 """
 
+list_disabled_functionalities = """
 
+	SELECT package, "name" FROM pavao.functionality
+		WHERE enabled IS FALSE;
+
+"""
+
+enable_query = """
+
+	UPDATE pavao.functionality
+		SET enabled = $2
+		WHERE id = $1
+		RETURNING package, name;
+
+"""
+
+retrieve_functionality = """
+
+	SELECT package, name
+		FROM pavao.functionality
+		WHERE id = $1;
+
+"""
+
+
+@dataclass
 class AuthData:
-	def __init__(self, account_id, token, expiration):
-		self.account_id = account_id
-		self.token = token
-		self.expiration = expiration
+	account_id: str
+	token: str
+	expiration: int
 
 
 class Authorizer:
@@ -83,15 +106,16 @@ class Authorizer:
 		self.roles_access = dict()
 		self.users_modification = dict()
 		self.blacklisted = dict()
+		self.disabled = set()
 
 
 	async def setup(self, db_conn, funcs):
-		accesses = await db_conn.fetch(
-			list_roles_accesses)
+		self.disabled = set(await db_conn.fetch(list_disabled_functionalities))
+		accesses = await db_conn.fetch(list_roles_accesses)
 
-		for role_id, functionality in accesses:
+		for role_id, package, functionality in accesses:
 			func_set = self.roles_access.get(role_id, set())
-			func_set.add(functionality)
+			func_set.add((package, functionality))
 			self.roles_access[role_id] = func_set
 
 		verified_ids = [
@@ -111,24 +135,62 @@ class Authorizer:
 		key = (auth_data.account_id, auth_data.token)
 		self.blacklisted[key] = auth_data.expiration
 
+	#--------------------------------------------------------------------------
 
-	async def enable_functionality(self, db_conn, functionality):
-		roles_with_func = await db_conn.fetch(
-			list_functionality_roles,
-			functionality)
+	async def enable_functionality(self, db_conn, functionality_id):
+		enabled = await db_conn.fetchrow(enable_query,
+			functionality_id, True)
 
-		for role_id in roles_with_func:
-			func_set = self.roles_access.get(role_id, set())
-			func_set.add(functionality)
-			self.roles_access[role_id] = func_set
+		if enabled is None:
+			return False
+
+		package, name = enabled
+		self.disabled.discard((package,name))
+		return True
 
 
-	def disable_functionality(self, functionality):
-		for func_set in self.roles_access.values():
-			func_set.discard(functionality)
+	async def disable_functionality(self, db_conn, functionality_id):
+		disabled = await db_conn.fetchrow(enable_query,
+			functionality_id, False)
 
+		if disabled is None:
+			return False
+
+		package, name = disabled
+		self.disabled.add((package,name))
+		return True
+
+	#--------------------------------------------------------------------------
+
+	async def allow_access(self, db_connection, functionality_id, role):
+		func_info = await db_connection.fetchrow(
+			retrieve_functionality,
+			functionality_id)
+
+		if func_info is not None:
+			package, functionality = func_info
+			func_set = self.roles_access.get(role, set())
+			func_set.add((package, functionality))
+			self.roles_access[role] = func_set
+
+
+	async def remove_access(self, db_connection, functionality_id, role):
+		func_info = await db_connection.fetchrow(
+			retrieve_functionality,
+			functionality_id)
+
+		if func_info is not None:
+			package, functionality = func_info
+			func_set = self.roles_access.get(role, set())
+			func_set.discard((package, functionality))
+
+	#--------------------------------------------------------------------------
 
 	async def validate_access(self, request, endpoint):
+		if (endpoint.package, endpoint.functionality) in self.disabled:
+			print(f"{(endpoint.package, endpoint.functionality)} in {self.disabled}")
+			return False, None
+
 		if endpoint.public: return True, None
 		authentication = request.headers.get("authorization")
 		if not isinstance(authentication, str):
@@ -161,12 +223,18 @@ class Authorizer:
 			else list())
 
 		if endpoint.functionality is not None:
+			complete_functionality = (
+				endpoint.package,
+				endpoint.functionality
+			)
+
 			for role in subject_roles:
 				accesses = self.roles_access.get(role)
-				if accesses is not None and endpoint.functionality in accesses:
+				if accesses is not None and complete_functionality in accesses:
 					break
 
 			else:
+				print(f"NO {complete_functionality} IN {accesses}")
 				return False, None
 
 		expiration = token_claims['exp']

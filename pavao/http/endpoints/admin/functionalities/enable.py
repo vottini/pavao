@@ -5,28 +5,15 @@ import pavao
 from admin.common import localize_functionality
 from admin.common import create_message_localizer
 
-enable_query = """
-
-	UPDATE pavao.functionality
-		SET enabled = TRUE
-		WHERE id = $1
-		RETURNING name;
-
-"""
-
 async def process(request, response, db_connection, path_variables, handler):
-	updated_functionality = await db_connection.fetchval(enable_query,
-		path_variables['functionalityId'])
+	authorizer = handler.authorizer
+	success = await authorizer.enable_functionality(db_connection,
+		path_variables['functionality'])
 
-	if updated_functionality is None:
+	if not success:
 		localizer = create_message_localizer(request)
 		localizer.assign_response_error(response, "FUNCTIONALITY_NOT_FOUND")
 		response.set_status(404)
-		return
-
-	authorizer = handler.authorizer
-	await authorizer.enable_functionality(db_connection,
-		updated_functionality)
 
 
 async def pavao_endpoint(db_connection, persisted_settings):
@@ -35,7 +22,7 @@ async def pavao_endpoint(db_connection, persisted_settings):
 
 	return {
 		'method': 'PUT',
-		'path': '/admin/functionalities/{functionalityId:int}/enable',
+		'path': '/admin/functionalities/{functionality:int}/enable',
 		'package': package_name,
 		'functionality': func_name,
 		'processor': process

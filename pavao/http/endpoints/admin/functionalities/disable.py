@@ -18,14 +18,6 @@ check_admin = """
 
 """
 
-disable_funcionality_query = """
-
-	UPDATE pavao.functionality
-		SET enabled = FALSE
-		WHERE id = $1
-		RETURNING name;
-
-"""
 
 async def process(request, response, db_connection, path_variables, handler):
 	localizer = create_message_localizer(request)
@@ -39,18 +31,14 @@ async def process(request, response, db_connection, path_variables, handler):
 		response.set_status(403)
 		return
 
-	updated_functionality = await db_connection.fetchval(
-		disable_funcionality_query,
+	authorizer = handler.authorizer
+	success = await authorizer.disable_functionality(db_connection,
 		functionality_id)
 
-	if updated_functionality is None:
+	if not success:
 		localizer.assign_response_error(response, "FUNCTIONALITY_NOT_FOUND")
 		response.set_status(404)
 		return
-
-	authorizer = handler.authorizer
-	authorizer.disable_functionality(
-		updated_functionality)
 
 
 async def pavao_endpoint(db_connection, persisted_settings):

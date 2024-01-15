@@ -26,9 +26,10 @@ async def process(request, response, db_connection, path_variables, handler):
 			response.set_status(404)
 			return
 
-		#authorizer = handler.authorizer
-		#await authorizer.enable_functionality(db_connection,
-		#	updated_functionality)
+		authorizer = handler.authorizer
+		await authorizer.remove_access(db_connection,
+			path_variables['functionality'],
+			path_variables['role'])
 
 		response.set_status(204)
 
