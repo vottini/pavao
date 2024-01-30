@@ -6,7 +6,7 @@ import traceback
 from ..logger import Logger
 from .request import Request
 from .response import Response, emit
-from .authorizer import Authorizer
+from .authorizer import Authorizer, AuthError
 from .registry import Registry
 
 _http_schema = {
@@ -140,13 +140,30 @@ class HttpHandler:
 				return
 
 			endpoint, path_variables = found_endpoint
-			has_access, auth_data = await self.authorizer.validate_access(
+			has_access, validation_outcome = await self.authorizer.validate_access(
 				request, endpoint)
 
 			if not has_access:
-				response.set_status(403)
+				if validation_outcome in (
+					AuthError.MISSING_TOKEN,
+					AuthError.INVALID_TOKEN,
+					AuthError.EXPIRED_AUTH
+				): status = 401
+
+				if validation_outcome in (
+					AuthError.BLOCKED_USER,
+					AuthError.NOT_ALLOWED
+				): status = 403
+
+				if validation_outcome is AuthError.DISABLED_ENDPOINT:
+					status = 410
+
+				failure_status = validation_outcome
+				response.set_status(status)
 				await emit(response)
 				return
+
+			auth_data = validation_outcome
 
 			handler = endpoint.function
 			async with self.db_pool.connection() as db_connection:

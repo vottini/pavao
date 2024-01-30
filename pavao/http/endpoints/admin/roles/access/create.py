@@ -35,6 +35,8 @@ async def process(request, response, db_connection, path_variables, handler):
 		localizer.assign_response_error(response, "UNEXPECTED_ERROR")
 		response.set_status(500)
 
+	response.set_status(204)
+
 
 async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("SET_ACCESSES",

@@ -55,6 +55,8 @@ async def process(request, response, parsed_json, path_variables, db_connection)
 		response.set_status(404)
 		return
 
+	response.set_status(204)
+
 
 async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("SET_ASSIGNMENTS",

@@ -2,7 +2,8 @@
 import re
 import asyncio
 from dataclasses import dataclass
-import time
+from datetime import datetime
+from datetime import timezone
 
 from ..utils import include
 from .token import validate_token
@@ -93,6 +94,14 @@ retrieve_functionality = """
 
 """
 
+class AuthError:
+	DISABLED_ENDPOINT = 1
+	MISSING_TOKEN = 2
+	INVALID_TOKEN = 3
+	EXPIRED_AUTH = 4
+	BLOCKED_USER = 5
+	NOT_ALLOWED = 6
+
 
 @dataclass
 class AuthData:
@@ -134,6 +143,11 @@ class Authorizer:
 	def blacklist(self, auth_data):
 		key = (auth_data.account_id, auth_data.token)
 		self.blacklisted[key] = auth_data.expiration
+
+
+	def mark_modified(self, user_id):
+		now = int(datetime.now(timezone.utc).timestamp())
+		self.users_modification[user_id] = now
 
 	#--------------------------------------------------------------------------
 
@@ -188,31 +202,30 @@ class Authorizer:
 
 	async def validate_access(self, request, endpoint):
 		if (endpoint.package, endpoint.functionality) in self.disabled:
-			print(f"{(endpoint.package, endpoint.functionality)} in {self.disabled}")
-			return False, None
+			return False, AuthError.DISABLED_ENDPOINT
 
 		if endpoint.public: return True, None
 		authentication = request.headers.get("authorization")
 		if not isinstance(authentication, str):
-			return False, None
+			return False, AuthError.MISSING_TOKEN
 
 		found_token = _bearer_pattern.search(authentication)
 		if None == found_token:
-			return False, None
+			return False, AuthError.MISSING_TOKEN
 
 		sent_token = found_token.group(1)
 		token_claims = validate_token(sent_token)
 		if None == token_claims:
-			return False, None
+			return False, AuthError.INVALID_TOKEN
 
 		subject = token_claims['sub']
 		user_modification = self.users_modification.get(subject)
 		if user_modification is not None and user_modification > token_claims['iat']:
-			return False, None
+			return False, AuthError.EXPIRED_AUTH
 
 		token_id = token_claims['jti']
 		if (subject, token_id) in self.blacklisted:
-			return False, None
+			return False, AuthError.BLOCKED_USER
 
 		roles = list(filter(
 			lambda x : len(x) > 0,
@@ -234,9 +247,11 @@ class Authorizer:
 					break
 
 			else:
-				print(f"NO {complete_functionality} IN {accesses}")
-				return False, None
+				return False, AuthError.NOT_ALLOWED
 
 		expiration = token_claims['exp']
+		if expiration < int(datetime.now(timezone.utc).timestamp()):
+			return False, AuthError.EXPIRED_AUTH
+
 		return True, AuthData(subject, token_id, expiration)
 

@@ -9,7 +9,7 @@ import auth.credentials as credentials
 
 insert_refresh = pavao.include('queries/insert_refresh.sql')
 select_auth_from_login = pavao.include('queries/select_auth_from_login.sql')
-select_roles_from_login = pavao.include('queries/select_roles_from_login.sql')
+select_roles_for_user = pavao.include('queries/select_roles_for_user.sql')
 update_auth = pavao.include('queries/update_auth.sql')
 touch_account = pavao.include('queries/touch_account.sql')
 
@@ -87,8 +87,8 @@ async def process(request, response, db_connection, parsed_json):
 		}
 
 	roles = await db_connection.fetch(
-		select_roles_from_login,
-		parsed_json.login)
+		select_roles_for_user,
+		account_id)
 
 	roles_ids = [ str(role['id']) for role in roles ]
 	access_claims['roles'] = ",".join(roles_ids)
@@ -100,7 +100,7 @@ async def process(request, response, db_connection, parsed_json):
 	refresh_expiry = datetime.utcfromtimestamp(refresh_claims['exp'])
 
 	await db_connection.execute(insert_refresh,
-		parsed_json.login,
+		account_id,
 		refresh_hash,
 		refresh_expiry,
 		access_claims['jti'])

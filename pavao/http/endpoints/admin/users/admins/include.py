@@ -22,8 +22,8 @@ add_admin = """
 """
 
 async def process(request, response, db_connection, path_variables):
-	await db_connection.execute(add_admin,
-		path_variables['user'])
+	await db_connection.execute(add_admin, path_variables['user'])
+	response.set_status(204)
 
 
 async def pavao_endpoint(db_connection, persisted_settings):

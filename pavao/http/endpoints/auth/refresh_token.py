@@ -7,7 +7,7 @@ import pavao
 import auth.credentials as credentials
 
 find_refresh = pavao.include('queries/find_refresh.sql')
-select_roles_from_login = pavao.include('queries/select_roles_from_login.sql')
+select_roles_for_user = pavao.include('queries/select_roles_for_user.sql')
 remove_refresh = pavao.include('queries/remove_refresh.sql')
 insert_refresh = pavao.include('queries/insert_refresh.sql')
 
@@ -37,9 +37,14 @@ async def process(request, response, db_connection):
 			"INVALID_TOKEN"
 		)
 
-	login = refresh_claims['sub']
-	refresh_hash = hashlib.md5(refresh_claims['jti'].encode()).digest().hex()
-	found_refresh = await db_connection.fetchrow(find_refresh, login, refresh_hash)
+	refresh_hash = hashlib.md5(
+		refresh_claims['jti'].encode()
+	).digest().hex()
+
+	account_id = refresh_claims['sub']
+	found_refresh = await db_connection.fetchrow(
+		find_refresh, account_id,
+		refresh_hash)
 
 	if found_refresh is None:
 		response.set_status(400)
@@ -54,14 +59,16 @@ async def process(request, response, db_connection):
 			"INVALID_TOKEN"
 		)
 
-	access_claims = credentials.create_claims(login, now,
+	access_claims = credentials.create_claims(account_id, now,
 		credentials.access_validity)
 
-	roles = await db_connection.fetch(select_roles_from_login, login)
+	roles = await db_connection.fetch(
+		select_roles_for_user,
+		account_id)
+
 	roles_ids = [ str(role['id']) for role in roles ]
 	access_claims['roles'] = ",".join(roles_ids)
-
-	refresh_claims = credentials.create_claims(login, now,
+	refresh_claims = credentials.create_claims(account_id, now,
 		credentials.refresh_validity)
 
 	refresh_hash = hashlib.md5(refresh_claims['jti'].encode()).digest().hex()
@@ -69,7 +76,7 @@ async def process(request, response, db_connection):
 
 	async with db_connection.transaction():
 		await db_connection.execute(remove_refresh, found_refresh['id'])
-		await db_connection.execute(insert_refresh, login, refresh_hash,
+		await db_connection.execute(insert_refresh, account_id, refresh_hash,
 			refresh_expiry, access_claims['jti'])
 
 	access_token = pavao.http.generate_token(access_claims)

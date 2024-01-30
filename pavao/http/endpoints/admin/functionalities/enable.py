@@ -14,6 +14,9 @@ async def process(request, response, db_connection, path_variables, handler):
 		localizer = create_message_localizer(request)
 		localizer.assign_response_error(response, "FUNCTIONALITY_NOT_FOUND")
 		response.set_status(404)
+		return
+
+	response.set_status(204)
 
 
 async def pavao_endpoint(db_connection, persisted_settings):

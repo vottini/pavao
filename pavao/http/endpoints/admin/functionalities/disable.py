@@ -40,6 +40,7 @@ async def process(request, response, db_connection, path_variables, handler):
 		response.set_status(404)
 		return
 
+	response.set_status(204)
 
 async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("MANAGE_FUNCTIONALITIES",

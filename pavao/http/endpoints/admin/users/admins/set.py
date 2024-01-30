@@ -42,6 +42,7 @@ async def process(request, response, parsed_json, db_connection, auth_data):
 		admin_id = await db_connection.fetchval(get_admin)
 		await db_connection.execute(insert_admins, admin_id, parsed_json)
 		await db_connection.execute(remove_admins, admin_id, parsed_json)
+		response.set_status(204)
 
 
 async def pavao_endpoint(db_connection, persisted_settings):

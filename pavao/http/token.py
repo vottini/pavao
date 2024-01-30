@@ -1,10 +1,15 @@
 
 import secrets
-from datetime import datetime, timedelta, timezone
 import json
 import base64
 import hashlib
 import hmac
+
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
+
+from ..logger import Logger
 
 class SecretKey:
 	def __init__(self):
@@ -25,7 +30,8 @@ def refresh_secret_key(previous_validity=None):
 			previous_validity = timedelta(days=previous_validity)
 
 		if not isinstance(previous_validity, timedelta):
-			print("Bad argument passed to refresh_secret_key(), aborting refresh")
+			Logger.error(f"Bad argument to refresh_secret_key [{previous_validity}]")
+			Logger.error(f"Secret key refresh aborted")
 			return False
 
 	current_time = datetime.now(tz=timezone.utc)
