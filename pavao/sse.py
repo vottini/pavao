@@ -67,62 +67,75 @@ class ServerEvent:
 
 #-------------------------------------------------------------------------------
 
-def generates_sse(fnc):
-	fnc_nargs = fnc.__code__.co_argcount
-	fnc_lvars = fnc.__code__.co_varnames
-	fnc_params = fnc_lvars[0:fnc_nargs]
+def generates_sse(
+	send_heartbeats=True,
+	heartbeat_interval_secs=20):
 
-	@functools.wraps(fnc)
-	async def wrapped(
-		handler,
-		request,
-		response,
-		path_variables,
-		db_connection,
-		auth_data,
-		receive):
+	def wrapper(fnc):
+		fnc_nargs = fnc.__code__.co_argcount
+		fnc_lvars = fnc.__code__.co_varnames
+		fnc_params = fnc_lvars[0:fnc_nargs]
 
-		emit_instance = ServerEvent(response)
+		@functools.wraps(fnc)
+		async def wrapped(
+			handler,
+			request,
+			response,
+			path_variables,
+			db_connection,
+			auth_data,
+			receive):
 
-		all_args = {
-			'handler': handler,
-			'request': request,
-			'emit': emit_instance,
-			'path_variables': path_variables,
-			'db_connection': db_connection,
-			'auth_data': auth_data
-		}
+			emit_instance = ServerEvent(response)
 
-		selected_args = list()
-		for param_name in fnc_params:
-			selected_args.append(all_args[param_name])
+			all_args = {
+				'handler': handler,
+				'request': request,
+				'emit': emit_instance,
+				'path_variables': path_variables,
+				'db_connection': db_connection,
+				'auth_data': auth_data
+			}
 
-		async def run_endpoint():
-			await fnc(*selected_args)
-			await emit_instance.emit_fragment("", False)
-			emit_instance.orderly_shutdown = True
+			selected_args = list()
+			for param_name in fnc_params:
+				selected_args.append(all_args[param_name])
 
-		async def monitor_disconnection():
-			message = await receive()
-			while message.get('type') != "http.disconnect":
+			async def run_endpoint():
+				await fnc(*selected_args)
+				await emit_instance.emit_fragment("", False)
+				emit_instance.orderly_shutdown = True
+
+			async def monitor_disconnection():
 				message = await receive()
+				while message.get('type') != "http.disconnect":
+					message = await receive()
 
-			if not emit_instance.orderly_shutdown:
-				fnc = emit_instance.disconnection_callback
-				is_awaitable = inspect.iscoroutinefunction(fnc)
-				await fnc() if is_awaitable else fnc()
+				if not emit_instance.orderly_shutdown:
+					fnc = emit_instance.disconnection_callback
+					is_awaitable = inspect.iscoroutinefunction(fnc)
+					await fnc() if is_awaitable else fnc()
 
-		tasks = [
-			asyncio.create_task(run_endpoint()),
-			asyncio.create_task(monitor_disconnection()),
-		]
+			tasks = [
+				asyncio.create_task(run_endpoint()),
+				asyncio.create_task(monitor_disconnection()),
+			]
 
-		await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-		for task in tasks:
-			task.cancel()
+			if send_heartbeats:
+				async def heartbeat_sending():
+					while True:
+						await asyncio.sleep(heartbeat_interval_secs)
+						await emit_instance.event("heartBeat")
 
-	return wrapped
+				tasks.append(asyncio.create_task(heartbeat_sending()))
 
+			await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+			for task in tasks:
+				task.cancel()
+
+		return wrapped
+
+	return wrapper
 
 #-------------------------------------------------------------------------------
 
