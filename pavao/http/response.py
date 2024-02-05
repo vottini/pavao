@@ -5,6 +5,8 @@ from .cookie import Cookie
 class Response:
 	def __init__(self, send_fnc):
 		self.send_fnc = send_fnc
+		self.headers_sent = False
+		self.body_sent = False
 
 		self.status = 200
 		self.headers = dict()
@@ -23,18 +25,27 @@ class Response:
 		self.headers[header_name] = header_value
 		return self
 
-	def set_content(self, content_type, content):
-		self.content = content
+	def set_content(self, content_type, content=None):
 		self.headers['content-type'] = content_type
-		self.headers['content-length'] = str(len(content))
+
+		if content is not None:
+			self.headers['content-length'] = str(len(content))
+			self.content = content
+
 		return self
 
 	def set_plain_text(self, text):
 		self.set_content('text/plain', text.encode())
 
+#-------------------------------------------------------------------------------
 
-async def emit(response):
+async def emit_headers(response):
+	if response.headers_sent:
+		return
+
+	response.headers_sent = True
 	sent_headers = list()
+
 	for header_name, header_value in response.headers.items():
 		sent_headers.append((
 			header_name.encode(),
@@ -50,8 +61,22 @@ async def emit(response):
 		'headers': sent_headers
 	})
 
+
+async def emit_body(response, content, more_body=False):
+	if response.body_sent:
+		return
+
 	await response.send_fnc({
 		'type': 'http.response.body',
-		'body': response.content
+		'body': content,
+		'more_body': more_body
 	})
+
+	if not more_body:
+		response.body_sent = True
+
+
+async def emit(response):
+	await emit_headers(response)
+	await emit_body(response, response.content)
 

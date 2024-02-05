@@ -139,6 +139,7 @@ class Authorizer:
 			set_active_functionalities,
 			verified_ids)
 
+	#--------------------------------------------------------------------------
 
 	def blacklist(self, auth_data):
 		key = (auth_data.account_id, auth_data.token)
@@ -148,6 +149,7 @@ class Authorizer:
 	def mark_modified(self, user_id):
 		now = int(datetime.now(timezone.utc).timestamp())
 		self.users_modification[user_id] = now
+
 
 	#--------------------------------------------------------------------------
 
@@ -227,13 +229,9 @@ class Authorizer:
 		if (subject, token_id) in self.blacklisted:
 			return False, AuthError.BLOCKED_USER
 
-		roles = list(filter(
-			lambda x : len(x) > 0,
-			token_claims['roles'].split(',')))
-
-		subject_roles = ([ int(role) for role in roles ]
-			if len(roles) > 0
-			else list())
+		token_roles = token_claims['roles'].split(',')
+		str_roles = filter(lambda x : len(x) > 0, token_roles)
+		roles = (int(role) for role in str_roles)
 
 		if endpoint.functionality is not None:
 			complete_functionality = (
@@ -241,7 +239,7 @@ class Authorizer:
 				endpoint.functionality
 			)
 
-			for role in subject_roles:
+			for role in roles:
 				accesses = self.roles_access.get(role)
 				if accesses is not None and complete_functionality in accesses:
 					break
