@@ -38,7 +38,6 @@ class Handler:
 		self.monitor = PathMonitor(endpoints_dir, self.update_endpoints)
 		self.db_pool = DatabasePool()
 
-		self.script_files = list()
 		self.builtin_specs = dict()
 		self.external_specs = dict()
 
@@ -51,9 +50,9 @@ class Handler:
 			await self.http_handler.init(self.settings)
 			await self.load_builtin_endpoints()
 
-			self.script_files = load_dir(self.endpoints_dir)
+			script_files = load_dir(self.endpoints_dir)
 			await self.load_endpoints(self.external_specs,
-				*self.script_files)
+				*script_files)
 
 			await self.register_endpoints()
 			self.monitor.schedule_execution(self.loop)

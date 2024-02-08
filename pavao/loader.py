@@ -70,8 +70,62 @@ def load_dir(path):
 
 #-------------------------------------------------------------------------------
 
+def get_caller_dir():
+	caller_frame = inspect.stack()[2]
+	caller_path = os.path.abspath(caller_frame.filename)
+	return os.path.dirname(caller_path)
+
+
+def path_to(filename):
+	caller_dir = get_caller_dir()
+	return os.path.join(caller_dir, filename)
+
+
+def include(filename):
+	caller_dir = get_caller_dir()
+	filepath = os.path.join(caller_dir, filename)
+	with open(filepath) as fd:
+		return fd.read()
+
+#-------------------------------------------------------------------------------
+
+class ImportedModule:
+	def __init__(self, module, scope):
+		self.module = module
+		self.scope = scope
+
+	def import_item(self, item):
+		self.scope[item] = getattr(self.module, item)
+		return self
+
+
+def _load_module(caller_dir, module_name):
+	file_path = os.path.join(caller_dir, f"{module_name}.py")
+	spec = importlib.util.spec_from_file_location(module_name, file_path)
+	module = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(module)
+	return module
+
+
+def import_module(module_name):
+	module = _load_module(get_caller_dir(), module_name)
+	previous_frame = inspect.stack()[1].frame
+	previous_frame.f_globals[module_name] = module
+
+
+def from_module(module_name):
+	module = _load_module(get_caller_dir(), module_name)
+	previous_frame = inspect.stack()[1].frame
+	return ImportedModule(module, previous_frame.f_globals)
+
+#-------------------------------------------------------------------------------
+
 __all__ = [
 	"load_file",
-	"load_dir"
+	"load_dir",
+	"path_to",
+	"include",
+	"import_module",
+	"from_module"
 ]
 

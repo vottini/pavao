@@ -4,8 +4,8 @@ import functools
 
 from .exception import PavaoException
 from .i18n import Internationalization
-from .utils import path_to
 
+from .loader import path_to
 internationalization = Internationalization(
 	path_to('messages')
 )

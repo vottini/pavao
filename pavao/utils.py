@@ -3,28 +3,6 @@ import asyncio
 import inspect
 import os
 
-from .exception import PavaoException
-from .logger import Logger
-
-#-------------------------------------------------------------------------------
-
-def get_caller_dir():
-	caller_frame = inspect.stack()[2]
-	caller_path = os.path.abspath(caller_frame.filename)
-	return os.path.dirname(caller_path)
-
-
-def path_to(filename):
-	caller_dir = get_caller_dir()
-	return os.path.join(caller_dir, filename)
-
-
-def include(filename):
-	caller_dir = get_caller_dir()
-	filepath = os.path.join(caller_dir, filename)
-	with open(filepath) as fd:
-		return fd.read()
-
 #-------------------------------------------------------------------------------
 
 def adapter(fnc):
@@ -48,8 +26,6 @@ def adapter(fnc):
 #-------------------------------------------------------------------------------
 
 __all__ = [
-	"path_to",
-	"include",
 	"adapter"
 ]
 
