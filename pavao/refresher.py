@@ -2,6 +2,7 @@
 import sys
 import time
 import asyncio
+import os
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -115,19 +116,19 @@ class PathMonitor(FileSystemEventHandler):
 		try:
 			while True:
 				event = await self.queue.get()
-				event_type = event.event_type
+				abs_path = os.path.abspath(event.src_path)
 
-				if event_type in 'created':
+				if event.event_type == 'created':
 					self.modifications = self.modifications.add_creation(
-						event.src_path)
+						abs_path)
 
-				if event_type in 'modified':
+				if event.event_type == 'modified':
 					self.modifications = self.modifications.add_update(
-						event.src_path)
+						abs_path)
 
-				if event_type == 'deleted':
+				if event.event_type == 'deleted':
 					self.modifications = self.modifications.add_deletion(
-						event.src_path)
+						abs_path)
 
 				self.changes.set()
 				self.queue.task_done()

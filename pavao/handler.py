@@ -9,7 +9,7 @@ from .utils import adapter
 from .config import load_settings, PersistedSettings
 from .logger import Logger, start_logging, stop_logging
 from .database import DatabasePool
-from .loader import load_file, load_dir
+from .loader import load_file, load_dir, retrieve_dependees
 from .refresher import PathMonitor
 
 from . import predicates
@@ -17,6 +17,7 @@ from . import lifespan
 from . import http
 
 python_source = lambda x : x.endswith('.py')
+non_python_source = lambda x : not python_source(x)
 routing_destructor = operator.itemgetter('method', 'path')
 
 #-------------------------------------------------------------------------------
@@ -34,8 +35,8 @@ class Handler:
 	def __init__(self, config_file, endpoints_dir):
 
 		self.settings = None
-		self.endpoints_dir = endpoints_dir
-		self.monitor = PathMonitor(endpoints_dir, self.update_endpoints)
+		self.endpoints_dir = os.path.abspath(endpoints_dir)
+		self.monitor = PathMonitor(self.endpoints_dir, self.update_endpoints)
 		self.db_pool = DatabasePool()
 
 		self.builtin_specs = dict()
@@ -82,6 +83,11 @@ class Handler:
 	def update_endpoints(self, creations, deletions, updates):
 		to_unload = filter(python_source, (*deletions, *updates))
 		to_load = filter(python_source, (*updates, *creations))
+
+		for file in filter(non_python_source, (*deletions, *updates)):
+			dependees = retrieve_dependees(file)
+			to_unload = set((*to_unload, *dependees))
+			to_load = set((*to_load, *dependees))
 
 		for file_path in to_unload:
 			method_and_path = self.external_specs.get(file_path)
