@@ -9,7 +9,7 @@ from .utils import adapter
 from .config import load_settings, PersistedSettings
 from .logger import Logger, start_logging, stop_logging
 from .database import DatabasePool
-from .loader import load_file, load_dir, retrieve_dependees
+from .loader import load_file, load_dir, retrieve_dependees, load_module
 from .refresher import PathMonitor
 
 from . import predicates
@@ -81,25 +81,35 @@ class Handler:
 
 
 	def update_endpoints(self, creations, deletions, updates):
-		to_unload = filter(python_source, (*deletions, *updates))
-		to_load = filter(python_source, (*updates, *creations))
+		to_unload = set(filter(python_source, (*deletions, *updates)))
+		to_load = set(filter(python_source, (*updates, *creations)))
+
+		updated_dependencies = set()
+		for script in filter(python_source, updates):
+			if len(dependees := retrieve_dependees(script)) > 0:
+				updated_dependencies.add(script)
+				to_load.remove(script)
+				to_unload |= dependees
+				to_load |= dependees
 
 		for file in filter(non_python_source, (*deletions, *updates)):
-			dependees = retrieve_dependees(file)
-			to_unload = set((*to_unload, *dependees))
-			to_load = set((*to_load, *dependees))
+			dependees = set(retrieve_dependees(file))
+			to_unload |= dependees
+			to_load |= dependees
 
 		for file_path in to_unload:
 			method_and_path = self.external_specs.get(file_path)
 			if method_and_path is None:
 				continue
 
-			Logger.info(f"Unloaded endpoint from {file_path}")
 			self.external_specs.pop(file_path)
+			Logger.info(f"Unloaded endpoint from {file_path}")
 
-		async def process_endpoints():
+		async def process_loading():
+			for dependency in updated_dependencies:
+				load_module(dependency)
+
 			collected = list()
-
 			for file_path in to_load:
 				if (specifier := load_file(file_path)) is not None:
 					collected.append((file_path, specifier))
@@ -109,7 +119,7 @@ class Handler:
 					self.external_specs,
 					*collected)
 
-		asyncio.run_coroutine_threadsafe(process_endpoints(), self.loop)
+		asyncio.run_coroutine_threadsafe(process_loading(), self.loop)
 		asyncio.run_coroutine_threadsafe(self.register_endpoints(), self.loop)
 
 	#-------------------------------------------------------------------------------

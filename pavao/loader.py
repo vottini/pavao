@@ -131,22 +131,7 @@ def include(filename):
 
 _loaded_modules = dict()
 
-class ImportedModule:
-	def __init__(self, module, scope):
-		self.module = module
-		self.scope = scope
-
-	def import_item(self, item):
-		self.scope[item] = getattr(self.module, item)
-		return self
-
-
-def _load_module(abs_path):
-	if (loaded_module := _loaded_modules.get(abs_path)) is not None:
-		modification_timestamp = os.path.getmtime(abs_path)
-		if loaded_module['timestamp'] > modification_timestamp:
-			return loaded_module['module']
-
+def load_module(abs_path):
 	random_name = str(uuid.uuid1())
 	spec = importlib.util.spec_from_file_location(random_name, abs_path)
 	module = importlib.util.module_from_spec(spec)
@@ -160,6 +145,15 @@ def _load_module(abs_path):
 	return module
 
 
+def _retrieve_or_load_module(abs_path):
+	if (loaded_module := _loaded_modules.get(abs_path)) is not None:
+		modification_timestamp = os.path.getmtime(abs_path)
+		if loaded_module['timestamp'] > modification_timestamp:
+			return loaded_module['module']
+
+	return load_module(abs_path)
+
+
 def import_module(module_name):
 	if os.path.sep in module_name:
 		raise Exception("Invalid module name")
@@ -168,13 +162,23 @@ def import_module(module_name):
 	path_to_module = module_name.replace('.', os.path.sep) + ".py"
 	complete_path = os.path.join(caller_dir, path_to_module)
 	abs_path = os.path.abspath(complete_path)
-	module = _load_module(abs_path)
+	module = _retrieve_or_load_module(abs_path)
 
 	requester = os.path.join(caller_dir, caller_script)
 	add_dependency(abs_path, requester)
 
 	previous_frame = inspect.stack()[1].frame
 	previous_frame.f_globals[module_name] = module
+
+
+class ImportedModule:
+	def __init__(self, module, scope):
+		self.module = module
+		self.scope = scope
+
+	def import_item(self, item):
+		self.scope[item] = getattr(self.module, item)
+		return self
 
 
 def from_module(relative_path):
@@ -184,7 +188,7 @@ def from_module(relative_path):
 
 	file_path = os.path.join(caller_dir, full_path)
 	abs_path = os.path.abspath(file_path)
-	module = _load_module(abs_path)
+	module = _retrieve_or_load_module(abs_path)
 
 	requester = os.path.join(caller_dir, caller_script)
 	add_dependency(abs_path, requester)
@@ -200,6 +204,7 @@ __all__ = [
 	"load_dir",
 	"path_to",
 	"include",
+	"load_module",
 	"import_module",
 	"from_module"
 ]
