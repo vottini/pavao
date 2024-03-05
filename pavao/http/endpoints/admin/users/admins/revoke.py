@@ -33,6 +33,8 @@ async def process(request, response, db_connection, path_variables, auth_data):
 		localizer.assign_response_error(response, "USER_NOT_FOUND")
 		response.set_status(404)
 
+	response.set_status(204)
+
 
 async def pavao_endpoint(db_connection, persisted_settings):
 	package_name, func_name = await localize_functionality("MODIFY_ADMIN",

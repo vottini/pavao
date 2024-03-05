@@ -39,18 +39,16 @@ async def process(request, response, db_connection, auth_data, parsed_json):
 		await asyncio.sleep(3)
 
 		response.set_status(400)
-		return localizer.create_error(
-			"INVALID_CREDENTIALS"
-		)
+		localizer.assign_response_error(response,
+			"INVALID_PASSWORD")
 
 	except Exception as e:
 		msg = f"Error updating password: {e}"
 		pavao.Logger.error(msg)
 
 		response.set_status(500)
-		return localizer.create_error(
-			"INTERNAL_ERROR"
-		)
+		localizer.assign_response_error(response,
+			"INTERNAL_ERROR")
 
 #-------------------------------------------------------------------------------
 

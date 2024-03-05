@@ -19,6 +19,8 @@ async def process(handler, response, db_connection, auth_data):
 			.set_to_be_removed()
 	)
 
+	response.set_status(204)
+
 
 def pavao_endpoint():
 	return {

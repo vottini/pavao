@@ -3,7 +3,6 @@ import asyncio
 import pavao
 
 #	log_level='info',
-#	host="0.0.0.0",
 #	port=8001)
 
 handler = pavao.Handler(
@@ -13,6 +12,7 @@ handler = pavao.Handler(
 
 import uvicorn
 asgi_config = uvicorn.Config(
+	host="0.0.0.0",
 	app=handler.get_app(),
 	loop=handler.loop)
 
