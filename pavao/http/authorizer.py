@@ -150,7 +150,6 @@ class Authorizer:
 		now = int(datetime.now(timezone.utc).timestamp())
 		self.users_modification[user_id] = now
 
-
 	#--------------------------------------------------------------------------
 
 	async def enable_functionality(self, db_conn, functionality_id):

@@ -12,7 +12,6 @@ handler = pavao.Handler(
 
 import uvicorn
 asgi_config = uvicorn.Config(
-	host="0.0.0.0",
 	app=handler.get_app(),
 	loop=handler.loop)
 

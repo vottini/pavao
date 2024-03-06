@@ -1,23 +1,23 @@
 
-type password: string (minLength=8, maxLength=128) 
+type password: string (minLength=8, maxLength=128)
 
-node credentials {
+object credentials {
 	login: string (minLength=2, maxLength=128),
 	password: password
 }
 
-node tokenInfo {
+object tokenInfo {
 	token: string,
 	change_password: bool,
 	expires: integer
 }
 
-node passwordUpdate {
+object passwordUpdate {
 	oldPassword: password,
 	newPassword: password
 }
 
-node userInfo {
+object userInfo {
 	firstName: string,
 	optional lastName: string,
 	administrator: bool
