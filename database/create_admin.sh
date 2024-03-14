@@ -98,7 +98,7 @@ INSERT INTO
 		'${LAST_NAME}');
 "
 
-ADMIN_ASSIGNMENT="""
+ADMIN_ASSIGNMENT="
 INSERT INTO
   pavao.assignment (account, \"role\")
 

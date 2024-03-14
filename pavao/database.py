@@ -1,4 +1,5 @@
 
+import os
 import asyncio
 import asyncpg
 
@@ -10,9 +11,9 @@ class DatabaseException(PavaoException):
 
 _database_schema = {
 	"host": str,
+	"port": 5432,
 	"database": str,
 	"user": str,
-	"port": 5432,
 	"password": ""
 }
 

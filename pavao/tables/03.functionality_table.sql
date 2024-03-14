@@ -1,5 +1,5 @@
 
-CREATE TABLE pavao.functionality (
+CREATE TABLE IF NOT EXISTS pavao.functionality (
   id              INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
   package         TEXT,
   name            TEXT NOT NULL,
