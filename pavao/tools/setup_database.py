@@ -9,6 +9,15 @@ localization_dir = os.path.join(script_path, "localization")
 tables_dir = os.path.join(script_path, "tables")
 
 
+set_language_query = """
+
+	INSERT INTO pavao.parameters (name, type, value)
+		VALUES ('language', 'str', $1)
+		ON CONFLICT (name) DO UPDATE
+			SET value = EXCLUDED.value;
+
+"""
+
 async def execute(settings, localization):
 	localization_file = os.path.join(localization_dir, f"{localization}.ini")
 	localization_specs = properties.load_properties(localization_file)
@@ -23,6 +32,10 @@ async def execute(settings, localization):
 			with open(fullpath) as fd:
 				contents = fd.read()
 				await db_connection.execute(contents)
+
+		await db_connection.execute(
+			set_language_query,
+			localization)
 
 	await db_pool.close()
 	print("Success!")

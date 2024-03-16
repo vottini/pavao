@@ -25,13 +25,13 @@ insert_admin_access = """
 
 	INSERT INTO
 		pavao.access (functionality, "role")
-		SELECT $1, rl.id FROM pavao."role" rl
-			WHERE rl.admin;
+		SELECT $1, rl.id FROM pavao."role" rl WHERE rl.admin
+		ON CONFLICT DO NOTHING;
 
 """
 
 async def assert_admin_access(db_connection, package_name, func_name):
-	func_id = await db_connection.fetchrow(search_functionality,
+	func_id = await db_connection.fetchval(search_functionality,
 		package_name, func_name)
 
 	if func_id is None:
@@ -39,7 +39,9 @@ async def assert_admin_access(db_connection, package_name, func_name):
 			func_id = await db_connection.fetchval(insert_functionality,
 				package_name, func_name)
 
-			await db_connection.execute(insert_admin_access, func_id)
+	await db_connection.execute(
+		insert_admin_access,
+		func_id)
 
 #-------------------------------------------------------------------------------
 

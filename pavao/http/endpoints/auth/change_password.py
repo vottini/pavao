@@ -20,9 +20,14 @@ internationalization = pavao.Internationalization(
 @pavao.accepts_json(file_blueprint=blueprints, with_root="passwordUpdate")
 async def process(request, response, db_connection, auth_data, parsed_json):
 	localizer = internationalization.create_localizer(request)
-	hasher = argon2.PasswordHasher()
+
+	if parsed_json.oldPassword == parsed_json.newPassword:
+		response.set_status(400)
+		localizer.assign_response_error(response,
+			"SAME_PASSWORD")
 
 	try:
+		hasher = argon2.PasswordHasher()
 		storedPassword = await db_connection.fetchval(
 			retrieve_password_hash,
 			auth_data.account_id)

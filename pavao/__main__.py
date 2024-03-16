@@ -7,14 +7,13 @@ import uvicorn
 import pavao
 
 from .config import load_settings
-from .tools import setup_database
-
-default_config = "application.yml"
+from .tools import setup_database, create_admin
 
 cli_parser = argparse.ArgumentParser(
 	prog="python -m pavao",
 	description="Pavão utility tool")
 
+default_config = "application.yml"
 cli_parser.add_argument("--config-file",
 	action="store", default=default_config,
 	help=f"configuration file to use. Defaults to '{default_config}'",
@@ -57,7 +56,78 @@ if (localization := args.init_db) is not None:
 	settings = load_settings(args.config_file)
 	asyncio.run(setup_database.execute(settings, localization))
 
+#-------------------------------------------------------------------------------
 
+import readline
+from getpass import getpass
+
+def split(name):
+	splitted = name.split(' ')
+	not_empty = lambda x : len(x) > 0
+	filtered = filter(not_empty, splitted)
+	return list(filtered)
+
+
+def custom_input(prompt, default_text=None):
+	if default_text is not None:
+
+		def hook():
+			readline.insert_text(default_text)
+			readline.redisplay()
+
+		readline.set_pre_input_hook(hook)
+
+	result = ""
+	while 0 == len(result):
+		result = input(prompt).strip()
+
+	readline.set_pre_input_hook()
+	return result
+
+
+FIRST_NAME = "First name: "
+OPTIONAL_LAST_NAME = "Last name (can be left blank): "
+CHOOSE_LOGIN = "User login: "
+TYPE_PASSWORD = "Password: "
+CONFIRM_PASSWORD = "Confirm password: "
+CHANGE_PASSWORD_ON_LOGIN = "Change password on next login [Y/n]? "
+DEFAULT_CHANGE_PW = "n"
+
+if args.create_admin:
+	print("Creating new admin...")
+
+	first_name = custom_input(FIRST_NAME).capitalize()
+	last_name = input(OPTIONAL_LAST_NAME).strip().capitalize()
+	suggested_login = ".".join(split(first_name) + split(last_name)).lower()
+	login = custom_input(CHOOSE_LOGIN, suggested_login)
+
+	password1 = getpass(TYPE_PASSWORD)
+	password2 = getpass(CONFIRM_PASSWORD)
+
+	if password1 != password2:
+		print("Passwords don't match, try again:")
+		password1 = getpass(TYPE_PASSWORD)
+		password2 = getpass(CONFIRM_PASSWORD)
+
+	change_pw = custom_input(
+		CHANGE_PASSWORD_ON_LOGIN,
+		DEFAULT_CHANGE_PW)
+
+	if not change_pw in ['Y', 'n']:
+		print("Invalid choice")
+
+		change_pw = custom_input(
+			CHANGE_PASSWORD_ON_LOGIN,
+			DEFAULT_CHANGE_PW)
+
+	specs = create_admin.AdminSpecs(first_name,
+		last_name if len(last_name) > 0 else None,
+		login, password1, change_pw == "Y")
+
+	settings = load_settings(args.config_file)
+	asyncio.run(create_admin.execute(settings, specs))
+
+#-------------------------------------------------------------------------------
 
 if (endpoints_dir := args.execute) is not None:
 	handler = pavao.Handler(
