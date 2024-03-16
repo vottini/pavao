@@ -1,13 +1,12 @@
 
-import os
 import asyncio
 import argparse
-import configparser
 import uvicorn
 import pavao
 
 from .config import load_settings
 from .tools import setup_database, create_admin
+from .properties import load_properties
 
 cli_parser = argparse.ArgumentParser(
 	prog="python -m pavao",
@@ -123,6 +122,43 @@ if args.create_admin:
 	specs = create_admin.AdminSpecs(first_name,
 		last_name if len(last_name) > 0 else None,
 		login, password1, change_pw == "Y")
+
+	settings = load_settings(args.config_file)
+	asyncio.run(create_admin.execute(settings, specs))
+
+#-------------------------------------------------------------------------------
+
+needed_properties = [
+	"FIRST_NAME",
+	"LOGIN",
+	"PASSWORD",
+]
+
+def sane_name(name):
+	if name is None: return None
+	return name.strip().capitalize()
+
+if (import_file := args.import_admin) is not None:
+	try: admin_specs = load_properties(import_file)
+
+	except Exception:
+		print(f"Unable to read specs from file '{import_file}'")
+		print("Aborting...")
+		exit(1)
+
+	for prop in needed_properties:
+		if not prop.lower() in admin_specs:
+			print(f"Property '{prop}' is missing")
+			print("Aborting...")
+			exit(1)
+
+	specs = create_admin.AdminSpecs(
+		sane_name(admin_specs["first_name"]),
+		sane_name(admin_specs.get("last_name")),
+		admin_specs["login"].lower(),
+		admin_specs["password"],
+		admin_specs.get("change_password") == "YES"
+	)
 
 	settings = load_settings(args.config_file)
 	asyncio.run(create_admin.execute(settings, specs))
