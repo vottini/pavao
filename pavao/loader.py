@@ -72,11 +72,18 @@ def load_file(file_path):
 		spec.loader.exec_module(module)
 
 		if hasattr(module, 'pavao_endpoint'):
-			specifier = module.pavao_endpoint
+			candidate = module.pavao_endpoint
 
-			if inspect.isfunction(specifier):
+			if inspect.isfunction(candidate):
 				Logger.info(f"Loaded endpoint file {abs_path}")
-				return specifier
+				return 'ENDPOINT', candidate
+
+		elif hasattr(module, 'pavao_task'):
+			candidate = module.pavao_task
+
+			if inspect.isfunction(candidate):
+				Logger.info(f"Loaded task file {abs_path}")
+				return 'TASK', candidate
 
 	except Exception as e:
 		Logger.warning(f"Unable to load file '{abs_path}': {e}")
