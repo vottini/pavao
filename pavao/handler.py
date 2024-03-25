@@ -34,40 +34,83 @@ class EndpointData:
 
 
 class TaskData:
-	def __init__(self, specs, base):
+	def __init__(self, specs, start_time):
 		self.package = specs.get('package')
 		self.functionality = specs.get('functionality')
 		self.function = adapter(specs['processor'])
 		self.schedule = specs['schedule']
+		self.execution = None
 
 		self.last_execution = None
-		self.iterator = croniter(self.schedule, base)
+		self.iterator = croniter(self.schedule, start_time)
 		self.next_execution = self.iterator.get_next(datetime)
 		self.last_result = None
 
-	def __lt__(self, other):
-		return self.next_execution < other.next_execution
 
-	async def execute(self, handler):
-		self.last_execution = datetime.now()
+	def register_execution(self, task):
+		self.execution = None
+
+		try:
+			result = task.result()
+			self.last_result = (True, result)
+
+		except asyncio.CancelledError as e:
+			self.last_result = (False, "Cancelled during execution")
+
+		except Exception as e:
+			self.last_result = (False, str(e))
+
+
+	def create_future(self, args):
+		async def async_task():
+			result = await self.function(args)
+			return result
+
+		return async_task
+
+
+	def cancel_if_executing(self):
+		if self.execution is not None:
+			self.execution.cancel()
+			self.execution = None
+
+
+	def lateness(self):
+		now = datetime.now()
+		elapsed = now - self.next_execution
+		return max(elapsed, timedelta())
+
+
+	def step_schedule(self):
 		self.next_execution = self.iterator.get_next(datetime)
 
-		async with handler.db_pool.connection() as db_connection:
 
-			all_args = {
-				'db_connection': db_connection,
-				'handler': handler
-			}
+	def execute(self, handler):
+		self.cancel_if_executing()
 
-			try:
-				answer = await self.function(all_args)
-				self.last_result = (True, answer)
+		all_args = {
+			'db_pool': handler.db_pool,
+			'handler': handler
+		}
 
-			except Exception as e:
-				print(f"FAILURE RUNNING TASK: {e}")
-				self.last_result = (False, e)
+		self.last_execution = datetime.now()
+		task_future = self.create_future(all_args)
+		task = handler.loop.create_task(task_future())
+		task.add_done_callback(self.register_execution)
+		self.execution = task
 
 #-------------------------------------------------------------------------------
+
+async def wait_whole_minute():
+	now = datetime.now()
+	wait = (59-now.second) + (1000000-now.microsecond)/1e6
+	await asyncio.sleep(wait)
+
+	then = datetime.now()
+	waited = then - now
+	if waited > timedelta(minutes=2):
+		await wait_whole_minute()
+
 
 class Handler:
 	def __init__(self, config_file, endpoints_dir):
@@ -77,9 +120,9 @@ class Handler:
 		self.monitor = PathMonitor(self.endpoints_dir, self.update_endpoints)
 		self.db_pool = DatabasePool()
 
-		self.builtin_specs = dict()
+		self.builtin_endpoints = dict()
+		self.external_endpoints = dict()
 		self.builtin_tasks = dict()
-		self.external_specs = dict()
 		self.external_tasks = dict()
 
 		async def init():
@@ -93,7 +136,7 @@ class Handler:
 
 			script_files = load_dir(self.endpoints_dir)
 			await self.load_endpoints(
-				self.external_specs,
+				self.external_endpoints,
 				self.external_tasks,
 				*script_files)
 
@@ -115,7 +158,7 @@ class Handler:
 			stop_logging()
 
 		self.scheduler = None
-		self.tasks = list()
+		self.loaded_tasks = list()
 
 		self.persisted = PersistedSettings(self.db_pool)
 		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
@@ -127,8 +170,8 @@ class Handler:
 	async def register_endpoints(self):
 		registry = http.Registry()
 
-		await self.add_endpoints(self.builtin_specs, registry)
-		await self.add_endpoints(self.external_specs, registry)
+		await self.add_endpoints(self.builtin_endpoints, registry)
+		await self.add_endpoints(self.external_endpoints, registry)
 		await self.http_handler.update_registry(registry)
 
 
@@ -157,23 +200,28 @@ class Handler:
 	#------------------------------------------------------------
 
 	async def execute_tasks(self):
+		skippable_lateness = timedelta(
+			minutes=1, seconds=30)
+
 		while len(self.loaded_tasks) > 0:
-			next_task = min(self.loaded_tasks)
-
+			await wait_whole_minute()
 			now = datetime.now()
-			interval = next_task.next_execution - now
-			remaining_time = interval.seconds + interval.microseconds/1e6
-			wait_time = max(0, remaining_time)
 
-			await asyncio.sleep(wait_time)
-			await next_task.execute(self)
+			for task in self.loaded_tasks:
+				while task.lateness() > skippable_lateness:
+					task.step_schedule()
+
+				if task.next_execution <= now:
+					task.execute(self)
+					task.step_schedule()
 
 	#-------------------------------------------------------------------------------
 
 	def update_endpoints(self, creations, deletions, updates):
-		print("RUNNING update_endpoints")
 		to_unload = set(filter(python_source, (*deletions, *updates)))
 		to_load = set(filter(python_source, (*updates, *creations)))
+
+		#print("RUNNING update_endpoints")
 
 		updated_dependencies = set()
 		for script in filter(python_source, updates):
@@ -189,8 +237,8 @@ class Handler:
 			to_load |= dependees
 
 		for file_path in to_unload:
-			if file_path in self.external_specs:
-				self.external_specs.pop(file_path)
+			if file_path in self.external_endpoints:
+				self.external_endpoints.pop(file_path)
 				Logger.info(f"Unloaded endpoint from {file_path}")
 				continue
 
@@ -210,7 +258,7 @@ class Handler:
 
 			if len(collected) > 0:
 				await self.load_endpoints(
-					self.external_specs,
+					self.external_endpoints,
 					self.external_tasks,
 					*collected)
 
@@ -274,7 +322,7 @@ class Handler:
 		script_files = load_dir(builtins_path)
 
 		await self.load_endpoints(
-			self.builtin_specs,
+			self.builtin_endpoints,
 			self.builtin_tasks,
 			*script_files)
 
