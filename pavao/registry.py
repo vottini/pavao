@@ -7,7 +7,7 @@ _capture_pattern = re.compile(fr'^{{({_identifier})(?::({_identifier}))?}}$')
 _not_empty = lambda x: len(x) > 0
 _identity = lambda x : x
 
-from ..exception import PavaoException
+from .exception import PavaoException
 class EndpointException(PavaoException):
 	pass
 

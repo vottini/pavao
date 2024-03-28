@@ -14,6 +14,7 @@ from .logger import Logger, start_logging, stop_logging
 from .database import DatabasePool
 from .loader import load_file, load_dir, retrieve_dependees, load_module
 from .refresher import PathMonitor
+from .registry import Registry
 
 from . import predicates
 from . import lifespan
@@ -168,7 +169,7 @@ class Handler:
 	#-------------------------------------------------------------------------------
 
 	async def register_endpoints(self):
-		registry = http.Registry()
+		registry = Registry()
 
 		await self.add_endpoints(self.builtin_endpoints, registry)
 		await self.add_endpoints(self.external_endpoints, registry)

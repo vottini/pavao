@@ -3,6 +3,7 @@ from .exception import PavaoException
 from .logger import Logger
 from .utils import adapter
 from .i18n import Internationalization
+from .token import refresh_secret_key
 from .mapper import Case, translate_case, assemble_dicts
 from .json import accepts_json, generates_json, error_blueprint, has_optional_field
 from .sse import generates_sse

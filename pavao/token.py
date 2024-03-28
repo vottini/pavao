@@ -9,7 +9,7 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 
-from ..logger import Logger
+from .logger import Logger
 
 class SecretKey:
 	def __init__(self):
@@ -23,6 +23,15 @@ _past_keys = dict()
 #-------------------------------------------------------------------------------
 
 def refresh_secret_key(previous_validity=None):
+
+	"""
+			Replaces the current secret key used to sign internal jwt tokens.
+			If previous_validity contains an int (number of days) or a
+			datetime.timedelta instance, this value will serve as the interval
+			while the previous secret key will remain valid. More than one previous
+			secret key may remain valid at the same time.
+	"""
+
 	global _current, _past_keys
 
 	if None != previous_validity:
@@ -98,6 +107,9 @@ def generate_token(claims):
 
 def validate_token(token):
 	global _current, _past_keys
+	previous_keys = _past_keys
+	current_key = _current
+
 	components = token.split('.')
 	if len(components) != 3:
 		return None
@@ -116,9 +128,9 @@ def validate_token(token):
 	if None == generator_ident:
 		return None
 
-	generator = (_current
-		if _current.ident == generator_ident
-		else _past_keys.get(generator_ident))
+	generator = (current_key
+		if current_key.ident == generator_ident
+		else previous_keys.get(generator_ident))
 
 	if None == generator:
 		return None

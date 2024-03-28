@@ -6,7 +6,7 @@ from datetime import datetime
 from datetime import timezone
 
 from ..loader import include
-from .token import validate_token
+from ..token import validate_token
 
 _bearer_pattern = re.compile(r"^Bearer (\S+)$")
 

@@ -4,10 +4,11 @@ import inspect
 import traceback
 
 from ..logger import Logger
+from ..registry import Registry
+
 from .request import Request
 from .response import Response, emit
 from .authorizer import Authorizer, AuthError
-from .registry import Registry
 
 _http_schema = {
 	"CORS": {
