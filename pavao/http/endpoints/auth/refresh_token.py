@@ -29,7 +29,7 @@ async def process(request, response, db_connection):
 			"MISSING_TOKEN"
 		)
 
-	refresh_claims = pavao.http.validate_token(token)
+	refresh_claims = pavao.validate_token(token)
 
 	if refresh_claims is None:
 		response.set_status(400)
@@ -79,8 +79,8 @@ async def process(request, response, db_connection):
 		await db_connection.execute(insert_refresh, account_id, refresh_hash,
 			refresh_expiry, access_claims['jti'])
 
-	access_token = pavao.http.generate_token(access_claims)
-	refresh_token = pavao.http.generate_token(refresh_claims)
+	access_token = pavao.generate_token(access_claims)
+	refresh_token = pavao.generate_token(refresh_claims)
 
 	response.add_cookie(
 		pavao.http.Cookie('token', refresh_token)

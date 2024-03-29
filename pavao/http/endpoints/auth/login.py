@@ -78,7 +78,7 @@ async def process(request, response, db_connection, parsed_json):
 
 	if changePassword:
 		access_claims['roles'] = ""
-		access_token = pavao.http.generate_token(access_claims)
+		access_token = pavao.generate_token(access_claims)
 
 		return {
 			"token": access_token,
@@ -105,8 +105,8 @@ async def process(request, response, db_connection, parsed_json):
 		refresh_expiry,
 		access_claims['jti'])
 
-	access_token = pavao.http.generate_token(access_claims)
-	refresh_token = pavao.http.generate_token(refresh_claims)
+	access_token = pavao.generate_token(access_claims)
+	refresh_token = pavao.generate_token(refresh_claims)
 	await db_connection.execute(touch_account,
 		parsed_json.login)
 

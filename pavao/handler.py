@@ -6,7 +6,7 @@ import operator
 import traceback
 
 from croniter import croniter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from .utils import adapter
 from .config import load_settings, PersistedSettings
@@ -40,6 +40,9 @@ class TaskData:
 		self.functionality = specs.get('functionality')
 		self.function = adapter(specs['processor'])
 		self.schedule = specs['schedule']
+
+		self.ident = None
+		self.enabled = False
 		self.execution = None
 
 		self.last_execution = None
@@ -48,24 +51,31 @@ class TaskData:
 		self.last_result = None
 
 
-	def register_execution(self, task):
-		self.execution = None
-
-		try:
-			result = task.result()
-			self.last_result = (True, result)
-
-		except asyncio.CancelledError as e:
-			self.last_result = (False, "Cancelled during execution")
-
-		except Exception as e:
-			self.last_result = (False, str(e))
-
-
 	def create_future(self, args):
+		start = datetime.now(timezone.utc)
+		db_pool = args['db_pool']
+
 		async def async_task():
-			result = await self.function(args)
-			return result
+
+			try:
+				result = await self.function(args)
+				self.last_result = (True, str(result))
+
+			except asyncio.CancelledError as e:
+				self.last_result = (False, "Cancelled during execution")
+
+			except Exception as e:
+				self.last_result = (False, str(e))
+
+			finally:
+				self.execution = None
+				success, result = self.last_result
+				end = datetime.now(timezone.utc)
+
+				async with db_pool.connection() as connection:
+					await connection.execute(insert_task_run,
+						self.ident, success, result,
+						start, end)
 
 		return async_task
 
@@ -94,11 +104,57 @@ class TaskData:
 			'handler': handler
 		}
 
-		self.last_execution = datetime.now()
 		task_future = self.create_future(all_args)
-		task = handler.loop.create_task(task_future())
-		task.add_done_callback(self.register_execution)
-		self.execution = task
+		self.execution = handler.loop.create_task(task_future())
+		self.last_execution = datetime.now()
+
+#-------------------------------------------------------------------------------
+
+assert_task_exists = """
+
+	WITH
+
+	existing AS (
+		SELECT id, enabled FROM pavao.task
+		WHERE package = $1 AND "name" = $2
+	),
+
+	created AS (
+		INSERT INTO pavao.task (package, name, enabled)
+			SELECT $1, $2, TRUE
+				WHERE NOT EXISTS (
+					SELECT 1 FROM pavao.task
+					WHERE package = $1 AND "name" = $2
+				)
+
+		RETURNING id, enabled
+	)
+
+	SELECT id, enabled FROM existing UNION ALL
+	SELECT id, enabled FROM created;
+
+"""
+
+
+insert_task_run = """
+
+	INSERT INTO pavao.task_execution (
+		task,
+		success,
+		result,
+		execution_start,
+		execution_end
+	)
+
+	VALUES (
+		$1,
+		$2,
+		$3,
+		$4,
+		$5
+	);
+
+"""
 
 #-------------------------------------------------------------------------------
 
@@ -136,7 +192,7 @@ class Handler:
 			await self.load_builtin_endpoints()
 
 			script_files = load_dir(self.endpoints_dir)
-			await self.load_endpoints(
+			await self.load_modules(
 				self.external_endpoints,
 				self.external_tasks,
 				*script_files)
@@ -166,14 +222,16 @@ class Handler:
 		self.http_handler = http.HttpHandler(self.db_pool)
 		self.loop = uvloop.new_event_loop()
 
-	#-------------------------------------------------------------------------------
+	#------------------------------------------------------------
 
-	async def register_endpoints(self):
-		registry = Registry()
+	async def register_tasks(self):
+		async with self.db_pool.connection() as connection:
+			for task_data in self.loaded_tasks:
+				result = await connection.fetchrow(assert_task_exists,
+					task_data.package, task_data.functionality)
 
-		await self.add_endpoints(self.builtin_endpoints, registry)
-		await self.add_endpoints(self.external_endpoints, registry)
-		await self.http_handler.update_registry(registry)
+				task_data.ident = result['id']
+				task_data.enabled = result['enabled']
 
 
 	def schedule_tasks(self):
@@ -198,9 +256,15 @@ class Handler:
 		self.loaded_tasks = tasks
 		self.scheduler = self.loop.create_task(self.execute_tasks())
 
-	#------------------------------------------------------------
 
 	async def execute_tasks(self):
+		await self.register_tasks()
+
+		# this exists to avoid all tasks that
+		# were scheduled to run after a computer
+		# that has beed suspended comes back again
+		# during the next execution wake up
+
 		skippable_lateness = timedelta(
 			minutes=1, seconds=30)
 
@@ -213,10 +277,36 @@ class Handler:
 					task.step_schedule()
 
 				if task.next_execution <= now:
-					task.execute(self)
+					if task.enabled: task.execute(self)
 					task.step_schedule()
 
 	#-------------------------------------------------------------------------------
+
+	async def load_builtin_endpoints(self):
+		script_path = os.path.dirname(os.path.realpath(__file__))
+		builtins_path = os.path.join(script_path, "http", "endpoints")
+		script_files = load_dir(builtins_path)
+
+		await self.load_modules(
+			self.builtin_endpoints,
+			self.builtin_tasks,
+			*script_files)
+
+
+	async def add_endpoints(self, endpoint_container, registry):
+		for file_path, endpoint in endpoint_container.items():
+			method, path = routing_destructor(endpoint)
+			registry.add_endpoint(method, path,
+				EndpointData(endpoint))
+
+
+	async def register_endpoints(self):
+		registry = Registry()
+
+		await self.add_endpoints(self.builtin_endpoints, registry)
+		await self.add_endpoints(self.external_endpoints, registry)
+		await self.http_handler.update_registry(registry)
+
 
 	def update_endpoints(self, creations, deletions, updates):
 		to_unload = set(filter(python_source, (*deletions, *updates)))
@@ -258,7 +348,7 @@ class Handler:
 					collected.append((file_path, specifier))
 
 			if len(collected) > 0:
-				await self.load_endpoints(
+				await self.load_modules(
 					self.external_endpoints,
 					self.external_tasks,
 					*collected)
@@ -269,7 +359,7 @@ class Handler:
 
 	#-------------------------------------------------------------------------------
 
-	async def load_endpoints(self,
+	async def load_modules(self,
 		endpoint_destination,
 		task_destination,
 		*scripts):
@@ -307,25 +397,6 @@ class Handler:
 					msg = f"Unable to process specs from file '{file_path}': {e}"
 					Logger.warning(msg)
 					continue
-
-
-	async def add_endpoints(self, endpoint_container, registry):
-		for file_path, endpoint in endpoint_container.items():
-			method, path = routing_destructor(endpoint)
-			registry.add_endpoint(method, path,
-				EndpointData(endpoint))
-
-	#-------------------------------------------------------------------------------
-
-	async def load_builtin_endpoints(self):
-		script_path = os.path.dirname(os.path.realpath(__file__))
-		builtins_path = os.path.join(script_path, "http", "endpoints")
-		script_files = load_dir(builtins_path)
-
-		await self.load_endpoints(
-			self.builtin_endpoints,
-			self.builtin_tasks,
-			*script_files)
 
 	#-------------------------------------------------------------------------------
 
