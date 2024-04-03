@@ -1,12 +1,16 @@
 
 import re
 import builtins
+import operator
+
+routing_destructor = operator.itemgetter('method', 'path')
 
 _identifier = r'[a-zA-Z_][a-zA-Z_0-9]*'
 _capture_pattern = re.compile(fr'^{{({_identifier})(?::({_identifier}))?}}$')
 _not_empty = lambda x: len(x) > 0
 _identity = lambda x : x
 
+from .utils import adapter
 from .exception import PavaoException
 class EndpointException(PavaoException):
 	pass
@@ -94,6 +98,15 @@ class CaptureArc(RawArc):
 
 	def assume(self, value):
 		return self.transform(value)
+
+#-------------------------------------------------------------------------------
+
+class EndpointData:
+	def __init__(self, specs):
+		self.function = adapter(specs['processor'])
+		self.package = specs.get('package')
+		self.functionality = specs.get('functionality')
+		self.public = specs.get('public', False)
 
 #-------------------------------------------------------------------------------
 
@@ -230,6 +243,7 @@ class EndpointNode:
 
 		return None
 
+#-------------------------------------------------------------------------------
 
 class Registry:
 	def __init__(self, max_depth=10):
@@ -237,9 +251,11 @@ class Registry:
 		self.max_depth = max_depth
 
 
-	def add_endpoint(self, method, path, endpoint_data):
+	def add_endpoint(self, specs):
+		method, path = routing_destructor(specs)
 		raw_tokens = path.strip("/").split("/")
 		valid_tokens = tuple(filter(_not_empty, raw_tokens))
+		endpoint_data = EndpointData(specs)
 
 		if len(valid_tokens) > self.max_depth:
 			msg = "Given endpoint requires depth greater than allowed"

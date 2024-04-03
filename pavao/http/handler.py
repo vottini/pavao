@@ -33,8 +33,10 @@ _cors_allow_origin = 'access-control-allow-origin'
 _cors_allow_headers = 'access-control-allow-headers'
 
 class HttpHandler:
-	def __init__(self, db_pool):
+	def __init__(self, db_pool, server):
 		self.db_pool = db_pool
+		self.server = server
+
 		self.authorizer = Authorizer()
 		self.registry = Registry()
 
@@ -57,7 +59,7 @@ class HttpHandler:
 		]
 
 	def get_arguments(self):
-		return ['handler'] + self.arguments
+		return ['handler', 'server'] + self.arguments
 
 
 	async def init(self, settings):
@@ -168,7 +170,11 @@ class HttpHandler:
 
 			handler = endpoint.function
 			async with self.db_pool.connection() as db_connection:
-				all_args = {'handler': self}
+
+				all_args = {
+					'handler': self,
+					'server': self.server
+				}
 
 				for arg in self.arguments:
 					current_value = locals()[arg]

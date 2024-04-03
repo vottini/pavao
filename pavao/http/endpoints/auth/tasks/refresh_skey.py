@@ -13,7 +13,7 @@ def pavao_task():
 
 	return {
 		'package': "Pavão",
-		'functionality': "Refresh jwt secret key",
+		'name': "Refresh jwt secret key",
 		'processor': proccess,
 		'schedule': '0 0 * * *'
 	}

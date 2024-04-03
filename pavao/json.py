@@ -65,6 +65,7 @@ def accepts_json(
 		@functools.wraps(fnc)
 		async def wrapped(
 			handler,
+			server,
 			request,
 			path_variables,
 			db_connection,
@@ -112,6 +113,7 @@ def accepts_json(
 
 			all_args = {
 				'handler': handler,
+				'server': server,
 				'request': request,
 				'path_variables': path_variables,
 				'db_connection': db_connection,
@@ -209,6 +211,7 @@ def generates_json(
 		@functools.wraps(fnc)
 		async def wrapped(
 			handler,
+			server,
 			request,
 			path_variables,
 			db_connection,
@@ -218,6 +221,7 @@ def generates_json(
 
 			all_args = {
 				'handler': handler,
+				'server': server,
 				'request': request,
 				'path_variables': path_variables,
 				'db_connection': db_connection,
