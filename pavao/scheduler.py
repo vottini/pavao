@@ -71,9 +71,13 @@ class TaskData:
 		self.next_execution = self.iterator.get_next(datetime)
 
 
-	def create_future(self, db_pool):
+	def create_future(self, db_pool, broadcaster):
 		start = datetime.now(timezone.utc)
-		args = { 'db_pool': db_pool }
+
+		args = {
+			'db_pool': db_pool,
+			'broadcasting': broadcaster
+		}
 
 		async def async_task():
 
@@ -116,9 +120,9 @@ class TaskData:
 		self.next_execution = self.iterator.get_next(datetime)
 
 
-	def execute(self, loop, db_pool):
+	def execute(self, loop, db_pool, broadcaster):
 		self.cancel_if_executing()
-		task_future = self.create_future(db_pool)
+		task_future = self.create_future(db_pool, broadcaster)
 		self.execution = loop.create_task(task_future())
 
 #-------------------------------------------------------------------------------
@@ -136,9 +140,10 @@ async def wait_whole_minute():
 #-------------------------------------------------------------------------------
 
 class Scheduler:
-	def __init__(self, loop, db_pool):
+	def __init__(self, loop, db_pool, broadcaster):
 		self.loop = loop
 		self.db_pool = db_pool
+		self.broadcaster = broadcaster
 		self.loaded_tasks = list()
 		self.executor = None
 
@@ -200,7 +205,8 @@ class Scheduler:
 					if task.enabled:
 						task.execute(
 							self.loop,
-							self.db_pool)
+							self.db_pool,
+							self.broadcaster)
 
 	#--------------------------------------------------------
 
@@ -230,7 +236,8 @@ class Scheduler:
 			if task_data.ident == taskId:
 				task_data.execute(
 					self.loop,
-					self.db_pool)
+					self.db_pool,
+					self.broadcaster)
 
 				return True
 

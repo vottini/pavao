@@ -53,10 +53,12 @@ class HttpHandler:
 			'request',
 			'path_variables',
 			'db_connection',
+			'broadcasting',
 			'auth_data',
 			'response',
 			'receive'
 		]
+
 
 	def get_arguments(self):
 		return ['handler', 'server'] + self.arguments
@@ -167,8 +169,9 @@ class HttpHandler:
 				return
 
 			auth_data = validation_outcome
-
+			broadcasting = self.server.broadcaster
 			handler = endpoint.function
+
 			async with self.db_pool.connection() as db_connection:
 
 				all_args = {

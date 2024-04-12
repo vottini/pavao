@@ -171,6 +171,17 @@ if (endpoints_dir := args.execute) is not None:
 		args.execute
 	)
 
+	# monkey patch sigterm handler in uvicorn
+	# https://stackoverflow.com/a/59887076
+
+	original_handler = uvicorn.Server.handle_exit
+
+	def custom_handler(*args, **kwargs):
+		handler.terminate_connections()
+		original_handler(*args, **kwargs)
+
+	uvicorn.Server.handle_exit = custom_handler
+
 	asgi_config = uvicorn.Config(
 		app=handler.get_app(),
 		loop=handler.loop)

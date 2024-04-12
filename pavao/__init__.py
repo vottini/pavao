@@ -9,6 +9,7 @@ from .json import accepts_json, generates_json, error_blueprint, has_optional_fi
 from .sse import generates_sse
 from .parameters import accepts_parameters
 from .loader import load_dir, path_to, include, import_module, from_module
+from .broadcasting import END_OF_STREAM
 from .handler import Handler
 
 from . import predicates

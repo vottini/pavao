@@ -12,6 +12,7 @@ from .loader import load_file, load_dir, retrieve_dependees, load_module
 from .refresher import PathMonitor
 from .registry import Registry
 from .scheduler import Scheduler
+from .broadcasting import Broadcaster
 
 from . import predicates
 from . import lifespan
@@ -28,6 +29,7 @@ class Handler:
 		self.settings = None
 		self.modules_dir = os.path.abspath(modules_dir)
 		self.monitor = PathMonitor(self.modules_dir, self.update_modules)
+		self.broadcaster = Broadcaster()
 		self.db_pool = DatabasePool()
 
 		self.builtin_endpoints = dict()
@@ -62,10 +64,8 @@ class Handler:
 
 		async def stop():
 			Logger.info("Stopping Pavão...")
-
 			self.monitor.stop()
 			self.scheduler.stop()
-
 			await self.db_pool.close()
 			stop_logging()
 
@@ -73,7 +73,16 @@ class Handler:
 		self.persisted = PersistedSettings(self.db_pool)
 		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
 		self.http_handler = http.HttpHandler(self.db_pool, self)
-		self.scheduler = Scheduler(self.loop, self.db_pool)
+		self.scheduler = Scheduler(self.loop, self.db_pool, self.broadcaster)
+
+
+	def terminate_connections(self):
+		Logger.info("Closing connections...")
+
+		async def announcing():
+			await self.broadcaster.announce_shutdown()
+
+		self.loop.create_task(announcing())
 
 	#-------------------------------------------------------------------------------
 

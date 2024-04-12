@@ -69,6 +69,7 @@ def accepts_json(
 			request,
 			path_variables,
 			db_connection,
+			broadcasting,
 			auth_data,
 			response,
 			receive):
@@ -117,6 +118,7 @@ def accepts_json(
 				'request': request,
 				'path_variables': path_variables,
 				'db_connection': db_connection,
+				'broadcasting': broadcasting,
 				'auth_data': auth_data,
 				'response': response,
 				'receive': receive,
@@ -215,6 +217,7 @@ def generates_json(
 			request,
 			path_variables,
 			db_connection,
+			broadcasting,
 			auth_data,
 			response,
 			receive):
@@ -225,6 +228,7 @@ def generates_json(
 				'request': request,
 				'path_variables': path_variables,
 				'db_connection': db_connection,
+				'broadcasting': broadcasting,
 				'auth_data': auth_data,
 				'response': response,
 				'receive': receive

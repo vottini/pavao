@@ -83,6 +83,7 @@ def generates_sse(
 			response,
 			path_variables,
 			db_connection,
+			broadcasting,
 			auth_data,
 			receive):
 
@@ -94,6 +95,7 @@ def generates_sse(
 				'emit': emit_instance,
 				'path_variables': path_variables,
 				'db_connection': db_connection,
+				'broadcasting': broadcasting,
 				'auth_data': auth_data
 			}
 
@@ -116,9 +118,16 @@ def generates_sse(
 					is_awaitable = inspect.iscoroutinefunction(fnc)
 					await fnc() if is_awaitable else fnc()
 
+			async def monitor_shutdown():
+				shutdown_sink = broadcasting.open_sink("PAVAO.SHUTDOWN")
+				await shutdown_sink.get_message()
+				await emit_instance.event("serverShutdown")
+				broadcasting.close_sink(shutdown_sink)
+
 			tasks = [
 				asyncio.create_task(run_endpoint()),
 				asyncio.create_task(monitor_disconnection()),
+				asyncio.create_task(monitor_shutdown()),
 			]
 
 			if send_heartbeats:
