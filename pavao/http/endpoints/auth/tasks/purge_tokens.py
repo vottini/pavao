@@ -16,7 +16,7 @@ purge_query = """
 async def proccess(db_pool):
 	async with db_pool.connection() as connection:
 		purged = await connection.fetchval(purge_query)
-		return f"{purged} refresh token(s) purged"
+		yield f"{purged} refresh token(s) purged"
 
 
 def pavao_task():

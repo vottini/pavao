@@ -3,10 +3,10 @@ import datetime
 import asyncio
 import pavao
 
-def proccess():
+async def proccess():
 	validity = datetime.timedelta(days=5)
 	success = pavao.refresh_token(validity)
-	return "Success" if success else "Failure"
+	yield "Success" if success else "Failure"
 
 
 def pavao_task():

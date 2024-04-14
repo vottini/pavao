@@ -1,10 +1,14 @@
 
 import asyncio
+import inspect
 from croniter import croniter
 from datetime import datetime, timedelta, timezone
 
-from .utils import adapter
 from .logger import Logger
+from .utils import adapter
+from .exception import PavaoException
+class TaskException(PavaoException):
+	pass
 
 #-------------------------------------------------------------------------------
 
@@ -56,23 +60,63 @@ insert_task_run = """
 
 #-------------------------------------------------------------------------------
 
+class TaskProblem:
+	NONE = 0
+	IN_EXECUTION = 1
+	NOT_IN_EXECUTION = 2
+	NOT_FOUND = 3
+
+
 class TaskData:
-	def __init__(self, specs, start_time):
+	def __init__(self, specs):
+		if not inspect.isasyncgenfunction(specs['processor']):
+			raise TaskException("Not an async generator")
+
 		self.package = specs.get('package')
-		self.name = specs.get('name')
-		self.function = adapter(specs['processor'])
+		self.name = specs['name']
+
 		self.schedule = specs['schedule']
+		self.function = adapter(specs['processor'],
+			possibly_asynchronous=False)
 
 		self.ident = None
-		self.enabled = False
 		self.execution = None
+		self.current_output = list()
 
-		self.iterator = croniter(self.schedule, start_time)
+		self.enabled = False
+		self.next_execution = None
+		self.iterator = None
+
+	#----------------------------------------------------------------------------
+
+	async def enable(self, broadcaster=None):
+		self.iterator = croniter(self.schedule, datetime.now())
 		self.next_execution = self.iterator.get_next(datetime)
+		self.enabled = True
 
+		if broadcaster is not None:
+			await broadcaster.write_message(
+				f"taskState:{self.ident}",
+				f"ENABLED:{self.next_execution}"
+			)
+
+
+	async def disable(self, broadcaster=None):
+		self.enabled = False
+		self.next_execution = None
+		self.iterator = None
+
+		if broadcaster is not None:
+			await broadcaster.write_message(
+				f"taskState:{self.ident}",
+				"DISABLED"
+			)
+
+	#----------------------------------------------------------------------------
 
 	def create_future(self, db_pool, broadcaster):
 		start = datetime.now(timezone.utc)
+		self.current_output = list()
 
 		args = {
 			'db_pool': db_pool,
@@ -80,9 +124,20 @@ class TaskData:
 		}
 
 		async def async_task():
+			await broadcaster.write_message(
+				f"taskState:{self.ident}",
+				"STARTED"
+			)
 
 			try:
-				result = await self.function(args)
+				async for output in self.function(args):
+					self.current_output.append(output)
+					await broadcaster.write_message(
+						f"taskState:{self.ident}",
+						f'OUTPUT:{output}'
+					)
+
+				result = "\n".join(self.current_output)
 				success = True
 
 			except asyncio.CancelledError as e:
@@ -95,6 +150,11 @@ class TaskData:
 
 			finally:
 				self.execution = None
+				await broadcaster.write_message(
+					f"taskState:{self.ident}",
+					"FINISHED"
+				)
+
 				end = datetime.now(timezone.utc)
 				async with db_pool.connection() as connection:
 					await connection.execute(insert_task_run,
@@ -111,6 +171,10 @@ class TaskData:
 
 
 	def lateness(self):
+		if not self.enabled:
+			msg = "Task is not scheduled to be late"
+			raise TaskException(msg)
+
 		now = datetime.now()
 		elapsed = now - self.next_execution
 		return max(elapsed, timedelta())
@@ -152,15 +216,19 @@ class Scheduler:
 		self.stop()
 
 		tasks = list()
-		start = datetime.now()
 		for file_path, spec in modules.items():
 
 			try:
-				taskData = TaskData(spec, start)
+				taskData = TaskData(spec)
 				tasks.append(taskData)
 
 			except KeyError as e:
 				msg = f"Incomplete spec in '{file_path}': missing field {e}"
+				Logger.warning(msg)
+				continue
+
+			except TaskException as e:
+				msg = f"Invalid task at '{file_path}': {e}"
 				Logger.warning(msg)
 				continue
 
@@ -170,23 +238,24 @@ class Scheduler:
 
 	async def register_tasks(self):
 		async with self.db_pool.connection() as connection:
-			for task_data in self.loaded_tasks:
+			for task in self.loaded_tasks:
 				result = await connection.fetchrow(
 					assert_task_exists,
-					task_data.package,
-					task_data.name)
+					task.package,
+					task.name)
 
-				task_data.ident = result['id']
-				task_data.enabled = result['enabled']
+				task.ident = result['id']
+				if result['enabled']:
+					await task.enable()
 
 
 	async def execute_tasks(self):
 		await self.register_tasks()
 
 		# this exists to avoid all tasks that
-		# were scheduled to run after a computer
-		# that has beed suspended comes back again
-		# during the next execution wake up
+		# were scheduled to run before a computer
+		# has beed suspended to be executed when
+		# it powers up again
 
 		skippable_lateness = timedelta(
 			minutes=1, seconds=30)
@@ -196,17 +265,21 @@ class Scheduler:
 			now = datetime.now()
 
 			for task in self.loaded_tasks:
-				while task.lateness() > skippable_lateness:
-					task.step_schedule()
+				if not task.enabled:
+					continue
 
 				if task.next_execution <= now:
-					task.step_schedule()
+					while task.lateness() > skippable_lateness:
+						task.step_schedule()
 
-					if task.enabled:
-						task.execute(
-							self.loop,
-							self.db_pool,
-							self.broadcaster)
+					if task.next_execution <= now:
+						task.execute(self.loop, self.db_pool, self.broadcaster)
+						task.step_schedule()
+
+					await self.broadcaster.write_message(
+						f"taskState:{task.ident}",
+						f'SCHEDULE:{task.next_execution}'
+					)
 
 	#--------------------------------------------------------
 
@@ -230,18 +303,42 @@ class Scheduler:
 
 		return None
 
+	#--------------------------------------------------------
 
-	def run_task(self, taskId):
+	def _find_task(self, taskId):
 		for task_data in self.loaded_tasks:
 			if task_data.ident == taskId:
-				task_data.execute(
-					self.loop,
-					self.db_pool,
-					self.broadcaster)
+				return task_data
 
-				return True
+		return None
 
-		return False
+
+	def run_task(self, taskId):
+		task_data = self._find_task(taskId)
+		if task_data is None:
+			return False, TaskProblem.NOT_FOUND
+
+		if task_data.execution is not None:
+			return False, TaskProblem.IN_EXECUTION
+
+		task_data.execute(
+			self.loop,
+			self.db_pool,
+			self.broadcaster)
+
+		return True, TaskProblem.NONE
+
+
+	def cancel_task(self, taskId):
+		task_data = self._find_task(taskId)
+		if task_data is None:
+			return False, TaskProblem.NOT_FOUND
+
+		if task_data.execution is None:
+			return False, TaskProblem.NOT_IN_EXECUTION
+
+		task_data.cancel_if_executing()
+		return True, TaskProblem.NONE
 
 	#--------------------------------------------------------
 

@@ -22,7 +22,7 @@ from admin.common import localize_functionality
 from admin.common import create_message_localizer
 
 @pavao.generates_json(string_blueprint=update_info_blueprint)
-async def process(request, response, path_variables, db_connection, server):
+async def process(request, response, path_variables, db_connection, server, broadcasting):
 	task_data = server.scheduler.get_task(path_variables['task'])
 
 	if task_data is None:
@@ -31,7 +31,7 @@ async def process(request, response, path_variables, db_connection, server):
 		response.set_status(404)
 		return None
 
-	task_data.enabled = True
+	await task_data.enable(broadcasting)
 	await db_connection.execute(enable_task, task_data.ident)
 	return { 'nextExecution': task_data.next_execution }
 

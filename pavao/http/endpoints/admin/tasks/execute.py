@@ -7,15 +7,26 @@ from admin.common import create_message_localizer
 
 
 def process(request, response, path_variables, server):
-	success = server.scheduler.run_task(path_variables['task'])
+	success, outcome = server.scheduler.run_task(path_variables['task'])
 
-	if not success:
-		localizer = create_message_localizer(request)
-		localizer.assign_response_error(response, "TASK_NOT_FOUND")
-		response.set_status(404)
-		return None
+	if success:
+		response.set_status(204)
+		return
 
-	response.set_status(204)
+	localizer = create_message_localizer(request)
+	msg = "UNEXPECTED_ERROR"
+	status = 500
+
+	if outcome == pavao.TaskProblem.NOT_FOUND:
+		msg = "TASK_NOT_FOUND"
+		status = 404
+
+	if outcome == pavao.TaskProblem.IN_EXECUTION:
+		msg = "TASK_IN_EXECUTION"
+		status = 409
+
+	localizer.assign_response_error(response, msg)
+	response.set_status(status)
 
 
 async def pavao_endpoint(db_connection, persisted_settings):
