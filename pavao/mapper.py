@@ -1,5 +1,6 @@
 
 import humps
+import asyncpg
 
 class Case:
 	CAMEL = 1
@@ -33,7 +34,7 @@ def translate_case(value, desired_case):
 
 		return result
 
-	if not isinstance(value, dict):
+	if not isinstance(value, (dict, asyncpg.Record)):
 		return value
 
 	dictionary = value
@@ -44,7 +45,7 @@ def translate_case(value, desired_case):
 	for outputKey, inputKey in mapping.items():
 		inputContent = dictionary[inputKey]
 
-		if isinstance(inputContent, dict):
+		if isinstance(inputContent, (dict, asyncpg.Record)):
 			inputContent = translate_case(inputContent,
 				desired_case)
 
@@ -111,8 +112,12 @@ def assemble_dicts(*base, **named):
 			scoped = list()
 
 			for item in entry:
-				assembled = assemble_dicts(item)
-				scoped.append(assembled)
+				if isinstance(item, dict):
+					assembled = assemble_dicts(item)
+					scoped.append(assembled)
+
+				else:
+					scoped.append(item)
 
 			result[field] = scoped
 

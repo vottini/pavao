@@ -5,7 +5,6 @@ import pavao
 from admin.common import localize_functionality
 from admin.common import create_message_localizer
 
-
 def process(request, response, path_variables, server):
 	success, outcome = server.scheduler.run_task(path_variables['task'])
 
@@ -13,10 +12,7 @@ def process(request, response, path_variables, server):
 		response.set_status(204)
 		return
 
-	localizer = create_message_localizer(request)
-	msg = "UNEXPECTED_ERROR"
-	status = 500
-
+	status, msg = 500, "UNEXPECTED_ERROR"
 	if outcome == pavao.TaskProblem.NOT_FOUND:
 		msg = "TASK_NOT_FOUND"
 		status = 404
@@ -25,6 +21,7 @@ def process(request, response, path_variables, server):
 		msg = "TASK_IN_EXECUTION"
 		status = 409
 
+	localizer = create_message_localizer(request)
 	localizer.assign_response_error(response, msg)
 	response.set_status(status)
 

@@ -137,15 +137,14 @@ class TaskData:
 						f'OUTPUT:{output}'
 					)
 
-				result = "\n".join(self.current_output)
 				success = True
 
 			except asyncio.CancelledError as e:
-				result = "Cancelled during execution"
+				self.current_output.append("Cancelled during execution")
 				success = False
 
 			except Exception as exception:
-				result = exception
+				self.current_output.append(str(exception))
 				success = False
 
 			finally:
@@ -156,6 +155,7 @@ class TaskData:
 				)
 
 				end = datetime.now(timezone.utc)
+				result = "\n".join(self.current_output)
 				async with db_pool.connection() as connection:
 					await connection.execute(insert_task_run,
 						self.ident, success, str(result),
@@ -165,9 +165,12 @@ class TaskData:
 
 
 	def cancel_if_executing(self):
-		if self.execution is not None:
-			self.execution.cancel()
-			self.execution = None
+		if self.execution is None:
+			return False
+
+		self.execution.cancel()
+		self.execution = None
+		return True
 
 
 	def lateness(self):

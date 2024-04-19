@@ -58,7 +58,8 @@ async def process(request, response, db_connection, path_variables):
 	role_id = path_variables['role']
 
 	async with db_connection.transaction():
-		role_info = await db_connection.fetchrow(_select_role, role_id)
+		role_info = await db_connection.fetchrow(
+			_select_role, role_id)
 
 		if role_info is None:
 			localizer = create_message_localizer(request)

@@ -50,15 +50,18 @@ assignments_blueprint = """
 
 @pavao.generates_json(string_blueprint=assignments_blueprint)
 async def process(request, response, db_connection, path_variables):
-	user_data = await db_connection.fetchrow(retrieve_user_data,
-		path_variables['user'])
+	userId = path_variables['user']
+
+	user_data = await db_connection.fetchrow(
+		retrieve_user_data,
+		userId)
 
 	if user_data is None:
 		localizer.assign_response_error(response, "USER_NOT_FOUND")
 		response.set_status(404)
 		return
 
-	assignments = await db_connection.fetch(list_assignments, path_variables['user'])
+	assignments = await db_connection.fetch(list_assignments, userId)
 	return pavao.assemble_dicts(user_data, assignments=assignments)
 
 

@@ -5,11 +5,12 @@ import pavao
 task_blueprint = """
 
 	root {
-		schedule: string,
 		package: nullable string,
 		name: string,
+		schedule: string,
 		enabled: bool,
-		nextExecution: instant
+		optional nextExecution: instant,
+		running: bool
 	}
 
 """
@@ -28,13 +29,18 @@ async def process(request, response, path_variables, server):
 		response.set_status(404)
 		return None
 
-	return {
+	result = {
 		'name': task_data.name,
 		'package': task_data.package,
 		'schedule': task_data.schedule,
 		'enabled': task_data.enabled,
-		'nextExecution': task_data.next_execution
+		'running': task_data.execution is not None
 	}
+
+	if task_data.enabled:
+		result['nextExecution'] = task_data.next_execution
+
+	return result
 
 
 async def pavao_endpoint(db_connection, persisted_settings):
