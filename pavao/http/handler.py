@@ -5,10 +5,10 @@ import traceback
 
 from ..logger import Logger
 from ..registry import Registry
+from ..authorizer import AuthError
 
 from .request import Request
 from .response import Response, emit
-from .authorizer import Authorizer, AuthError
 
 _http_schema = {
 	"CORS": {
@@ -33,11 +33,11 @@ _cors_allow_origin = 'access-control-allow-origin'
 _cors_allow_headers = 'access-control-allow-headers'
 
 class HttpHandler:
-	def __init__(self, db_pool, server):
-		self.db_pool = db_pool
+	def __init__(self, server):
 		self.server = server
 
-		self.authorizer = Authorizer()
+		self.db_pool = server.db_pool
+		self.authorizer = server.authorizer
 		self.registry = Registry()
 
 		self.cors_origins = list()
@@ -61,7 +61,7 @@ class HttpHandler:
 
 
 	def get_arguments(self):
-		return ['handler', 'server'] + self.arguments
+		return ['server'] + self.arguments
 
 
 	async def init(self, settings):
@@ -152,16 +152,12 @@ class HttpHandler:
 				if validation_outcome in (
 					AuthError.MISSING_TOKEN,
 					AuthError.INVALID_TOKEN,
-					AuthError.EXPIRED_AUTH
+					AuthError.EXPIRED_AUTH,
+					AuthError.BLOCKED_USER
 				): status = 401
 
-				if validation_outcome in (
-					AuthError.BLOCKED_USER,
-					AuthError.NOT_ALLOWED
-				): status = 403
-
-				if validation_outcome is AuthError.DISABLED_ENDPOINT:
-					status = 410
+				if validation_outcome is AuthError.NOT_ALLOWED: status = 403
+				if validation_outcome is AuthError.DISABLED_ENDPOINT: status = 410
 
 				failure_status = validation_outcome
 				response.set_status(status)
@@ -173,11 +169,7 @@ class HttpHandler:
 			handler = endpoint.function
 
 			async with self.db_pool.connection() as db_connection:
-
-				all_args = {
-					'handler': self,
-					'server': self.server
-				}
+				all_args = { 'server': self.server }
 
 				for arg in self.arguments:
 					current_value = locals()[arg]

@@ -78,7 +78,6 @@ def generates_sse(
 
 		@functools.wraps(fnc)
 		async def wrapped(
-			handler,
 			request,
 			response,
 			path_variables,
@@ -90,7 +89,6 @@ def generates_sse(
 			emit_instance = ServerEvent(response)
 
 			all_args = {
-				'handler': handler,
 				'request': request,
 				'emit': emit_instance,
 				'path_variables': path_variables,

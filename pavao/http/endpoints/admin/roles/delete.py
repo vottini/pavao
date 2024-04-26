@@ -13,7 +13,7 @@ delete_query = """
 
 """
 
-async def process(request, response, db_connection, path_variables, handler):
+async def process(request, response, db_connection, path_variables):
 	localizer = create_message_localizer(request)
 
 	try:

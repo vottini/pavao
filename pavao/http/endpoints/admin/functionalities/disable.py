@@ -19,7 +19,7 @@ check_admin = """
 """
 
 
-async def process(request, response, db_connection, path_variables, handler):
+async def process(request, response, db_connection, path_variables, server):
 	localizer = create_message_localizer(request)
 
 	functionality_id = path_variables['functionality']
@@ -31,7 +31,7 @@ async def process(request, response, db_connection, path_variables, handler):
 		response.set_status(403)
 		return
 
-	authorizer = handler.authorizer
+	authorizer = server.authorizer
 	success = await authorizer.disable_functionality(db_connection,
 		functionality_id)
 

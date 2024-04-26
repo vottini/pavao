@@ -23,7 +23,7 @@ def pavao_task():
 
 	return {
 		'package': "Pavão",
-		'name': "Purges due refresh tokens",
+		'name': "Purges expired refresh tokens",
 		'processor': proccess,
 		'schedule': '0 * * * *'
 	}

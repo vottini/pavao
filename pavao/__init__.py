@@ -11,7 +11,7 @@ from .parameters import accepts_parameters
 from .loader import load_dir, path_to, include, import_module, from_module
 from .broadcasting import END_OF_STREAM
 from .scheduler import TaskProblem
-from .handler import Handler
+from .server import Server
 
 from . import predicates
 from . import lifespan

@@ -13,7 +13,7 @@ disallow_query = """
 
 """
 
-async def process(request, response, db_connection, path_variables, handler):
+async def process(request, response, db_connection, path_variables, server):
 	localizer = create_message_localizer(request)
 
 	try:
@@ -26,7 +26,7 @@ async def process(request, response, db_connection, path_variables, handler):
 			response.set_status(404)
 			return
 
-		authorizer = handler.authorizer
+		authorizer = server.authorizer
 		await authorizer.remove_access(db_connection,
 			path_variables['functionality'],
 			path_variables['role'])

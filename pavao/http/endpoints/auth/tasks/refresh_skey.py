@@ -5,8 +5,8 @@ import pavao
 
 async def proccess():
 	validity = datetime.timedelta(days=5)
-	success = pavao.refresh_secret_key(validity)
-	yield "Success" if success else "Failure"
+	pavao.refresh_secret_key(validity)
+	yield "Secret key refreshed"
 
 
 def pavao_task():

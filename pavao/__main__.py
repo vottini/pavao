@@ -166,7 +166,7 @@ if (import_file := args.import_admin) is not None:
 #-------------------------------------------------------------------------------
 
 if (endpoints_dir := args.execute) is not None:
-	handler = pavao.Handler(
+	server = pavao.Server(
 		args.config_file,
 		args.execute
 	)
@@ -177,15 +177,15 @@ if (endpoints_dir := args.execute) is not None:
 	original_handler = uvicorn.Server.handle_exit
 
 	def custom_handler(*args, **kwargs):
-		handler.terminate_connections()
+		server.terminate_connections()
 		original_handler(*args, **kwargs)
 
 	uvicorn.Server.handle_exit = custom_handler
 
 	asgi_config = uvicorn.Config(
-		app=handler.get_app(),
-		loop=handler.loop)
+		app=server.get_app(),
+		loop=server.loop)
 
 	asgi_server = uvicorn.Server(asgi_config)
-	handler.loop.run_until_complete(asgi_server.serve())
+	server.loop.run_until_complete(asgi_server.serve())
 

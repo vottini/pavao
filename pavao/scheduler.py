@@ -69,14 +69,15 @@ class TaskProblem:
 
 class TaskData:
 	def __init__(self, specs):
-		if not inspect.isasyncgenfunction(specs['processor']):
+		processor = specs['processor']
+		if not inspect.isasyncgenfunction(processor):
 			raise TaskException("Not an async generator")
 
 		self.package = specs.get('package')
 		self.name = specs['name']
 
 		self.schedule = specs['schedule']
-		self.function = adapter(specs['processor'],
+		self.function = adapter(processor,
 			possibly_asynchronous=False)
 
 		self.ident = None
@@ -114,14 +115,12 @@ class TaskData:
 
 	#----------------------------------------------------------------------------
 
-	def create_future(self, db_pool, broadcaster):
+	def create_future(self, args):
 		start = datetime.now(timezone.utc)
 		self.current_output = list()
 
-		args = {
-			'db_pool': db_pool,
-			'broadcasting': broadcaster
-		}
+		broadcaster = args['broadcaster']
+		db_pool = args['db_pool']
 
 		async def async_task():
 			await broadcaster.write_message(
@@ -145,7 +144,7 @@ class TaskData:
 
 			except Exception as exception:
 				self.current_output.append(str(exception))
-				success = False
+				success = false
 
 			finally:
 				self.execution = None
@@ -187,9 +186,9 @@ class TaskData:
 		self.next_execution = self.iterator.get_next(datetime)
 
 
-	def execute(self, loop, db_pool, broadcaster):
+	def run(self, loop, args):
 		self.cancel_if_executing()
-		task_future = self.create_future(db_pool, broadcaster)
+		task_future = self.create_future(args)
 		self.execution = loop.create_task(task_future())
 
 #-------------------------------------------------------------------------------
@@ -207,12 +206,14 @@ async def wait_whole_minute():
 #-------------------------------------------------------------------------------
 
 class Scheduler:
-	def __init__(self, loop, db_pool, broadcaster):
+	def __init__(self, loop, server):
 		self.loop = loop
-		self.db_pool = db_pool
-		self.broadcaster = broadcaster
-		self.loaded_tasks = list()
 		self.executor = None
+		self.loaded_tasks = list()
+
+		self.db_pool = server.db_pool
+		self.broadcaster = server.broadcaster
+		self.server = server
 
 
 	def parse_tasks(self, modules):
@@ -267,6 +268,12 @@ class Scheduler:
 			await wait_whole_minute()
 			now = datetime.now()
 
+			args = {
+				'db_pool': self.db_pool,
+				'broadcaster': self.broadcaster,
+				'server': self.server
+			}
+
 			for task in self.loaded_tasks:
 				if not task.enabled:
 					continue
@@ -276,7 +283,7 @@ class Scheduler:
 						task.step_schedule()
 
 					if task.next_execution <= now:
-						task.execute(self.loop, self.db_pool, self.broadcaster)
+						task.run(self.loop, args)
 						task.step_schedule()
 
 					await self.broadcaster.write_message(
@@ -324,11 +331,13 @@ class Scheduler:
 		if task_data.execution is not None:
 			return False, TaskProblem.IN_EXECUTION
 
-		task_data.execute(
-			self.loop,
-			self.db_pool,
-			self.broadcaster)
+		args = {
+			'db_pool': self.db_pool,
+			'broadcaster': self.broadcaster,
+			'server': self.server
+		}
 
+		task_data.run(self.loop, args)
 		return True, TaskProblem.NONE
 
 

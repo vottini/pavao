@@ -13,6 +13,7 @@ from .refresher import PathMonitor
 from .registry import Registry
 from .scheduler import Scheduler
 from .broadcasting import Broadcaster
+from .authorizer import Authorizer
 
 from . import predicates
 from . import lifespan
@@ -23,14 +24,17 @@ non_python_source = lambda x : not python_source(x)
 
 #-------------------------------------------------------------------------------
 
-class Handler:
+class Server:
 	def __init__(self, config_file, modules_dir):
 
 		self.settings = None
 		self.modules_dir = os.path.abspath(modules_dir)
 		self.monitor = PathMonitor(self.modules_dir, self.update_modules)
-		self.broadcaster = Broadcaster()
 		self.db_pool = DatabasePool()
+
+		self.authorizer = Authorizer()
+		self.broadcaster = Broadcaster()
+		self.registry = Registry()
 
 		self.builtin_endpoints = dict()
 		self.external_endpoints = dict()
@@ -72,8 +76,8 @@ class Handler:
 		self.loop = uvloop.new_event_loop()
 		self.persisted = PersistedSettings(self.db_pool)
 		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
-		self.http_handler = http.HttpHandler(self.db_pool, self)
-		self.scheduler = Scheduler(self.loop, self.db_pool, self.broadcaster)
+		self.http_handler = http.HttpHandler(self)
+		self.scheduler = Scheduler(self.loop, self)
 
 
 	def terminate_connections(self):

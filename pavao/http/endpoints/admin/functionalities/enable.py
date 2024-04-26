@@ -5,8 +5,8 @@ import pavao
 from admin.common import localize_functionality
 from admin.common import create_message_localizer
 
-async def process(request, response, db_connection, path_variables, handler):
-	authorizer = handler.authorizer
+async def process(request, response, db_connection, path_variables, server):
+	authorizer = server.authorizer
 	success = await authorizer.enable_functionality(db_connection,
 		path_variables['functionality'])
 

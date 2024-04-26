@@ -42,7 +42,7 @@ roles_list = """
 
 
 @pavao.accepts_json(string_blueprint=roles_list)
-async def process(handler, response, parsed_json, path_variables, db_connection):
+async def process(server, response, parsed_json, path_variables, db_connection):
 	user_id = path_variables['user']
 	roles = parsed_json
 
@@ -51,7 +51,7 @@ async def process(handler, response, parsed_json, path_variables, db_connection)
 			await db_connection.execute(grant_query, roles, user_id)
 			await db_connection.execute(revoke_query, roles, user_id)
 
-		handler.authorizer.mark_modified(user_id)
+		server.authorizer.mark_modified(user_id)
 
 	except asyncpg.ForeignKeyViolationError:
 		localizer.assign_response_error(response, "USER_NOT_FOUND")

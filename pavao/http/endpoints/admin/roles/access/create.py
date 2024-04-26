@@ -13,7 +13,7 @@ allow_query = """
 
 """
 
-async def process(request, response, db_connection, path_variables, handler):
+async def process(request, response, db_connection, path_variables, server):
 	localizer = create_message_localizer(request)
 
 	try:
@@ -21,7 +21,7 @@ async def process(request, response, db_connection, path_variables, handler):
 			path_variables['functionality'],
 			path_variables['role'])
 
-		authorizer = handler.authorizer
+		authorizer = server.authorizer
 		await authorizer.allow_access(db_connection,
 			path_variables['functionality'],
 			path_variables['role'])

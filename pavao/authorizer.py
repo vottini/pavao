@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
 
-from ..loader import include
-from ..token import validate_token
+from .loader import include
+from .token import validate_token
 
 _bearer_pattern = re.compile(r"^Bearer (\S+)$")
 
@@ -149,6 +149,19 @@ class Authorizer:
 	def mark_modified(self, user_id):
 		now = int(datetime.now(timezone.utc).timestamp())
 		self.users_modification[user_id] = now
+
+
+	def clear_blacklist(self):
+		now = int(datetime.now(timezone.utc).timestamp())
+		filtered = dict()
+
+		for key, expiration in self.blacklisted:
+			if expiration < now:
+				filtered[key] = expiration
+
+		removed = len(self.blacklisted) - len(filtered)
+		self.blacklisted = filtered
+		return removed
 
 	#--------------------------------------------------------------------------
 
