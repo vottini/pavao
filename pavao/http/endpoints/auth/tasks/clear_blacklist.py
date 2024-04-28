@@ -4,7 +4,7 @@ import pavao
 
 async def proccess(server):
 	removed = server.authorizer.clear_blacklist()
-	yield f"Blacklist cleared from {removed} tokens"
+	yield f"{removed} expired tokens purged from blacklist"
 
 
 def pavao_task():

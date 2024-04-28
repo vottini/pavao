@@ -16,12 +16,7 @@ async def process(request, response, path_variables, server):
 			"TASK_NOT_FOUND"
 		)
 
-	if task_data.execute is None:
-		response.set_status(409)
-		return localizer.create_error(
-			"TASK_IDLE"
-		)
-
+	if task_data.execution is None: return list()
 	return task_data.current_output
 
 

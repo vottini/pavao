@@ -8,6 +8,7 @@ import auth.credentials as credentials
 
 find_refresh = pavao.include('queries/find_refresh.sql')
 select_roles_for_user = pavao.include('queries/select_roles_for_user.sql')
+select_whether_active = pavao.include('queries/select_whether_active.sql')
 remove_refresh = pavao.include('queries/remove_refresh.sql')
 insert_refresh = pavao.include('queries/insert_refresh.sql')
 
@@ -37,11 +38,21 @@ async def process(request, response, db_connection):
 			"INVALID_TOKEN"
 		)
 
+	account_id = refresh_claims['sub']
+	is_active = await db_connection.fetchval(
+		select_whether_active,
+		account_id)
+
+	if not is_active:
+		response.set_status(401)
+		return localizer.create_error(
+			"DISABLED_USER"
+		)
+
 	refresh_hash = hashlib.md5(
 		refresh_claims['jti'].encode()
 	).digest().hex()
 
-	account_id = refresh_claims['sub']
 	found_refresh = await db_connection.fetchrow(
 		find_refresh, account_id,
 		refresh_hash)
