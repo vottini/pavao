@@ -4,7 +4,7 @@ import asyncio
 import uvloop
 import traceback
 
-from .utils import adapter
+from .utils import adapter, remove_prefix
 from .config import load_settings, PersistedSettings
 from .logger import Logger, start_logging, stop_logging
 from .database import DatabasePool
@@ -36,9 +36,12 @@ class Server:
 		self.broadcaster = Broadcaster()
 		self.registry = Registry()
 
+		self.builtin_services = dict()
 		self.builtin_endpoints = dict()
-		self.external_endpoints = dict()
 		self.builtin_tasks = dict()
+
+		self.external_services = dict()
+		self.external_endpoints = dict()
 		self.external_tasks = dict()
 
 		async def init():
@@ -50,13 +53,18 @@ class Server:
 			await self.http_handler.init(self.settings)
 			await self.load_builtin_modules()
 
-			script_files = load_dir(self.modules_dir)
+			Logger.info(f"Loading scripts at '{self.modules_dir}'")
+			script_files = load_dir(self.modules_dir, True)
+
 			await self.load_modules(
 				self.external_endpoints,
 				self.external_tasks,
+				self.external_services,
 				*script_files)
 
 			await self.register_endpoints()
+			await self.start_services()
+
 			self.scheduler.parse_tasks({
 				**self.builtin_tasks,
 				**self.external_tasks
@@ -79,104 +87,21 @@ class Server:
 		self.http_handler = http.HttpHandler(self)
 		self.scheduler = Scheduler(self.loop, self)
 
-
-	def terminate_connections(self):
-		Logger.info("Closing connections...")
-
-		async def announcing():
-			await self.broadcaster.announce_shutdown()
-
-		self.loop.create_task(announcing())
-
-	#-------------------------------------------------------------------------------
-
-	async def load_builtin_modules(self):
-		script_path = os.path.dirname(os.path.realpath(__file__))
-		builtins_path = os.path.join(script_path, "http", "endpoints")
-		script_files = load_dir(builtins_path)
-
-		await self.load_modules(
-			self.builtin_endpoints,
-			self.builtin_tasks,
-			*script_files)
-
-
-	async def register_endpoints(self):
-
-		all_specs = [
-			*self.builtin_endpoints.values(),
-			*self.external_endpoints.values()
-		]
-
-		registry = Registry()
-		for spec in all_specs:
-			registry.add_endpoint(spec)
-
-		await self.http_handler.update_registry(registry)
-
-
-	def update_modules(self, creations, deletions, updates):
-		to_unload = set(filter(python_source, (*deletions, *updates)))
-		to_load = set(filter(python_source, (*updates, *creations)))
-
-		#print("RUNNING update_modules")
-
-		updated_dependencies = set()
-		for script in filter(python_source, updates):
-			if len(dependees := retrieve_dependees(script)) > 0:
-				updated_dependencies.add(script)
-				to_load.remove(script)
-				to_unload |= dependees
-				to_load |= dependees
-
-		for file in filter(non_python_source, (*deletions, *updates)):
-			dependees = set(retrieve_dependees(file))
-			to_unload |= dependees
-			to_load |= dependees
-
-		for file_path in to_unload:
-			if file_path in self.external_endpoints:
-				self.external_endpoints.pop(file_path)
-				Logger.info(f"Unloaded endpoint from {file_path}")
-				continue
-
-			if file_path in self.external_tasks:
-				self.external_tasks.pop(file_path)
-				Logger.info(f"Unloaded task from {file_path}")
-				continue
-
-		async def process_loading():
-			for dependency in updated_dependencies:
-				load_module(dependency)
-
-			collected = list()
-			for file_path in to_load:
-				if (specifier := load_file(file_path)) is not None:
-					collected.append((file_path, specifier))
-
-			if len(collected) > 0:
-				await self.load_modules(
-					self.external_endpoints,
-					self.external_tasks,
-					*collected)
-
-		asyncio.run_coroutine_threadsafe(process_loading(), self.loop)
-		asyncio.run_coroutine_threadsafe(self.register_endpoints(), self.loop)
-		self.load_tasks()
-
 	#-------------------------------------------------------------------------------
 
 	async def load_modules(self,
 		endpoint_destination,
 		task_destination,
+		service_destination,
 		*scripts):
 
 		if len(scripts) == 0:
 			return
 
 		destinations = {
+			'SERVICE': service_destination,
 			'ENDPOINT': endpoint_destination,
-			'TASK': task_destination
+			'TASK': task_destination,
 		}
 
 		async with self.db_pool.connection() as db_connection:
@@ -204,6 +129,107 @@ class Server:
 					msg = f"Unable to process specs from file '{file_path}': {e}"
 					Logger.warning(msg)
 					continue
+
+
+	async def load_builtin_modules(self):
+		Logger.info("Loading builtin modules...")
+
+		script_path = os.path.dirname(os.path.realpath(__file__))
+		builtins_path = os.path.join(script_path, "http", "endpoints")
+		script_files = load_dir(builtins_path, True)
+
+		await self.load_modules(
+			self.builtin_endpoints,
+			self.builtin_tasks,
+			self.builtin_services,
+			*script_files)
+
+	#-------------------------------------------------------------------------------
+
+	async def register_endpoints(self):
+
+		all_specs = [
+			*self.builtin_endpoints.values(),
+			*self.external_endpoints.values()
+		]
+
+		registry = Registry()
+		for spec in all_specs:
+			registry.add_endpoint(spec)
+
+		await self.http_handler.update_registry(registry)
+
+
+	async def start_services(self):
+		pass
+
+	#-------------------------------------------------------------------------------
+
+	def update_modules(self, creations, deletions, updates):
+		to_unload = set(filter(python_source, (*deletions, *updates)))
+		to_load = set(filter(python_source, (*updates, *creations)))
+
+		#print("RUNNING update_modules")
+
+		updated_dependencies = set()
+		for script in filter(python_source, updates):
+			if len(dependees := retrieve_dependees(script)) > 0:
+				updated_dependencies.add(script)
+				to_load.remove(script)
+				to_unload |= dependees
+				to_load |= dependees
+
+		for file in filter(non_python_source, (*deletions, *updates)):
+			dependees = set(retrieve_dependees(file))
+			to_unload |= dependees
+			to_load |= dependees
+
+		external_origins = [
+			self.external_endpoints,
+			self.external_tasks
+		]
+
+		for file_path in to_unload:
+			for origin in external_origins:
+				if file_path in origin:
+					origin.pop(file_path)
+					specific_path = remove_prefix(file_path, self.modules_dir)
+					Logger.info(f"Unloaded endpoint from {specific_path}")
+					continue
+
+		async def process_loading():
+			for dependency in updated_dependencies:
+				load_module(dependency)
+
+			collected = list()
+			for file_path in to_load:
+				if (specifier := load_file(file_path, self.modules_dir, True)) is not None:
+					collected.append((file_path, specifier))
+
+			if len(collected) > 0:
+				await self.load_modules(
+					self.external_endpoints,
+					self.external_tasks,
+					self.external_services,
+					*collected)
+
+		asyncio.run_coroutine_threadsafe(process_loading(), self.loop)
+		asyncio.run_coroutine_threadsafe(self.register_endpoints(), self.loop)
+
+		self.scheduler.parse_tasks({
+			**self.builtin_tasks,
+			**self.external_tasks
+		})
+
+	#-------------------------------------------------------------------------------
+
+	def terminate_connections(self):
+		Logger.info("Closing connections...")
+
+		async def announcing():
+			await self.broadcaster.announce_shutdown()
+
+		self.loop.create_task(announcing())
 
 	#-------------------------------------------------------------------------------
 

@@ -144,7 +144,7 @@ class TaskData:
 
 			except Exception as exception:
 				self.current_output.append(str(exception))
-				success = false
+				success = False
 
 			finally:
 				self.execution = None

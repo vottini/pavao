@@ -161,6 +161,9 @@ class PathMonitor(FileSystemEventHandler):
 		except asyncio.CancelledError as e:
 			pass
 
+		except Exception as e:
+			print("#####", e)
+
 
 	def schedule_execution(self, loop):
 		self.running = True

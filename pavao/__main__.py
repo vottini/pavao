@@ -103,7 +103,7 @@ if args.create_admin:
 	password1 = getpass(TYPE_PASSWORD)
 	password2 = getpass(CONFIRM_PASSWORD)
 
-	if password1 != password2:
+	while password1 != password2:
 		print("Passwords don't match, try again:")
 		password1 = getpass(TYPE_PASSWORD)
 		password2 = getpass(CONFIRM_PASSWORD)
@@ -112,7 +112,7 @@ if args.create_admin:
 		CHANGE_PASSWORD_ON_LOGIN,
 		DEFAULT_CHANGE_PW)
 
-	if not change_pw in ['Y', 'n']:
+	while not change_pw in ['Y', 'n']:
 		print("Invalid choice")
 
 		change_pw = custom_input(

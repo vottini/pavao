@@ -8,12 +8,19 @@ blueprints = pavao.path_to('blueprints.jbp')
 
 @pavao.generates_json(file_blueprint=blueprints, with_root="userInfo")
 async def process(db_connection, auth_data):
-	user_info = await db_connection.fetchrow(select_user, auth_data.account_id)
-	admin_roles = await db_connection.fetchval(count_admin_roles, auth_data.account_id)
-	return pavao.assemble_dicts(user_info, administrator=admin_roles > 0)
+	user_id = auth_data.account_id
+
+	user_info = await db_connection.fetchrow(select_user, user_id)
+	admin_roles = await db_connection.fetchval(count_admin_roles,
+		user_id)
+
+	return pavao.assemble_dicts(user_info,
+		administrator=admin_roles > 0,
+		id=user_id)
 
 
 def pavao_endpoint():
+
 	return {
 		'method': 'GET',
 		'path': '/self',

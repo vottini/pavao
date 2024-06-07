@@ -51,7 +51,8 @@ def accepts_parameters(parameter_dict):
 			db_connection,
 			auth_data,
 			response,
-			receive):
+			receive,
+			broadcasting):
 
 			parameters = dict()
 			for name, value in parameter_dict.items():
@@ -87,7 +88,8 @@ def accepts_parameters(parameter_dict):
 				'auth_data': auth_data,
 				'response': response,
 				'receive': receive,
-				'parameters': parameters
+				'parameters': parameters,
+				'broadcasting': broadcasting
 			}
 
 			selected_args = list()

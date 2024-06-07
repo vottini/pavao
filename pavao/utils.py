@@ -31,7 +31,16 @@ def adapter(fnc, possibly_asynchronous=True):
 
 #-------------------------------------------------------------------------------
 
+def remove_prefix(text, prefix):
+	if text.startswith(prefix):
+		return text[len(prefix):]
+
+	return text
+
+#-------------------------------------------------------------------------------
+
 __all__ = [
-	"adapter"
+	"adapter",
+	"remove_prefix"
 ]
 

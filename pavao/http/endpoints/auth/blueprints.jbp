@@ -18,6 +18,7 @@ object passwordUpdate {
 }
 
 object userInfo {
+	id: integer,
 	firstName: string,
 	optional lastName: string,
 	administrator: bool

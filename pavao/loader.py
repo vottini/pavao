@@ -7,6 +7,7 @@ import importlib.util
 from datetime import datetime
 
 from .logger import Logger
+from .utils import remove_prefix
 
 def _find_python_scripts(path):
 	try: path_files = os.listdir(path)
@@ -61,8 +62,15 @@ def clear_dependencies(abs_path):
 
 #-------------------------------------------------------------------------------
 
-def load_file(file_path):
-	abs_path = os.path.abspath(file_path)
+loadable_methods = [
+	('SERVICE', 'pavao_service', 'service'),
+	('ENDPOINT', 'pavao_endpoint', 'endpoint'),
+	('TASK', 'pavao_task', 'task')
+]
+
+def load_file(full_path, common_path, verbose):
+	abs_path = os.path.abspath(full_path)
+	module_path = remove_prefix(full_path, common_path)
 	clear_dependencies(abs_path)
 
 	try:
@@ -71,35 +79,30 @@ def load_file(file_path):
 		module = importlib.util.module_from_spec(spec)
 		spec.loader.exec_module(module)
 
-		if hasattr(module, 'pavao_endpoint'):
-			candidate = module.pavao_endpoint
+		for tag, method, type_str in loadable_methods:
+			if hasattr(module, method):
+				candidate = getattr(module, method)
 
-			if inspect.isfunction(candidate):
-				Logger.info(f"Loaded endpoint file {abs_path}")
-				return 'ENDPOINT', candidate
+				if inspect.isfunction(candidate):
+					if verbose:
+						Logger.info(f"Loaded {type_str} file {module_path}")
 
-		elif hasattr(module, 'pavao_task'):
-			candidate = module.pavao_task
-
-			if inspect.isfunction(candidate):
-				Logger.info(f"Loaded task file {abs_path}")
-				return 'TASK', candidate
+					return tag, candidate
 
 	except Exception as e:
-		Logger.warning(f"Unable to load file '{abs_path}': {e}")
+		Logger.warning(f"Unable to load file '{module_path}': {e}")
 		return None
 
 
-def load_dir(path):
-	Logger.info(f"Loading scripts at '{path}'")
-	files = _find_python_scripts(path)
-	if not path in sys.path:
-		sys.path.insert(0, path)
+def load_dir(dir_path, verbose):
+	files = _find_python_scripts(dir_path)
+	if not dir_path in sys.path:
+		sys.path.insert(0, dir_path)
 
 	loaded = list()
 	for file_path in files:
-		full_path = os.path.join(path, file_path)
-		specifier = load_file(full_path)
+		full_path = os.path.join(dir_path, file_path)
+		specifier = load_file(full_path, dir_path, verbose)
 
 		if specifier is not None:
 			loaded.append((full_path, specifier))
