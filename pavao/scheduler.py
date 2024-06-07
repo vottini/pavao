@@ -1,99 +1,38 @@
 
 import asyncio
-import inspect
 from croniter import croniter
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from .logger import Logger
-from .utils import adapter
-from .exception import PavaoException
-class TaskException(PavaoException):
-	pass
-
-#-------------------------------------------------------------------------------
-
-assert_task_exists = """
-
-	WITH
-
-	existing AS (
-		SELECT id, enabled FROM pavao.task
-		WHERE package = $1 AND "name" = $2
-	),
-
-	created AS (
-		INSERT INTO pavao.task (package, name, enabled)
-			SELECT $1, $2, TRUE
-				WHERE NOT EXISTS (
-					SELECT 1 FROM pavao.task
-					WHERE package = $1 AND "name" = $2
-				)
-
-		RETURNING id, enabled
-	)
-
-	SELECT id, enabled FROM existing UNION ALL
-	SELECT id, enabled FROM created;
-
-"""
+from .task import TaskException, TaskProblem, Task
 
 
-insert_task_run = """
-
-	INSERT INTO pavao.task_execution (
-		task,
-		success,
-		result,
-		execution_start,
-		execution_end
-	)
-
-	VALUES (
-		$1,
-		$2,
-		$3,
-		$4,
-		$5
-	);
-
-"""
-
-#-------------------------------------------------------------------------------
-
-class TaskProblem:
-	NONE = 0
-	IN_EXECUTION = 1
-	NOT_IN_EXECUTION = 2
-	NOT_FOUND = 3
-
-
-class TaskData:
+class SchedulableTask(Task):
 	def __init__(self, specs):
-		processor = specs['processor']
-		if not inspect.isasyncgenfunction(processor):
-			raise TaskException("Not an async generator")
-
-		self.package = specs.get('package')
-		self.name = specs['name']
-
+		Task.__init__(self, specs)
 		self.schedule = specs['schedule']
-		self.function = adapter(processor,
-			possibly_asynchronous=False)
-
-		self.ident = None
-		self.execution = None
-		self.current_output = list()
-
-		self.enabled = False
 		self.next_execution = None
 		self.iterator = None
 
-	#----------------------------------------------------------------------------
+
+	def step_schedule(self):
+		self.next_execution = self.iterator.get_next(datetime)
+
+
+	def lateness(self):
+		if not self.enabled:
+			msg = "Task is not scheduled to be considered late"
+			raise TaskException(msg)
+
+		now = datetime.now()
+		elapsed = now - self.next_execution
+		return max(elapsed, timedelta())
+
 
 	async def enable(self, broadcaster=None):
 		self.iterator = croniter(self.schedule, datetime.now())
 		self.next_execution = self.iterator.get_next(datetime)
-		self.enabled = True
+		await Task.enable(self)
 
 		if broadcaster is not None:
 			await broadcaster.write_message(
@@ -103,7 +42,7 @@ class TaskData:
 
 
 	async def disable(self, broadcaster=None):
-		self.enabled = False
+		await Task.disable(self)
 		self.next_execution = None
 		self.iterator = None
 
@@ -112,84 +51,6 @@ class TaskData:
 				f"taskState:{self.ident}",
 				"DISABLED"
 			)
-
-	#----------------------------------------------------------------------------
-
-	def create_future(self, args):
-		start = datetime.now(timezone.utc)
-		self.current_output = list()
-
-		broadcaster = args['broadcaster']
-		db_pool = args['db_pool']
-
-		async def async_task():
-			await broadcaster.write_message(
-				f"taskState:{self.ident}",
-				"STARTED"
-			)
-
-			try:
-				async for output in self.function(args):
-					self.current_output.append(output)
-					await broadcaster.write_message(
-						f"taskState:{self.ident}",
-						f'OUTPUT:{output}'
-					)
-
-				success = True
-
-			except asyncio.CancelledError as e:
-				self.current_output.append("Cancelled during execution")
-				success = False
-
-			except Exception as exception:
-				self.current_output.append(str(exception))
-				success = False
-
-			finally:
-				self.execution = None
-				await broadcaster.write_message(
-					f"taskState:{self.ident}",
-					"FINISHED"
-				)
-
-				end = datetime.now(timezone.utc)
-				result = "\n".join(self.current_output)
-				async with db_pool.connection() as connection:
-					await connection.execute(insert_task_run,
-						self.ident, success, str(result),
-						start, end)
-
-		return async_task
-
-
-	def cancel_if_executing(self):
-		if self.execution is None:
-			return False
-
-		self.execution.cancel()
-		self.execution = None
-		return True
-
-
-	def lateness(self):
-		if not self.enabled:
-			msg = "Task is not scheduled to be late"
-			raise TaskException(msg)
-
-		now = datetime.now()
-		elapsed = now - self.next_execution
-		return max(elapsed, timedelta())
-
-
-	def step_schedule(self):
-		self.next_execution = self.iterator.get_next(datetime)
-
-
-	def run(self, loop, args):
-		self.cancel_if_executing()
-		task_future = self.create_future(args)
-		self.execution = loop.create_task(task_future())
 
 #-------------------------------------------------------------------------------
 
@@ -223,7 +84,7 @@ class Scheduler:
 		for file_path, spec in modules.items():
 
 			try:
-				taskData = TaskData(spec)
+				taskData = SchedulableTask(spec)
 				tasks.append(taskData)
 
 			except KeyError as e:
@@ -243,14 +104,7 @@ class Scheduler:
 	async def register_tasks(self):
 		async with self.db_pool.connection() as connection:
 			for task in self.loaded_tasks:
-				result = await connection.fetchrow(
-					assert_task_exists,
-					task.package,
-					task.name)
-
-				task.ident = result['id']
-				if result['enabled']:
-					await task.enable()
+				await task.register_self(connection)
 
 
 	async def execute_tasks(self):
