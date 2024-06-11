@@ -17,7 +17,7 @@ async def process(request, response, path_variables, server):
 		)
 
 	if task_data.execution is None: return list()
-	return task_data.current_output
+	return task_data.get_output()
 
 
 async def pavao_endpoint(db_connection, persisted_settings):

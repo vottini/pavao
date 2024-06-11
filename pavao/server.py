@@ -85,6 +85,7 @@ class Server:
 		self.persisted = PersistedSettings(self.db_pool)
 		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
 		self.http_handler = http.HttpHandler(self)
+
 		self.scheduler = Scheduler(self.loop, self)
 
 	#-------------------------------------------------------------------------------
@@ -185,6 +186,7 @@ class Server:
 			to_load |= dependees
 
 		external_origins = [
+			self.external_services,
 			self.external_endpoints,
 			self.external_tasks
 		]

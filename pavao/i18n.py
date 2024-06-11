@@ -72,7 +72,7 @@ class Internationalization:
 		for filename, fullpath in files:
 			language = filename.split('.')[0]
 			config = configparser.ConfigParser()
-			config.readfp(section_injector(open(fullpath)))
+			config.read_file(section_injector(open(fullpath)))
 
 			messages = dict()
 			for message in config.options(_dummy_header):
