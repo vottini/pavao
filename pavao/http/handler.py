@@ -35,6 +35,7 @@ _cors_allow_headers = 'access-control-allow-headers'
 class HttpHandler:
 	def __init__(self, server):
 		self.server = server
+		self.active = True
 
 		self.db_pool = server.db_pool
 		self.authorizer = server.authorizer
@@ -63,6 +64,10 @@ class HttpHandler:
 	def get_arguments(self):
 		return ['server'] + self.arguments
 
+	def deactivate(self):
+		self.active = False
+
+	#------------------------------------------------------------
 
 	async def init(self, settings):
 		http_settings = settings.get_setting("pavao.http", _http_schema)
@@ -85,12 +90,18 @@ class HttpHandler:
 		async with self.db_pool.connection() as db_connection:
 			await self.authorizer.setup(db_connection, funcs)
 
+	#------------------------------------------------------------
 
 	async def handle(self, scope, receive, send):
 
 		try:
 			request = Request(scope)
 			response = Response(send)
+
+			if not self.active:
+				response.set_status(401)
+				await emit(response)
+				return
 
 			if (sent_origin := request.headers.get('origin')) is not None:
 				for allowed_cors_origin in self.cors_origins:

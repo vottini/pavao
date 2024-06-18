@@ -176,11 +176,11 @@ if (endpoints_dir := args.execute) is not None:
 
 	original_handler = uvicorn.Server.handle_exit
 
-	def custom_handler(*args, **kwargs):
-		server.terminate_connections()
+	def handle_exit(*args, **kwargs):
+		server.deactivate()
 		original_handler(*args, **kwargs)
 
-	uvicorn.Server.handle_exit = custom_handler
+	uvicorn.Server.handle_exit = handle_exit
 
 	asgi_config = uvicorn.Config(
 		app=server.get_app(),

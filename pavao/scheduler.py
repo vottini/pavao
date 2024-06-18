@@ -2,13 +2,11 @@
 import asyncio
 from croniter import croniter
 from datetime import datetime, timedelta, timezone
-
 from .task import TaskException, TaskProblem, Task, TaskManager
-from .logger import Logger
 
 class SchedulableTask(Task):
-	def __init__(self, specs):
-		Task.__init__(self, specs)
+	def __init__(self, source, specs):
+		Task.__init__(self, source, specs)
 		self.schedule = specs['schedule']
 		self.current_output = list()
 		self.next_execution = None
@@ -52,6 +50,7 @@ class SchedulableTask(Task):
 				"DISABLED"
 			)
 
+
 	def get_output(self): return self.current_output[:]
 	def append_output(self, output): self.current_output.append(str(output))
 	def clear_output(self): self.current_output = list()
@@ -78,12 +77,12 @@ insert_task_run = """
 
 
 async def wait_whole_minute():
-	now = datetime.now()
-	wait = (59-now.second) + (1000000-now.microsecond)/1e6
+	start = datetime.now()
+	wait = (59-start.second) + (1000000-start.microsecond)/1e6
 	await asyncio.sleep(wait)
 
-	then = datetime.now()
-	waited = then - now
+	end = datetime.now()
+	waited = end - start
 	if waited > timedelta(minutes=2):
 		await wait_whole_minute()
 
@@ -186,4 +185,11 @@ class Scheduler(TaskManager):
 						f"taskState:{task.ident}",
 						f'SCHEDULE:{task.next_execution}'
 					)
+
+	#--------------------------------------------------------
+
+	def stop(self):
+		if self.executor is not None:
+			self.executor.cancel()
+			self.executor = None
 

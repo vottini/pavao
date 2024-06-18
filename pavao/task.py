@@ -3,6 +3,7 @@ import asyncio
 import inspect
 from datetime import datetime, timezone
 
+from .logger import Logger
 from .utils import adapter
 from .exception import PavaoException
 class TaskException(PavaoException):
@@ -51,11 +52,12 @@ insert_task_output = """
 #-------------------------------------------------------------------------------
 
 class Task:
-	def __init__(self, specs):
+	def __init__(self, source, specs):
 		processor = specs['processor']
 		if not inspect.isasyncgenfunction(processor):
 			raise TaskException("Not an async generator")
 
+		self.source = source
 		self.package = specs.get('package')
 		self.name = specs['name']
 
@@ -173,13 +175,12 @@ class TaskManager:
 	#--------------------------------------------------------
 
 	def parse_tasks(self, modules):
-		self.stop()
-
 		tasks = list()
+
 		for file_path, spec in modules.items():
 
 			try:
-				taskData = self.ctor(spec)
+				taskData = self.ctor(file_path, spec)
 				tasks.append(taskData)
 
 			except KeyError as e:
@@ -229,10 +230,11 @@ class TaskManager:
 
 		return None
 
-	#--------------------------------------------------------
 
-	def stop(self):
-		if self.executor is not None:
-			self.executor.cancel()
-			self.executor = None
+	def task_from_source(self, source):
+		for task_data in self.loaded_tasks:
+			if task_data.source == source:
+				return task_data
+
+		return None
 

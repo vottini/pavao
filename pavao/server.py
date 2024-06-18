@@ -12,6 +12,7 @@ from .loader import load_file, load_dir, retrieve_dependees, load_module
 from .refresher import PathMonitor
 from .registry import Registry
 from .scheduler import Scheduler
+from .daemon import Daemon
 from .broadcasting import Broadcaster
 from .authorizer import Authorizer
 
@@ -27,7 +28,7 @@ non_python_source = lambda x : not python_source(x)
 class Server:
 	def __init__(self, config_file, modules_dir):
 
-		self.settings = None
+		self.loaded_settings = None
 		self.modules_dir = os.path.abspath(modules_dir)
 		self.monitor = PathMonitor(self.modules_dir, self.update_modules)
 		self.db_pool = DatabasePool()
@@ -46,14 +47,14 @@ class Server:
 
 		async def init():
 			Logger.info("Starting up Pavão...")
-			self.settings = load_settings(config_file)
-			start_logging(self.settings)
+			self.loaded_settings = load_settings(config_file)
+			start_logging(self.loaded_settings)
 
-			await self.db_pool.setup(self.settings)
-			await self.http_handler.init(self.settings)
+			await self.db_pool.setup(self.loaded_settings)
+			await self.http_handler.init(self.loaded_settings)
 			await self.load_builtin_modules()
 
-			Logger.info(f"Loading scripts at '{self.modules_dir}'")
+			Logger.info(f"Scanning '{self.modules_dir}'")
 			script_files = load_dir(self.modules_dir, True)
 
 			await self.load_modules(
@@ -62,13 +63,9 @@ class Server:
 				self.external_services,
 				*script_files)
 
+			self.scheduler.parse_tasks({**self.builtin_tasks, **self.external_tasks})
+			self.daemon.parse_tasks({**self.builtin_services, **self.external_services})
 			await self.register_endpoints()
-			await self.start_services()
-
-			self.scheduler.parse_tasks({
-				**self.builtin_tasks,
-				**self.external_tasks
-			})
 
 			self.monitor.schedule_execution(self.loop)
 			Logger.info("Pavão started!")
@@ -78,15 +75,17 @@ class Server:
 			Logger.info("Stopping Pavão...")
 			self.monitor.stop()
 			self.scheduler.stop()
+			await self.daemon.stop()
 			await self.db_pool.close()
 			stop_logging()
 
 		self.loop = uvloop.new_event_loop()
-		self.persisted = PersistedSettings(self.db_pool)
+		self.persisted_settings = PersistedSettings(self.db_pool)
 		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
 		self.http_handler = http.HttpHandler(self)
 
 		self.scheduler = Scheduler(self.loop, self)
+		self.daemon = Daemon(self.loop, self)
 
 	#-------------------------------------------------------------------------------
 
@@ -108,8 +107,8 @@ class Server:
 		async with self.db_pool.connection() as db_connection:
 
 			all_args = {
-				'loaded_settings': self.settings,
-				'persisted_settings': self.persisted,
+				'loaded_settings': self.loaded_settings,
+				'persisted_settings': self.persisted_settings,
 				'db_connection': db_connection
 			}
 
@@ -136,8 +135,8 @@ class Server:
 		Logger.info("Loading builtin modules...")
 
 		script_path = os.path.dirname(os.path.realpath(__file__))
-		builtins_path = os.path.join(script_path, "http", "endpoints")
-		script_files = load_dir(builtins_path, True)
+		builtins_path = os.path.join(script_path, "builtin")
+		script_files = load_dir(builtins_path, False)
 
 		await self.load_modules(
 			self.builtin_endpoints,
@@ -160,10 +159,6 @@ class Server:
 
 		await self.http_handler.update_registry(registry)
 
-
-	async def start_services(self):
-		pass
-
 	#-------------------------------------------------------------------------------
 
 	def update_modules(self, creations, deletions, updates):
@@ -185,14 +180,21 @@ class Server:
 			to_unload |= dependees
 			to_load |= dependees
 
-		external_origins = [
-			self.external_services,
+		endpoints_and_tasks = [
 			self.external_endpoints,
 			self.external_tasks
 		]
 
 		for file_path in to_unload:
-			for origin in external_origins:
+			if file_path in self.external_services:
+				self.daemon.stop_module(file_path)
+
+				self.external_services.pop(file_path)
+				specific_path = remove_prefix(file_path, self.modules_dir)
+				Logger.info(f"Unloaded service from {specific_path}")
+				continue
+
+			for origin in endpoints_and_tasks:
 				if file_path in origin:
 					origin.pop(file_path)
 					specific_path = remove_prefix(file_path, self.modules_dir)
@@ -217,20 +219,28 @@ class Server:
 
 		asyncio.run_coroutine_threadsafe(process_loading(), self.loop)
 		asyncio.run_coroutine_threadsafe(self.register_endpoints(), self.loop)
+		asyncio.run_coroutine_threadsafe(self.restart_tasks(), self.loop)
 
+
+	async def restart_tasks(self):
+		self.scheduler.stop()
 		self.scheduler.parse_tasks({
 			**self.builtin_tasks,
-			**self.external_tasks
-		})
+			**self.external_tasks}
+		)
+
+		await self.daemon.stop()
+		self.daemon.parse_tasks({
+			**self.builtin_services,
+			**self.external_services}
+		)
 
 	#-------------------------------------------------------------------------------
 
-	def terminate_connections(self):
+	def deactivate(self):
+		self.http_handler.deactivate()
 		Logger.info("Closing connections...")
-
-		async def announcing():
-			await self.broadcaster.announce_shutdown()
-
+		async def announcing(): await self.broadcaster.announce_shutdown()
 		self.loop.create_task(announcing())
 
 	#-------------------------------------------------------------------------------

@@ -137,8 +137,7 @@ def generates_sse(
 				tasks.append(asyncio.create_task(heartbeat_sending()))
 
 			await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-			for task in tasks:
-				task.cancel()
+			for task in tasks: task.cancel()
 
 		return wrapped
 
