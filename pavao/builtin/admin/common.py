@@ -1,7 +1,16 @@
 
 import os
-import asyncio
+import functools
 import pavao
+
+localization_dir = pavao.path_to("localization")
+
+#------------------------------------------------------------------------------
+
+functionalities_path = os.path.join(localization_dir, 'functionalities')
+localizer = pavao.ModuleLocalizer("ADMIN", functionalities_path)
+package_mapper = localizer.map("PACKAGE")
+
 
 search_functionality = """
 
@@ -30,48 +39,57 @@ insert_admin_access = """
 
 """
 
-async def assert_admin_access(db_connection, package_name, func_name):
-	func_id = await db_connection.fetchval(search_functionality,
-		package_name, func_name)
+def assert_admin_access(fnc):
 
-	if func_id is None:
-		async with db_connection.transaction():
-			func_id = await db_connection.fetchval(insert_functionality,
-				package_name, func_name)
+	@functools.wraps(fnc)
+	async def wrapped(loaded_settings, persisted_settings, db_connection):
 
-	await db_connection.execute(
-		insert_admin_access,
-		func_id)
+		all_args = {
+			'loaded_settings': loaded_settings,
+			'persisted_settings': persisted_settings,
+			'db_connection': db_connection,
+		}
 
-#-------------------------------------------------------------------------------
+		adapted_fnc = pavao.adapter(fnc)
+		result = await adapted_fnc(all_args)
+		if not isinstance(result, dict):
+			return result
 
-_functionalities_path = os.path.join('localization', 'functionalities')
-_functionalities_i18n = pavao.Internationalization(
-	pavao.path_to(_functionalities_path)
-)
+		package_mapper = result.get("package")
+		func_mapper = result.get("functionality")
+		if None in (package_mapper, func_mapper):
+			return result
 
-async def localize_functionality(functionality, db_connection, persisted_settings):
-	language = await persisted_settings.get('language')
-	package_name = _functionalities_i18n.localize(language, "PACKAGE")
-	func_name = _functionalities_i18n.localize(language, functionality)
-	await assert_admin_access(db_connection, package_name, func_name)
-	return package_name, func_name
+		func_id = await db_connection.fetchval(search_functionality,
+			package_mapper.identity(),
+			func_mapper.identity())
 
-#-------------------------------------------------------------------------------
+		if func_id is None:
+			async with db_connection.transaction():
+				func_id = await db_connection.fetchval(insert_functionality,
+					package_mapper.identity(),
+					func_mapper.identity())
 
-_messages_path = os.path.join('localization', 'messages')
-_messages_i18n = pavao.Internationalization(
-	pavao.path_to(_messages_path)
-)
+		await db_connection.execute(
+			insert_admin_access,
+			func_id)
+
+		return result
+
+	return wrapped
+
+#------------------------------------------------------------------------------
+
+messages_path = os.path.join(localization_dir, 'messages')
+messages_i18n = pavao.Internationalization(messages_path)
 
 def create_message_localizer(request):
-	return _messages_i18n.create_localizer(request)
+	return messages_i18n.create_localizer(request)
 
-#-------------------------------------------------------------------------------
+#------------------------------------------------------------------------------
 
 def capitalize(text):
 	if text is None: return None
 	components = [comp.capitalize() for comp in text.strip().split()]
 	return " ".join(components)
-
 

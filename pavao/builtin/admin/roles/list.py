@@ -2,7 +2,8 @@
 import asyncio
 import pavao
 
-from admin.common import localize_functionality
+from admin.common import localizer
+from admin.common import assert_admin_access
 
 list_roles = """
 
@@ -28,15 +29,14 @@ async def process(request, db_connection):
 	return [ pavao.assemble_dicts(row) for row in result ]
 
 
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("LIST_ROLES",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'GET',
 		'path': '/admin/roles',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("LIST_ROLES"),
 		'processor': process
 	}
 

@@ -3,8 +3,10 @@ import asyncio
 import asyncpg
 import pavao
 
-from admin.common import localize_functionality, capitalize
+from admin.common import localizer
 from admin.common import create_message_localizer
+from admin.common import assert_admin_access
+from admin.common import capitalize
 
 add_role = """
 
@@ -27,7 +29,7 @@ role_blueprint = """
 @pavao.generates_json(string_blueprint="root integer")
 @pavao.accepts_json(string_blueprint=role_blueprint)
 async def process(request, response, parsed_json, db_connection):
-	localizer = create_message_localizer(request)
+	message_localizer = create_message_localizer(request)
 
 	description = (parsed_json.description.strip()
 		if pavao.has_optional_field(parsed_json, 'description')
@@ -40,7 +42,7 @@ async def process(request, response, parsed_json, db_connection):
 
 	except asyncpg.UniqueViolationError as e:
 		response.set_status(409)
-		return localizer.create_error(
+		return message_localizer.create_error(
 			"ROLE_EXISTS"
 		)
 
@@ -48,7 +50,7 @@ async def process(request, response, parsed_json, db_connection):
 		pavao.Logger.error(f"Error creating class: {e}")
 
 		response.set_status(500)
-		return localizer.create_error(
+		return message_localizer.create_error(
 			"UNEXPECTED_ERROR"
 		)
 
@@ -56,15 +58,14 @@ async def process(request, response, parsed_json, db_connection):
 	return roleId
 
 
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("CREATE_ROLES",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'POST',
 		'path': '/admin/roles',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("CREATE_ROLES"),
 		'processor': process
 	}
 

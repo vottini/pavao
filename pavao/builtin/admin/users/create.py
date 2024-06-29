@@ -4,8 +4,10 @@ import asyncpg
 import argon2
 import pavao
 
-from admin.common import localize_functionality, capitalize
+from admin.common import localizer
 from admin.common import create_message_localizer
+from admin.common import assert_admin_access
+from admin.common import capitalize
 
 add_user = """
 
@@ -74,15 +76,14 @@ async def process(request, response, db_connection, parsed_json):
 	return userId
 
 
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("CREATE_USERS",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'POST',
 		'path': '/admin/users',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("CREATE_USERS"),
 		'processor': process
 	}
 

@@ -2,8 +2,9 @@
 import asyncio
 import pavao
 
-from admin.common import localize_functionality
+from admin.common import localizer
 from admin.common import create_message_localizer
+from admin.common import assert_admin_access
 
 retrieve_user_data = """
 
@@ -37,7 +38,7 @@ assignments_blueprint = """
 
 	root {
 		firstName: string,
-		optional lastName: string,
+		lastName: nullable string,
 
 		assignments: {
 			id: integer,
@@ -50,6 +51,7 @@ assignments_blueprint = """
 
 @pavao.generates_json(string_blueprint=assignments_blueprint)
 async def process(request, response, db_connection, path_variables):
+	message_localizer = create_message_localizer(request)
 	userId = path_variables['user']
 
 	user_data = await db_connection.fetchrow(
@@ -57,7 +59,7 @@ async def process(request, response, db_connection, path_variables):
 		userId)
 
 	if user_data is None:
-		localizer.assign_response_error(response, "USER_NOT_FOUND")
+		message_localizer.assign_response_error(response, "USER_NOT_FOUND")
 		response.set_status(404)
 		return
 
@@ -65,15 +67,14 @@ async def process(request, response, db_connection, path_variables):
 	return pavao.assemble_dicts(user_data, assignments=assignments)
 
 
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("LIST_ASSIGNMENTS",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'GET',
 		'path': '/admin/users/{user:int}/assignments',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("LIST_ASSIGNMENTS"),
 		'processor': process
 	}
 

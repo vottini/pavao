@@ -2,7 +2,8 @@
 import asyncio
 import pavao
 
-from admin.common import localize_functionality
+from admin.common import localizer
+from admin.common import assert_admin_access
 
 add_admin = """
 
@@ -23,18 +24,16 @@ add_admin = """
 
 async def process(request, response, db_connection, path_variables):
 	await db_connection.execute(add_admin, path_variables['user'])
-	response.set_status(204)
 
 
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("MODIFY_ADMIN",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'PUT',
 		'path': '/admin/users/admins/{user:int}',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("MODIFY_ADMIN"),
 		'processor': process
 	}
 

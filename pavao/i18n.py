@@ -82,6 +82,39 @@ class Internationalization:
 			if language == fallback_language:
 				self.fallback = messages
 
+
+	def localize(self, languageId, messageId):
+		sanedId = messageId.lower()
+
+		if languageId in self.languages:
+			source = self.languages[languageId]
+			msg = source.get(sanedId)
+
+			if msg is not None:
+				sanedMsg = msg.strip('"')
+				return sanedMsg
+
+		# look for closest match if
+		# no exact language was found
+
+		for existing_language in self.languages.keys():
+			if languageId.startswith(existing_language):
+				source = self.languages[existing_language]
+				msg = source.get(sanedId)
+
+				if msg is not None:
+					sanedMsg = msg.strip('"')
+					return sanedMsg
+
+		msg = self.fallback.get(sanedId)
+		if msg is not None:
+			sanedMsg = msg.strip('"')
+			return sanedMsg
+
+		Logger.warning(f"Message id '{messageId}' not found")
+		return "<Unknown>"
+
+
 	# see more on
 	# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Language
 	# https://developer.mozilla.org/en-US/docs/Glossary/Quality_values
@@ -124,7 +157,9 @@ class Internationalization:
 
 			parsedLanguages.append((languageId, quality))
 
-		parsedLanguages.sort(key=lambda x : x[1], reverse=True)
+		parsedLanguages.sort(
+			key=lambda x : x[1],
+			reverse=True)
 
 		sources = list()
 		for languageId, _ in parsedLanguages:
@@ -134,41 +169,40 @@ class Internationalization:
 		sources.append(self.fallback)
 		return Localizer(sources)
 
-
-	def localize(self, languageId, messageId):
-		sanedId = messageId.lower()
-
-		if languageId in self.languages:
-			source = self.languages[languageId]
-			msg = source.get(sanedId)
-
-			if msg is not None:
-				sanedMsg = msg.strip('"')
-				return sanedMsg
-
-		# look for closest match if
-		# no exact language was found
-
-		for existing_language in self.languages.keys():
-			if languageId.startswith(existing_language):
-				source = self.languages[existing_language]
-				msg = source.get(sanedId)
-
-				if msg is not None:
-					sanedMsg = msg.strip('"')
-					return sanedMsg
-
-		msg = self.fallback.get(sanedId)
-		if msg is not None:
-			sanedMsg = msg.strip('"')
-			return sanedMsg
-
-		Logger.warning(f"Message id '{messageId}' not found")
-		return "<Unknown>"
-
 #-------------------------------------------------------------------------------
 
+class LazyLocalizer:
+	def __init__(self, localizer, module, fragment):
+		self.localizer = localizer
+		self.module = module
+		self.fragment = fragment
+
+
+	def identity(self):
+		return f"{self.module}::{self.fragment}"
+
+
+	def localize(self, request):
+		translator = self.localizer.create_localizer(request)
+		return translator.get_message(self.fragment)
+
+
+class ModuleLocalizer:
+	def __init__(self, module, i18n_dir):
+		self.localizer = Internationalization(i18n_dir)
+		self.module = module
+
+
+	def map(self, fragment):
+		return LazyLocalizer(
+			self.localizer,
+			self.module,
+			fragment)
+
+
 __all__ = [
-	"Internationalization"
+	"Internationalization",
+	"ModuleLocalizer",
+	"LazyLocalizer"
 ]
 

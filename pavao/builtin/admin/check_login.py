@@ -3,7 +3,8 @@ import re
 import asyncio
 import pavao
 
-from admin.common import localize_functionality
+from admin.common import localizer
+from admin.common import assert_admin_access
 
 _allowed_pattern = re.compile(r'^[a-z][a-z0-9]*(?:.[a-z0-9]+)?$')
 _count_login = "SELECT COUNT(*) FROM pavao.account WHERE login = $1;"
@@ -27,15 +28,14 @@ async def process(request, response, db_connection):
 	return False
 
 
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("CHECK_LOGIN",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'GET',
 		'path': '/admin/check-login',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("CHECK_LOGIN"),
 		'processor': process
 	}
 

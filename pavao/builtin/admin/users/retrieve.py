@@ -2,8 +2,9 @@
 import asyncio
 import pavao
 
-from admin.common import localize_functionality
+from admin.common import localizer
 from admin.common import create_message_localizer
+from admin.common import assert_admin_access
 
 _select_user = """
 
@@ -39,7 +40,7 @@ _user_info_blueprint = """
 		firstName: string,
 		optional lastName: string,
 		creation: instant,
-		lastLogin: nullable instant,
+		optional lastLogin: instant,
 		active: bool,
 		admin: bool,
 
@@ -55,59 +56,46 @@ _user_info_blueprint = """
 async def process(request, db_connection, path_variables):
 	user_id = path_variables['user']
 
-	infos = await db_connection.fetchrow(
+	user_info = await db_connection.fetchrow(
 		_select_user,
 		user_id)
 
-	if infos is None:
+	if user_info is None:
 		localizer = create_message_localizer(request)
 		localizer.assign_response_error(response, "USER_NOT_FOUND")
 		response.set_status(404)
 		return
 
-	result = {
-		"login": infos["login"],
-		"firstName": infos["first_name"],
-		"active": infos["active"],
-		"creation": infos["creation"],
-		"lastLogin": infos["last_login"]
-	}
-
-	lastName = infos['last_name']
-	if lastName is not None:
-		result['lastName'] = lastName
-
 	roles = await db_connection.fetch(
 		_retrieve_user_roles,
 		user_id)
 
-	isAdmin = False
-	collectedRoles = list()
+	admin = False
+	collected_roles = list()
 
 	for role in roles:
 		if role['admin']:
-			isAdmin = True
+			admin = True
 			continue
 
-		collectedRoles.append({
-			"id": role['id'],
-			"name": role['name']
-		})
+		role_info = pavao.assemble_dicts(role)
+		collected_roles.append(role_info)
 
-	result["admin"] = isAdmin
-	result["roles"] = collectedRoles
+	result = pavao.assemble_dicts(user_info,
+		roles=collected_roles,
+		admin=admin)
+
 	return result
 
 
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("VIEW_USER",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'GET',
 		'path': '/admin/users/{user:int}',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("VIEW_USER"),
 		'processor': process
 	}
 

@@ -2,8 +2,9 @@
 import asyncio
 import pavao
 
-from admin.common import localize_functionality
+from admin.common import localizer
 from admin.common import create_message_localizer
+from admin.common import assert_admin_access
 
 disable_user = """
 
@@ -15,11 +16,11 @@ disable_user = """
 """
 
 async def process(request, response, db_connection, path_variables, auth_data):
-	localizer = create_message_localizer(request)
+	message_localizer = create_message_localizer(request)
 	disabled_user = path_variables['user']
 
 	if auth_data.account_id == disabled_user:
-		localizer.assign_response_error(response, "DISABLE_OWN_USER")
+		message_localizer.assign_response_error(response, "DISABLE_OWN_USER")
 		response.set_status(403)
 		return
 
@@ -27,21 +28,18 @@ async def process(request, response, db_connection, path_variables, auth_data):
 		disable_user, disabled_user)
 
 	if len(disabled) == 0:
-		localizer.assign_response_error(response, "USER_NOT_FOUND")
+		message_localizer.assign_response_error(response, "USER_NOT_FOUND")
 		response.set_status(404)
 
-	response.set_status(204)
 
-
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("ENABLE_USERS",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'DELETE',
 		'path': '/admin/users/{user:int}/active',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("EDIT_USERS"),
 		'processor': process
 	}
 

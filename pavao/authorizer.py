@@ -7,6 +7,7 @@ from datetime import timezone
 
 from .loader import include
 from .token import validate_token
+from .i18n import LazyLocalizer
 
 _bearer_pattern = re.compile(r"^Bearer (\S+)$")
 
@@ -110,12 +111,21 @@ class AuthData:
 	expiration: int
 
 
+def get_identity(entity):
+	return (entity.identity()
+		if isinstance(entity, LazyLocalizer)
+		else entity)
+
+
 class Authorizer:
 	def __init__(self):
 		self.roles_access = dict()
+		self.functionalities = dict()
+		self.packages = dict()
+
+		self.disabled = set()
 		self.users_modification = dict()
 		self.blacklisted = dict()
-		self.disabled = set()
 
 
 	async def setup(self, db_conn, funcs):
@@ -130,7 +140,9 @@ class Authorizer:
 		verified_ids = [
 			await db_conn.fetchval(
 				assert_functionality_exists,
-				package, functionality)
+				get_identity(package),
+				get_identity(functionality)
+			)
 
 			for package, functionality in funcs
 		]
@@ -138,6 +150,15 @@ class Authorizer:
 		await db_conn.execute(
 			set_active_functionalities,
 			verified_ids)
+
+		self.functionalities = dict()
+		for package, functionality in funcs:
+			ident = (get_identity(package), get_identity(functionality))
+			self.functionalities[ident] = functionality
+			self.packages[ident[0]] = package
+
+		#print(self.roles_access)
+		#print(self.functionalities)
 
 	#--------------------------------------------------------------------------
 
@@ -215,7 +236,13 @@ class Authorizer:
 	#--------------------------------------------------------------------------
 
 	async def validate_access(self, request, endpoint):
-		if (endpoint.package, endpoint.functionality) in self.disabled:
+
+		complete_functionality = (
+			get_identity(endpoint.package),
+			get_identity(endpoint.functionality)
+		)
+
+		if complete_functionality in self.disabled:
 			return False, AuthError.DISABLED_ENDPOINT
 
 		if endpoint.public: return True, None
@@ -246,11 +273,6 @@ class Authorizer:
 		roles = (int(role) for role in str_roles)
 
 		if endpoint.functionality is not None:
-			complete_functionality = (
-				endpoint.package,
-				endpoint.functionality
-			)
-
 			for role in roles:
 				accesses = self.roles_access.get(role)
 				if accesses is not None and complete_functionality in accesses:
@@ -264,4 +286,19 @@ class Authorizer:
 			return False, AuthError.EXPIRED_AUTH
 
 		return True, AuthData(subject, token_id, expiration)
+
+	#------------------------------------------------------------
+
+	def get_package_translation(self, package, request):
+		mapping = self.packages.get(package)
+		return (mapping.localize(request)
+			if isinstance(mapping, LazyLocalizer)
+			else mapping)
+
+
+	def get_func_translation(self, package, functionality, request):
+		mapping = self.functionalities.get((package, functionality))
+		return (mapping.localize(request)
+			if isinstance(mapping, LazyLocalizer)
+			else mapping)
 

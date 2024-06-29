@@ -2,10 +2,11 @@
 import asyncio
 import pavao
 
-from admin.common import localize_functionality
+from admin.common import localizer
 from admin.common import create_message_localizer
+from admin.common import assert_admin_access
 
-_select_role = """
+select_role = """
 
 	SELECT name, description
 		FROM pavao."role"
@@ -13,7 +14,7 @@ _select_role = """
 
 """
 
-_retrieve_role_users = """
+retrieve_role_users = """
 
 	SELECT acc.id, CONCAT_WS(' ', acc.first_name, acc.last_name) AS full_name FROM
 		pavao."role" rl
@@ -23,7 +24,7 @@ _retrieve_role_users = """
 
 """
 
-_retrieve_role_funcs = """
+retrieve_role_funcs = """
 
 	SELECT func.id, func.name, func.package from
 		pavao."role" rl
@@ -33,7 +34,7 @@ _retrieve_role_funcs = """
 
 """
 
-_role_info_blueprint = """
+role_info_blueprint = """
 
 	root {
 		name: string,
@@ -53,37 +54,49 @@ _role_info_blueprint = """
 
 """
 
-@pavao.generates_json(string_blueprint=_role_info_blueprint)
-async def process(request, response, db_connection, path_variables):
+@pavao.generates_json(string_blueprint=role_info_blueprint)
+async def process(request, response, db_connection, path_variables, server):
 	role_id = path_variables['role']
+	auther = server.authorizer
 
 	async with db_connection.transaction():
 		role_info = await db_connection.fetchrow(
-			_select_role, role_id)
+			select_role, role_id)
 
 		if role_info is None:
-			localizer = create_message_localizer(request)
-			localizer.assign_response_error(response, "ROLE_NOT_FOUND")
+			message_localizer = create_message_localizer(request)
+			message_localizer.assign_response_error(response, "ROLE_NOT_FOUND")
 			response.set_status(404)
 			return None
 
-		role_users = await db_connection.fetch(_retrieve_role_users, role_id)
-		role_funcs = await db_connection.fetch(_retrieve_role_funcs, role_id)
+		role_users = await db_connection.fetch(retrieve_role_users, role_id)
+		role_funcs = await db_connection.fetch(retrieve_role_funcs, role_id)
+
+		translated_role_funcs = list()
+		for functionality in role_funcs:
+			specs = dict(functionality)
+
+			package_code = functionality['package']
+			specs['package'] = auther.get_package_translation(package_code, request)
+			specs["name"] = auther.get_func_translation(
+				package_code, specs['name'],
+				request)
+
+			translated_role_funcs.append(specs)
 
 	return pavao.assemble_dicts(role_info,
-		functionalities=role_funcs,
+		functionalities=translated_role_funcs,
 		users=role_users)
 
 
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("VIEW_ROLE",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'GET',
 		'path': '/admin/roles/{role:int}',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("VIEW_ROLE"),
 		'processor': process
 	}
 

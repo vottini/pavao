@@ -46,6 +46,7 @@ def accepts_parameters(parameter_dict):
 
 		@functools.wraps(fnc)
 		async def wrapped(
+			server,
 			request,
 			path_variables,
 			db_connection,
@@ -82,6 +83,7 @@ def accepts_parameters(parameter_dict):
 					return
 
 			all_args = {
+				'server': server,
 				'request': request,
 				'path_variables': path_variables,
 				'db_connection': db_connection,
@@ -89,7 +91,7 @@ def accepts_parameters(parameter_dict):
 				'response': response,
 				'receive': receive,
 				'parameters': parameters,
-				'broadcasting': broadcasting
+				'broadcasting': broadcasting,
 			}
 
 			selected_args = list()

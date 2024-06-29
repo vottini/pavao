@@ -4,8 +4,9 @@ import asyncpg
 import humps
 import pavao
 
-from admin.common import localize_functionality
+from admin.common import localizer
 from admin.common import create_message_localizer
+from admin.common import assert_admin_access
 
 options_blueprint = """
 
@@ -20,7 +21,7 @@ options_blueprint = """
 
 @pavao.accepts_json(string_blueprint=options_blueprint)
 async def process(request, response, parsed_json, db_connection, path_variables):
-	localizer = create_message_localizer(request)
+	message_localizer = create_message_localizer(request)
 	userId = path_variables['userId']
 
 	async with db_connection.transaction():
@@ -46,28 +47,25 @@ async def process(request, response, parsed_json, db_connection, path_variables)
 					userId)
 
 			except asyncpg.UniqueViolationError as e:
-				localizer.assign_response_error(response, "LOGIN_EXISTS")
+				message_localizer.assign_response_error(response, "LOGIN_EXISTS")
 				response.set_status(409)
 				return
 
 			except asyncpg.PostgresError as e:
 				pavao.Logger.error(f"Internal error updating role: {e}")
-				localizer.assign_response_error(response, "UNEXPECTED_ERROR")
+				message_localizer.assign_response_error(response, "UNEXPECTED_ERROR")
 				response.set_status(500)
 				return
 
-	response.set_status(204)
 
-
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("CREATE_USERS",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'PATCH',
 		'path': '/admin/users/{userId:int}',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("EDIT_USERS"),
 		'processor': process
 	}
 

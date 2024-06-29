@@ -2,6 +2,9 @@
 import asyncio
 import pavao
 
+from admin.common import localizer
+from admin.common import assert_admin_access
+
 select_functionalities_by_roles = """
 
 	SELECT
@@ -30,27 +33,37 @@ functionalities_blueprint = """
 
 @pavao.generates_json(string_blueprint=functionalities_blueprint)
 @pavao.accepts_parameters({'roles': [int]})
-async def process(parameters, response, db_connection):
+async def process(parameters, response, request, db_connection, server):
+	authorizer = server.authorizer
 	retrieved = await db_connection.fetch(
 		select_functionalities_by_roles,
 		parameters['roles'])
 
+	translated = [{
+		"allowing_role": entry["allowing_role"],
+		"package": authorizer.get_package_translation(entry['package'], request),
+		"functionality": authorizer.get_func_translation(
+			entry['package'], entry['functionality'],
+			request)
+		}
+
+		for entry in retrieved
+	]
+
 	return [
 		pavao.assemble_dicts(row)
-		for row in retrieved
+		for row in translated
 	]
 
 
-from admin.common import localize_functionality
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("LIST_FUNCTIONALITIES",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'GET',
 		'path': '/admin/functionalities/allowed',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("LIST_FUNCTIONALITIES"),
 		'processor': process
 	}
 

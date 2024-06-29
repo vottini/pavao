@@ -2,6 +2,9 @@
 import asyncio
 import pavao
 
+from admin.common import localizer
+from admin.common import assert_admin_access
+
 list_functionalities = """
 
 	SELECT
@@ -30,14 +33,22 @@ functionalities_list = """
 """
 
 @pavao.generates_json(string_blueprint=functionalities_list)
-async def process(request, db_connection):
+async def process(request, db_connection, server):
 	functionalities = await db_connection.fetch(list_functionalities)
+	authorizer = server.authorizer
 
 	grouped = dict()
 	for functionality in functionalities:
-		package = functionality['package']
+		package_code = functionality['package']
+		package = authorizer.get_package_translation(package_code, request)
 		package_funcs = grouped.get(package, list())
-		package_funcs.append(dict(functionality))
+
+		specs = dict(functionality)
+		specs["functionality"] = authorizer.get_func_translation(
+			package_code, functionality['functionality'],
+			request)
+
+		package_funcs.append(specs)
 		grouped[package] = package_funcs
 
 	return [
@@ -46,16 +57,14 @@ async def process(request, db_connection):
 	]
 
 
-from admin.common import localize_functionality
-async def pavao_endpoint(db_connection, persisted_settings):
-	package_name, func_name = await localize_functionality("LIST_FUNCTIONALITIES",
-		db_connection, persisted_settings)
+@assert_admin_access
+def pavao_endpoint():
 
 	return {
 		'method': 'GET',
 		'path': '/admin/functionalities',
-		'package': package_name,
-		'functionality': func_name,
+		'package': localizer.map("PACKAGE"),
+		'functionality': localizer.map("LIST_FUNCTIONALITIES"),
 		'processor': process
 	}
 
