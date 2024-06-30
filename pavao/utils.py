@@ -1,7 +1,17 @@
 
 import asyncio
+import functools
 import inspect
 import os
+
+def silent_generator(fnc):
+
+	@functools.wraps(fnc)
+	async def wrapped(*args):
+		await fnc(*args)
+		yield None
+
+	return wrapped
 
 #-------------------------------------------------------------------------------
 

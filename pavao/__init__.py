@@ -1,7 +1,7 @@
 
 from .exception import PavaoException
 from .logger import Logger
-from .utils import adapter
+from .utils import adapter, silent_generator
 from .i18n import Internationalization, ModuleLocalizer
 from .token import refresh_secret_key, generate_token, validate_token
 from .mapper import Case, translate_case, assemble_dicts

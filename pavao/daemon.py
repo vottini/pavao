@@ -1,6 +1,7 @@
 
 import asyncio
 
+from .utils import adapter
 from .task import Task, TaskManager
 from .logger import Logger
 
@@ -15,15 +16,16 @@ class Daemon(TaskManager):
 			finish_callbacks.append(callback)
 
 		args = {
+			'server': self.server,
 			'db_pool': self.db_pool,
 			'broadcasting': self.broadcaster,
-			'server': self.server,
 			'on_finish': add_finish_callback
 		}
 
 		async def on_finish(ident, success):
 			for cb in finish_callbacks:
-				await cb()
+				adapted_cb = adapter(cb)
+				await adapted_cb(dict())
 
 		async def on_output(task, output): pass
 		task.run(self.loop, args, on_output, on_finish)

@@ -106,12 +106,12 @@ class Task:
 
 			try:
 				async for output in self.function(args):
-					await process_output(output)
-
-					await broadcaster.write_message(
-						f"taskState:{self.ident}",
-						f'OUTPUT:{output}'
-					)
+					if output is not None:
+						await process_output(output)
+						await broadcaster.write_message(
+							f"taskState:{self.ident}",
+							f'OUTPUT:{output}'
+						)
 
 				success = True
 
