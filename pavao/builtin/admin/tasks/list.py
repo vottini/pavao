@@ -19,10 +19,11 @@ tasks_list = """
 """
 
 @pavao.generates_json(string_blueprint=tasks_list)
-async def process(server):
+async def process(server, request):
+	localization_priority = request.parse_locale_priority()
 	grouped = dict()
 
-	for task in server.scheduler.list_tasks():
+	for task in server.scheduler.list_tasks(localization_priority):
 		package = task['package']
 		package_funcs = grouped.get(package, list())
 		package_funcs.append(dict(task))

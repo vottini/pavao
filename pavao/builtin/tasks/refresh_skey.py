@@ -3,6 +3,8 @@ import datetime
 import asyncio
 import pavao
 
+from tasks.common import localizer
+
 async def proccess():
 	validity = datetime.timedelta(days=5)
 	pavao.refresh_secret_key(validity)
@@ -13,7 +15,7 @@ def pavao_task():
 
 	return {
 		'package': "Pavão",
-		'name': "Refresh jwt secret key",
+		'name': localizer.map("REFRESH_SECRET_KEY"),
 		'processor': proccess,
 		'schedule': '0 0 * * *'
 	}

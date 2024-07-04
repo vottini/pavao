@@ -1,15 +1,11 @@
 
 import os
-import re
 import configparser
 from datetime import datetime, timezone
 
 from .json import error_blueprint
 from .logger import Logger
 
-_any_language = '*'
-_quality_matcher = re.compile(r'^q=(1|0.[0-9]{1,3})$')
-_not_blank = lambda x : len(x) > 0
 _dummy_header = "messages"
 
 # inspired by
@@ -115,54 +111,13 @@ class Internationalization:
 		return "<Unknown>"
 
 
-	# see more on
-	# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Language
-	# https://developer.mozilla.org/en-US/docs/Glossary/Quality_values
-
-	def create_localizer(self, request):
-		accepted_languages = request.headers.get('accept-language')
-
-		if accepted_languages is None:
+	def create_localizer(self, localization_priority):
+		if len(localization_priority) == 0:
 			sources = [ self.fallback ]
 			return Localizer(sources)
 
-		if isinstance(accepted_languages, str):
-			parts = accepted_languages.split(';', maxsplit=1)
-			languageId = parts[0].strip().replace('-','_')
-			if _any_language == languageId:
-				return Localizer(sources)
-
-			sources = list()
-			if languageId in self.languages:
-				sources.append(self.languages[languageId])
-
-			sources.append(self.fallback)
-			return Localizer(sources)
-
-		parsedLanguages = list()
-		for languageSpec in accepted_languages:
-			parts = languageSpec.split(';', maxsplit=1)
-			languageId = parts[0].strip().replace('-','_')
-			if _any_language == languageId:
-				continue
-
-			quality = 1.0
-			if len(parts) > 1:
-				quality_part = parts[1]
-				found = _quality_matcher.match(quality_part)
-
-				if None != found:
-					quality_str = found.group(1)
-					quality = float(quality_str)
-
-			parsedLanguages.append((languageId, quality))
-
-		parsedLanguages.sort(
-			key=lambda x : x[1],
-			reverse=True)
-
 		sources = list()
-		for languageId, _ in parsedLanguages:
+		for languageId in localization_priority:
 			if languageId in self.languages:
 				sources.append(self.languages[languageId])
 
@@ -182,8 +137,8 @@ class LazyLocalizer:
 		return f"{self.module}::{self.fragment}"
 
 
-	def localize(self, request):
-		translator = self.localizer.create_localizer(request)
+	def localize(self, localization_priority):
+		translator = self.localizer.create_localizer(localization_priority)
 		return translator.get_message(self.fragment)
 
 

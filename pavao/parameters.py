@@ -61,7 +61,8 @@ def accepts_parameters(parameter_dict):
 
 				if not name in request.params:
 					if default_value is None:
-						localizer = internationalization.create_localizer(request)
+						accepted_languages = request.parse_locale_priority()
+						localizer = internationalization.create_localizer(accepted_languages)
 						localizer.assign_response_error(response, "PARAMS_MISSING")
 						response.set_status(400)
 						return

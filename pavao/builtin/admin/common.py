@@ -84,7 +84,8 @@ messages_path = os.path.join(localization_dir, 'messages')
 messages_i18n = pavao.Internationalization(messages_path)
 
 def create_message_localizer(request):
-	return messages_i18n.create_localizer(request)
+	accepted_languages = request.parse_locale_priority()
+	return messages_i18n.create_localizer(accepted_languages)
 
 #------------------------------------------------------------------------------
 

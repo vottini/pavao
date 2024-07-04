@@ -22,6 +22,7 @@ task_blueprint = """
 @pavao.generates_json(string_blueprint=task_blueprint)
 async def process(request, response, path_variables, server):
 	task_data = server.scheduler.get_task(path_variables['task'])
+	localization_priority = request.parse_locale_priority()
 
 	if task_data is None:
 		message_localizer = create_message_localizer(request)
@@ -30,8 +31,8 @@ async def process(request, response, path_variables, server):
 		return None
 
 	result = {
-		'name': task_data.name,
-		'package': task_data.package,
+		'name': task_data.localized_name(localization_priority),
+		'package': task_data.localized_package(localization_priority),
 		'schedule': task_data.schedule,
 		'enabled': task_data.enabled,
 		'running': task_data.execution is not None

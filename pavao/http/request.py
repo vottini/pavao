@@ -7,11 +7,14 @@ class RequestException(PavaoException):
 	pass
 
 _cookie = "cookie"
-_cookie_pattern = re.compile(r"([^=]+)=(\S*)")
 _set_cookie = "set-cookie"
+_cookie_pattern = re.compile(r"([^=]+)=(\S*)")
+_quality_matcher = re.compile(r'^q=(1|0.[0-9]{1,3})$')
+_any_language = '*'
 
 _utf8_decode = lambda content : content.decode('utf-8')
 _enlist_value = lambda value : value if isinstance(value, list) else [value]
+
 
 class Request:
 	class Address:
@@ -49,7 +52,7 @@ class Request:
 							name, value = found_values.groups()
 							self.cookies[name] = value
 
-						except Exception:							
+						except Exception:
 							continue
 
 					continue
@@ -106,6 +109,55 @@ class Request:
 			headers = {self.headers}
 			params = {self.params}
 		"""
+
+	# see more on
+	# https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept-Language
+	# https://developer.mozilla.org/en-US/docs/Glossary/Quality_values
+
+	def parse_locale_priority(self):
+
+		"""
+			returns a list of accepted localizations for this request, in order
+			of priority. if no localization was specified or no priority exists,
+			an empty list is returned
+		"""
+
+		accepted_languages = self.headers.get('accept-language')
+		if accepted_languages is None:
+			return list()
+
+		if isinstance(accepted_languages, str):
+			parts = accepted_languages.split(';', maxsplit=1)
+			languageId = parts[0].strip().replace('-','_')
+
+			return (languageId
+				if languageId != _any_language
+				else list())
+
+		parsed_localization = list()
+		for localization_priority in accepted_languages:
+			parts = localization_priority.split(';', maxsplit=1)
+			languageId = parts[0].strip().replace('-','_')
+			if _any_language == languageId:
+				continue
+
+			quality = 1.0
+			if len(parts) > 1:
+				quality_part = parts[1]
+				found = _quality_matcher.match(quality_part)
+
+				if None != found:
+					quality_str = found.group(1)
+					quality = float(quality_str)
+
+			parsed_localization.append((languageId, quality))
+
+		return [ locale[0]
+			for locale in sorted(
+				parsed_localization,
+				key=lambda x : x[1],
+				reverse=True)
+		]
 
 #-------------------------------------------------------------------------------
 

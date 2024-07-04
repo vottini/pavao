@@ -21,7 +21,8 @@ internationalization = pavao.Internationalization(
 
 @pavao.generates_json(file_blueprint=blueprints, with_root="tokenInfo")
 async def process(request, response, db_connection):
-	localizer = internationalization.create_localizer(request)
+	accepted_languages = request.parse_locale_priority()
+	localizer = internationalization.create_localizer(accepted_languages)
 	token = request.cookies.get('token')
 
 	if token is None:

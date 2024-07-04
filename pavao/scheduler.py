@@ -157,10 +157,10 @@ class Scheduler(TaskManager):
 
 	async def execute_tasks(self):
 
-		# this exists to avoid all tasks that
+		# this exists solely to avoid all tasks that
 		# were scheduled to run before a computer
-		# has beed suspended to be executed when
-		# it powers up again
+		# has beed suspended to be executed at once
+		# when the machine powers up again
 
 		skippable_lateness = timedelta(
 			minutes=1, seconds=30)

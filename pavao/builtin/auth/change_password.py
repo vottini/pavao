@@ -19,7 +19,8 @@ internationalization = pavao.Internationalization(
 
 @pavao.accepts_json(file_blueprint=blueprints, with_root="passwordUpdate")
 async def process(request, response, db_connection, auth_data, parsed_json):
-	localizer = internationalization.create_localizer(request)
+	localizer = internationalization.create_localizer(
+		request.parse_locale_priority())
 
 	if parsed_json.oldPassword == parsed_json.newPassword:
 		response.set_status(400)

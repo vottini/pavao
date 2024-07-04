@@ -157,9 +157,6 @@ class Authorizer:
 			self.functionalities[ident] = functionality
 			self.packages[ident[0]] = package
 
-		#print(self.roles_access)
-		#print(self.functionalities)
-
 	#--------------------------------------------------------------------------
 
 	def blacklist(self, auth_data):
@@ -290,15 +287,19 @@ class Authorizer:
 	#------------------------------------------------------------
 
 	def get_package_translation(self, package, request):
+		accepted_languages = request.parse_locale_priority()
+
 		mapping = self.packages.get(package)
-		return (mapping.localize(request)
+		return (mapping.localize(accepted_languages)
 			if isinstance(mapping, LazyLocalizer)
 			else mapping)
 
 
 	def get_func_translation(self, package, functionality, request):
+		accepted_languages = request.parse_locale_priority()
+
 		mapping = self.functionalities.get((package, functionality))
-		return (mapping.localize(request)
+		return (mapping.localize(accepted_languages)
 			if isinstance(mapping, LazyLocalizer)
 			else mapping)
 

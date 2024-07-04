@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 
 from .logger import Logger
 from .utils import adapter
+from .i18n import LazyLocalizer
+
 from .exception import PavaoException
 class TaskException(PavaoException):
 	pass
@@ -51,6 +53,13 @@ insert_task_output = """
 
 #-------------------------------------------------------------------------------
 
+def get_identity(entity):
+	return (entity.identity()
+		if isinstance(entity, LazyLocalizer)
+		else entity)
+
+#-------------------------------------------------------------------------------
+
 class Task:
 	def __init__(self, source, specs):
 		processor = specs['processor']
@@ -73,8 +82,8 @@ class Task:
 	async def register_self(self, connection):
 		result = await connection.fetchrow(
 			assert_task_exists,
-			self.package,
-			self.name)
+			get_identity(self.package),
+			get_identity(self.name))
 
 		self.ident = result['id']
 		if result['enabled']:
@@ -84,6 +93,19 @@ class Task:
 
 	async def enable(self): self.enabled = True
 	async def disable(self): self.enabled = False
+
+	#----------------------------------------------------------------------------
+
+	def localized_package(self, accepted_languages):
+		return (self.package.localize(accepted_languages)
+			if isinstance(self.package, LazyLocalizer)
+			else self.package)
+
+
+	def localized_name(self, accepted_languages):
+		return (self.name.localize(accepted_languages)
+			if isinstance(self.name, LazyLocalizer)
+			else self.name)
 
 	#----------------------------------------------------------------------------
 
@@ -207,15 +229,15 @@ class TaskManager:
 			for task in self.loaded_tasks:
 				await task.register_self(connection)
 
-	#--------------------------------------------------------
+	#----------------------------------------------------------------------------
 
-	def list_tasks(self):
+	def list_tasks(self, localization_priority):
 
 		return [
 			{
 				'id': task_data.ident,
-				'package': task_data.package,
-				'name': task_data.name,
+				'package': task_data.localized_package(localization_priority),
+				'name': task_data.localized_name(localization_priority),
 				'enabled': task_data.enabled
 			}
 

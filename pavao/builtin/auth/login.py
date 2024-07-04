@@ -23,7 +23,8 @@ internationalization = pavao.Internationalization(
 @pavao.generates_json(file_blueprint=blueprints, with_root="tokenInfo")
 @pavao.accepts_json(file_blueprint=blueprints, with_root="credentials")
 async def process(request, response, db_connection, parsed_json):
-	localizer = internationalization.create_localizer(request)
+	localizer = internationalization.create_localizer(
+		request.parse_locale_priority())
 
 	row = await db_connection.fetchrow(
 		select_auth_from_login,

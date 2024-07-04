@@ -2,6 +2,8 @@
 import asyncio
 import pavao
 
+from tasks.common import localizer
+
 purge_query = """
 
 	WITH purged AS (
@@ -23,7 +25,7 @@ def pavao_task():
 
 	return {
 		'package': "Pavão",
-		'name': "Purges expired refresh tokens",
+		'name': localizer.map("PURGE_EXPIRED_TOKENS"),
 		'processor': proccess,
 		'schedule': '0 * * * *'
 	}
