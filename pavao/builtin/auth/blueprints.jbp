@@ -17,10 +17,16 @@ object passwordUpdate {
 	newPassword: password
 }
 
+object access {
+	package: nullable string,
+	functionality: string
+}
+
 object userInfo {
 	id: integer,
 	firstName: string,
-	optional lastName: string,
-	administrator: bool
+	lastName: nullable string,
+	administrator: bool,
+	accesses: access[]
 }
 

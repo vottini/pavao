@@ -29,7 +29,7 @@ user_blueprint = """
 	root {
 		id: integer,
 		firstName: string,
-		optional lastName: string,
+		lastName: nullable string,
 		active: bool,
 		isAdmin: bool,
 		myAccount: bool

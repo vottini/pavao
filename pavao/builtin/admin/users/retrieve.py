@@ -38,9 +38,9 @@ _user_info_blueprint = """
 	root {
 		login: string,
 		firstName: string,
-		optional lastName: string,
+		lastName: nullable string,
 		creation: instant,
-		optional lastLogin: instant,
+		lastLogin: nullable instant,
 		active: bool,
 		admin: bool,
 

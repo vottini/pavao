@@ -183,6 +183,7 @@ if (endpoints_dir := args.execute) is not None:
 	uvicorn.Server.handle_exit = handle_exit
 
 	asgi_config = uvicorn.Config(
+		host="0.0.0.0",
 		app=server.get_app(),
 		loop=server.loop)
 

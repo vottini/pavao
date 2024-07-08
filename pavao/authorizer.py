@@ -110,12 +110,19 @@ class AuthData:
 	token: str
 	expiration: int
 
+#-------------------------------------------------------------------------------
 
 def get_identity(entity):
 	return (entity.identity()
 		if isinstance(entity, LazyLocalizer)
 		else entity)
 
+def parse_roles(token_claims):
+	token_roles = token_claims['roles'].split(',')
+	str_roles = filter(lambda x : len(x) > 0, token_roles)
+	return (int(role) for role in str_roles)
+
+#-------------------------------------------------------------------------------
 
 class Authorizer:
 	def __init__(self):
@@ -232,6 +239,22 @@ class Authorizer:
 
 	#--------------------------------------------------------------------------
 
+	def grep_token_claims(self, request):
+		authorization = request.headers.get("authorization")
+		if not isinstance(authorization, str):
+			return False, AuthError.MISSING_TOKEN
+
+		found_token = _bearer_pattern.search(authorization)
+		if found_token is None:
+			return False, AuthError.MISSING_TOKEN
+
+		sent_token = found_token.group(1)
+		if (token_claims := validate_token(sent_token)) is not None:
+			return True, token_claims
+
+		return False, AuthError.INVALID_TOKEN
+
+
 	async def validate_access(self, request, endpoint):
 
 		complete_functionality = (
@@ -243,19 +266,10 @@ class Authorizer:
 			return False, AuthError.DISABLED_ENDPOINT
 
 		if endpoint.public: return True, None
-		authentication = request.headers.get("authorization")
-		if not isinstance(authentication, str):
-			return False, AuthError.MISSING_TOKEN
+		validated, outcome = self.grep_token_claims(request)
+		if not validated: return False, outcome
 
-		found_token = _bearer_pattern.search(authentication)
-		if None == found_token:
-			return False, AuthError.MISSING_TOKEN
-
-		sent_token = found_token.group(1)
-		token_claims = validate_token(sent_token)
-		if None == token_claims:
-			return False, AuthError.INVALID_TOKEN
-
+		token_claims = outcome
 		subject = token_claims['sub']
 		user_modification = self.users_modification.get(subject)
 		if user_modification is not None and user_modification > token_claims['iat']:
@@ -265,12 +279,8 @@ class Authorizer:
 		if (subject, token_id) in self.blacklisted:
 			return False, AuthError.BLOCKED_USER
 
-		token_roles = token_claims['roles'].split(',')
-		str_roles = filter(lambda x : len(x) > 0, token_roles)
-		roles = (int(role) for role in str_roles)
-
 		if endpoint.functionality is not None:
-			for role in roles:
+			for role in parse_roles(token_claims):
 				accesses = self.roles_access.get(role)
 				if accesses is not None and complete_functionality in accesses:
 					break
@@ -283,6 +293,20 @@ class Authorizer:
 			return False, AuthError.EXPIRED_AUTH
 
 		return True, AuthData(subject, token_id, expiration)
+
+
+	def list_accesses(self, request):
+		validated, outcome = self.grep_token_claims(request)
+		result = set()
+
+		if validated:
+			token_claims = outcome
+			for role in parse_roles(token_claims):
+				accesses = self.roles_access.get(role)
+				if accesses is not None:
+					result.update(accesses)
+
+		return tuple(result)
 
 	#------------------------------------------------------------
 

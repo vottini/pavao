@@ -99,12 +99,12 @@ def convert_to_object(value):
 	return value
 
 
-def assemble_dicts(*base, **named):
+def assemble_dicts(*bases, include_nones=True, **named):
 	result = dict()
 
-	for entry in base:
+	for entry in bases:
 		for key, value in entry.items():
-			if value is not None:
+			if value is not None or include_nones:
 				result[key] = value
 
 	for field, entry in named.items():

@@ -7,7 +7,11 @@ from admin.common import assert_admin_access
 
 list_roles = """
 
-  SELECT id, name, description
+  SELECT
+		id,
+		name,
+		description
+
     FROM pavao."role"
     WHERE NOT admin;
 
@@ -18,7 +22,7 @@ role_blueprint = """
   root {
     id: integer,
     name: string,
-    optional description: string
+    description: nullable string
   } []
 
 """

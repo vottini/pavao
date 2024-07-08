@@ -8,7 +8,10 @@ from admin.common import assert_admin_access
 
 select_role = """
 
-	SELECT name, description
+	SELECT
+		name,
+		description
+
 		FROM pavao."role"
 		WHERE id = $1;
 
@@ -16,8 +19,11 @@ select_role = """
 
 retrieve_role_users = """
 
-	SELECT acc.id, CONCAT_WS(' ', acc.first_name, acc.last_name) AS full_name FROM
-		pavao."role" rl
+	SELECT
+		acc.id,
+		CONCAT_WS(' ', acc.first_name, acc.last_name) AS full_name
+
+		FROM pavao."role" rl
 			INNER JOIN pavao."assignment" assig ON assig."role" = rl.id
 			INNER JOIN pavao.account acc ON assig.account = acc.id
 			WHERE rl.id = $1 AND acc.active;
@@ -26,8 +32,12 @@ retrieve_role_users = """
 
 retrieve_role_funcs = """
 
-	SELECT func.id, func.name, func.package from
-		pavao."role" rl
+	SELECT
+		func.id,
+		func.name,
+		func.package
+
+		from pavao."role" rl
 			INNER JOIN pavao.access acs ON acs."role" = rl.id
 			INNER JOIN pavao.functionality func ON acs.functionality = func.id
 			WHERE func.enabled AND rl.id = $1;
@@ -38,7 +48,7 @@ role_info_blueprint = """
 
 	root {
 		name: string,
-		optional description: string,
+		description: nullable string,
 
 		users: {
 			id: integer,
@@ -48,11 +58,12 @@ role_info_blueprint = """
 		functionalities: {
 			id: integer,
 			name: string,
-			optional package: string
+			package: nullable string
 		} []
 	}
 
 """
+
 
 @pavao.generates_json(string_blueprint=role_info_blueprint)
 async def process(request, response, db_connection, path_variables, server):
@@ -78,9 +89,8 @@ async def process(request, response, db_connection, path_variables, server):
 
 			package_code = functionality['package']
 			specs['package'] = auther.get_package_translation(package_code, request)
-			specs["name"] = auther.get_func_translation(
-				package_code, specs['name'],
-				request)
+			specs["name"] = auther.get_func_translation(package_code,
+				specs['name'], request)
 
 			translated_role_funcs.append(specs)
 
