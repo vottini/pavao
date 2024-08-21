@@ -19,7 +19,7 @@ error_contents = '''
 
 '''
 
-error_blueprint = jsonbp.loadString(error_contents)
+error_blueprint = jsonbp.load_string(error_contents)
 
 _valid_content_types = (
 	'application/json; charset=utf-8'
@@ -38,12 +38,12 @@ def _load_blueprint(string, file, root=None):
 		Logger.warning(msg)
 
 	loaded = (
-		jsonbp.loadFile(file) if string is None else
-		jsonbp.loadString(string))
+		jsonbp.load_file(file) if string is None else
+		jsonbp.load_string(string))
 
 	return (
 		loaded if root is None
-		else loaded.chooseRoot(root)
+		else loaded.choose_root(root)
 	)
 
 

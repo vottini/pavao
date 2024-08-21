@@ -21,7 +21,7 @@ list_functionalities = """
 functionalities_list = """
 
 	root {
-		package: string,
+		package: nullable string,
 		functionalities: {
 			id: integer,
 			functionality: string,

@@ -69,6 +69,7 @@ class ServerEvent:
 
 def generates_sse(
 	send_heartbeats=True,
+	initial_heartbeat_delay_secs=20,
 	heartbeat_interval_secs=20):
 
 	def wrapper(fnc):
@@ -130,6 +131,9 @@ def generates_sse(
 
 			if send_heartbeats:
 				async def heartbeat_sending():
+					await asyncio.sleep(initial_heartbeat_delay_secs)
+					await emit_instance.event("heartBeat")
+
 					while True:
 						await asyncio.sleep(heartbeat_interval_secs)
 						await emit_instance.event("heartBeat")
