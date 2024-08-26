@@ -4,15 +4,6 @@ import functools
 import inspect
 import os
 
-def silent_generator(fnc):
-
-	@functools.wraps(fnc)
-	async def wrapped(*args):
-		await fnc(*args)
-		yield None
-
-	return wrapped
-
 #-------------------------------------------------------------------------------
 
 def adapter(fnc, possibly_asynchronous=True):
@@ -41,6 +32,16 @@ def adapter(fnc, possibly_asynchronous=True):
 
 #-------------------------------------------------------------------------------
 
+def silent_generator(fnc):
+
+	@functools.wraps(fnc)
+	async def wrapped(*args):
+		await fnc(*args)
+		yield None
+
+	return wrapped
+
+
 def remove_prefix(text, prefix):
 	if text.startswith(prefix):
 		return text[len(prefix):]
@@ -51,6 +52,7 @@ def remove_prefix(text, prefix):
 
 __all__ = [
 	"adapter",
+	"silent_generator",
 	"remove_prefix"
 ]
 

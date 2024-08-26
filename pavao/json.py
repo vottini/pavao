@@ -47,6 +47,65 @@ def _load_blueprint(string, file, root=None):
 	)
 
 
+accept_json_output = { "parsed_json" }
+accept_json_params = { "request", "response", "receive" }
+accept_json_template = """
+
+@functools.wraps(fnc)
+async def wrapped({ALL_PARAMS}):
+	global blueprint
+	content_type = request.headers.get('content-type')
+	if content_type is None or content_type not in _valid_content_types:
+		response.set_status(400)
+
+		return {{
+			'error': "BAD_REQUEST",
+			'description': 'Bad content type',
+			'timestamp': datetime.now(timezone.utc)
+		}}
+
+	received = await receive()
+	payload = received['body']
+	while received['more_body']:
+		received = await receive()
+		payload += received['body']
+
+	try:
+		json_content = payload.decode()
+		success, outcome = blueprint.deserialize(json_content)
+
+	except Exception as e:
+		Logger.warning(str(e))
+		response.set_status(400)
+
+		return {{
+			'error': "BAD_REQUEST",
+			'description': 'Unable to decode content',
+			'timestamp': datetime.now(timezone.utc)
+		}}
+
+	if not success:
+		response.set_status(400)
+
+		return {{
+			'error': "BAD_REQUEST",
+			'description': str(outcome),
+			'timestamp': datetime.now(timezone.utc)
+		}}
+
+	parsed_json = convert_to_object(outcome)
+	all_args = {{ 'parsed_json': parsed_json, {CONTEXT} }}
+
+	selected_args = list()
+	for param_name in {FNC_PARAMS}:
+		selected_args.append(all_args[param_name])
+
+	result = await fnc(*selected_args)
+	return result
+
+"""
+
+
 def accepts_json(
 	string_blueprint=None,
 	file_blueprint=None,
@@ -62,75 +121,28 @@ def accepts_json(
 		fnc_lvars = fnc.__code__.co_varnames
 		fnc_params = fnc_lvars[0:fnc_nargs]
 
-		@functools.wraps(fnc)
-		async def wrapped(
-			server,
-			request,
-			path_variables,
-			db_connection,
-			broadcasting,
-			auth_data,
-			response,
-			receive):
+		all_params = (
+			set(fnc_params)
+			^ accept_json_output
+			| accept_json_params
+		)
 
-			content_type = request.headers.get('content-type')
-			if content_type is None or content_type not in _valid_content_types:
-				response.set_status(400)
+		code = accept_json_template.format(
+			ALL_PARAMS=",".join(all_params),
+			CONTEXT=",".join(map(lambda x : f"'{x}': {x}", all_params)),
+			FNC_PARAMS=str(fnc_params)
+		)
 
-				return {
-					'error': "BAD_REQUEST",
-					'description': 'Bad content type',
-					'timestamp': datetime.now(timezone.utc)
-				}
+		namespace = globals().copy()
+		scope = locals().copy()
 
-			received = await receive()
-			payload = received['body']
-			while received['more_body']:
-				received = await receive()
-				payload += received['body']
+		namespace.update({
+			'blueprint': blueprint,
+			'fnc': fnc
+		})
 
-			try:
-				json_content = payload.decode()
-				success, outcome = blueprint.deserialize(json_content)
-
-			except Exception:
-				response.set_status(400)
-
-				return {
-					'error': "BAD_REQUEST",
-					'description': 'Unable to decode content',
-					'timestamp': datetime.now(timezone.utc)
-				}
-
-			if not success:
-				response.set_status(400)
-
-				return {
-					'error': "BAD_REQUEST",
-					'description': str(outcome),
-					'timestamp': datetime.now(timezone.utc)
-				}
-
-			all_args = {
-				'server': server,
-				'request': request,
-				'path_variables': path_variables,
-				'db_connection': db_connection,
-				'broadcasting': broadcasting,
-				'auth_data': auth_data,
-				'response': response,
-				'receive': receive,
-				'parsed_json': convert_to_object(outcome)
-			}
-
-			selected_args = list()
-			for param_name in fnc_params:
-				selected_args.append(all_args[param_name])
-
-			result = await fnc(*selected_args)
-			return result
-
-		return wrapped
+		exec(code, namespace, scope)
+		return scope['wrapped']
 
 	return wrapper
 
@@ -147,8 +159,41 @@ def _warn_unused(container, used, candidates):
 	for candidate in candidates:
 		if candidate in container:
 			msg = f"'{candidate}' specified, but '{used}' takes precedence"
-			pavao.Logger.warning(msg)
+			Logger.warning(msg)
 
+
+generates_json_params = { "response" }
+generates_json_template = """
+
+@functools.wraps(fnc)
+async def wrapped({ALL_PARAMS}):
+	all_args = {{ {CONTEXT} }}
+
+	selected_args = list()
+	for param_name in {FNC_PARAMS}:
+		selected_args.append(all_args[param_name])
+
+	payload = await fnc(*selected_args)
+	if payload is None:
+		return
+
+	for predicate, blueprint in processed_dispatchers:
+		if predicate(response.status):
+			serialized = str(blueprint.serialize(payload))
+			response.set_content('application/json', serialized.encode())
+			return
+
+	payload = {{
+		'error': "JSON_SERIALIZATION",
+		'description': f'No known serialization for status {{response.status}}',
+		"timestamp": datetime.now(timezone.utc)
+	}}
+
+	serialized = error_blueprint.serialize(payload)
+	response.set_content('application/json', serialized.encode())
+	response.set_status(500)
+
+"""
 
 def generates_json(
 	dispatchers=None,
@@ -157,13 +202,8 @@ def generates_json(
 	with_root=None):
 
 	processed_dispatchers = list()
+	if dispatchers is not None:
 
-	if dispatchers is None:
-		blueprint = _load_blueprint(string_blueprint, file_blueprint, with_root)
-		processed_dispatchers.append((predicates.status_non_error, blueprint))
-		processed_dispatchers.append((predicates.status_error, error_blueprint))
-
-	else:
 		try:
 			for rule in dispatchers:
 				if rule.get('string') is error_contents:
@@ -203,58 +243,37 @@ def generates_json(
 			msg = f"'dispatchers' must be an iterable, received {type(dispatchers)}"
 			raise PavaoException(msg)
 
+	else:
+		blueprint = _load_blueprint(string_blueprint, file_blueprint, with_root)
+		processed_dispatchers.append((predicates.status_non_error, blueprint))
+		processed_dispatchers.append((predicates.status_error, error_blueprint))
+
 	def wrapper(fnc):
 		fnc_nargs = fnc.__code__.co_argcount
 		fnc_lvars = fnc.__code__.co_varnames
 		fnc_params = fnc_lvars[0:fnc_nargs]
 
-		@functools.wraps(fnc)
-		async def wrapped(
-			server,
-			request,
-			path_variables,
-			db_connection,
-			broadcasting,
-			auth_data,
-			response,
-			receive):
+		all_params = (
+			set(fnc_params)
+			| generates_json_params
+		)
 
-			all_args = {
-				'server': server,
-				'request': request,
-				'path_variables': path_variables,
-				'db_connection': db_connection,
-				'broadcasting': broadcasting,
-				'auth_data': auth_data,
-				'response': response,
-				'receive': receive
-			}
+		code = generates_json_template.format(
+			ALL_PARAMS=",".join(all_params),
+			CONTEXT=",".join(map(lambda x : f"'{x}': {x}", all_params)),
+			FNC_PARAMS=str(fnc_params)
+		)
 
-			selected_args = list()
-			for param_name in fnc_params:
-				selected_args.append(all_args[param_name])
+		namespace = globals().copy()
+		scope = locals().copy()
 
-			payload = await fnc(*selected_args)
-			if payload is None:
-				return
+		namespace.update({
+			'processed_dispatchers': processed_dispatchers,
+			'fnc': fnc
+		})
 
-			for predicate, blueprint in processed_dispatchers:
-				if predicate(response.status):
-					serialized = str(blueprint.serialize(payload))
-					response.set_content('application/json', serialized.encode())
-					return
-
-			payload = {
-				'error': "JSON_SERIALIZATION",
-				'description': f'No known serialization for status {response.status}',
-				"timestamp": datetime.now(timezone.utc)
-			}
-
-			serialized = error_blueprint.serialize(payload)
-			response.set_content('application/json', serialized.encode())
-			response.set_status(500)
-
-		return wrapped
+		exec(code, namespace, scope)
+		return scope['wrapped']
 
 	return wrapper
 

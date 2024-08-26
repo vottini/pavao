@@ -14,10 +14,14 @@ def accepts_parameters(parameter_dict):
 	specs = dict()
 
 	for name, value in parameter_dict.items():
-		if isinstance(value, collections.abc.Sequence) and not isinstance(value, str):
+		if (isinstance(value, collections.abc.Sequence)
+			and not isinstance(value, str)):
+
 			if len(value) != 1 or not isinstance(value[0], type):
-				msg = f"list especification needs to have exactly one element and it needs to be a type"
-				raise PavaoException(msg)
+				raise PavaoException(
+					"list especification needs to have exactly " +
+					"one element and it needs to be a type"
+				)
 
 			ctor = value[0]
 			default_value = None
