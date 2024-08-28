@@ -34,6 +34,10 @@ class ServerEvent:
 
 	#------------------------------------------------------------
 
+	def on_disconnection(self, callback):
+		self.disconnection_callback = callback
+
+
 	async def headers(self, status=200, headers=None):
 		if self.headers_sent:
 			return
@@ -45,8 +49,6 @@ class ServerEvent:
 		self.response.set_status(status)
 		await self.certify_headers_sent()
 
-	def on_disconnection(self, callback):
-		self.disconnection_callback = callback
 
 	async def event(self, event_type, data=None):
 		await self.certify_headers_sent()
@@ -60,12 +62,73 @@ class ServerEvent:
 		await self.emit_fragment(f"data: {data}")
 		await self.end_event()
 
+
 	async def message(self, data):
 		await self.certify_headers_sent()
 		await self.emit_fragment(f"data: {data}")
 		await self.end_event()
 
 #-------------------------------------------------------------------------------
+
+generates_sse_output = { "emit" }
+generates_sse_params = { "receive", "response", "broadcasting" }
+generates_sse_template = """
+
+@functools.wraps(fnc)
+async def wrapped({ALL_PARAMS}):
+	emit_instance = ServerEvent(response)
+
+	all_args = {{
+		'emit': emit_instance,
+		{CONTEXT}
+	}}
+
+	selected_args = list()
+	for param_name in {FNC_PARAMS}:
+		selected_args.append(all_args[param_name])
+
+	async def run_endpoint():
+		await fnc(*selected_args)
+		await emit_instance.emit_fragment("", False)
+		emit_instance.orderly_shutdown = True
+
+	async def monitor_disconnection():
+		message = await receive()
+		while message.get('type') != "http.disconnect":
+			message = await receive()
+
+		if not emit_instance.orderly_shutdown:
+			fnc = emit_instance.disconnection_callback
+			is_awaitable = inspect.iscoroutinefunction(fnc)
+			await fnc() if is_awaitable else fnc()
+
+	async def monitor_shutdown():
+		shutdown_sink = broadcasting.open_sink("PAVAO.SHUTDOWN")
+		await shutdown_sink.get_message()
+		await emit_instance.event("serverShutdown")
+		broadcasting.close_sink(shutdown_sink)
+
+	tasks = [
+		asyncio.create_task(run_endpoint()),
+		asyncio.create_task(monitor_disconnection()),
+		asyncio.create_task(monitor_shutdown()),
+	]
+
+	if send_heartbeats:
+		async def heartbeat_sending():
+			await asyncio.sleep(initial_heartbeat_delay_secs)
+			await emit_instance.event("heartBeat")
+
+			while True:
+				await asyncio.sleep(heartbeat_interval_secs)
+				await emit_instance.event("heartBeat")
+
+		tasks.append(asyncio.create_task(heartbeat_sending()))
+
+	await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+	for task in tasks: task.cancel()
+
+"""
 
 def generates_sse(
 	send_heartbeats=True,
@@ -77,73 +140,30 @@ def generates_sse(
 		fnc_lvars = fnc.__code__.co_varnames
 		fnc_params = fnc_lvars[0:fnc_nargs]
 
-		@functools.wraps(fnc)
-		async def wrapped(
-			request,
-			response,
-			path_variables,
-			db_connection,
-			broadcasting,
-			auth_data,
-			receive):
+		all_params = (
+			set(fnc_params)
+			^ generates_sse_output
+			| generates_sse_params
+		)
 
-			emit_instance = ServerEvent(response)
+		code = generates_sse_template.format(
+			ALL_PARAMS=','.join(all_params),
+			CONTEXT=','.join(map(lambda x : f"'{x}': {x}", all_params)),
+			FNC_PARAMS=str(fnc_params)
+		)
 
-			all_args = {
-				'request': request,
-				'emit': emit_instance,
-				'path_variables': path_variables,
-				'db_connection': db_connection,
-				'broadcasting': broadcasting,
-				'auth_data': auth_data
-			}
+		namespace = globals().copy()
+		scope = locals().copy()
 
-			selected_args = list()
-			for param_name in fnc_params:
-				selected_args.append(all_args[param_name])
+		namespace.update({
+			'send_heartbeats': send_heartbeats,
+			'initial_heartbeat_delay_secs': initial_heartbeat_delay_secs,
+			'heartbeat_interval_secs': heartbeat_interval_secs,
+			'fnc': fnc
+		})
 
-			async def run_endpoint():
-				await fnc(*selected_args)
-				await emit_instance.emit_fragment("", False)
-				emit_instance.orderly_shutdown = True
-
-			async def monitor_disconnection():
-				message = await receive()
-				while message.get('type') != "http.disconnect":
-					message = await receive()
-
-				if not emit_instance.orderly_shutdown:
-					fnc = emit_instance.disconnection_callback
-					is_awaitable = inspect.iscoroutinefunction(fnc)
-					await fnc() if is_awaitable else fnc()
-
-			async def monitor_shutdown():
-				shutdown_sink = broadcasting.open_sink("PAVAO.SHUTDOWN")
-				await shutdown_sink.get_message()
-				await emit_instance.event("serverShutdown")
-				broadcasting.close_sink(shutdown_sink)
-
-			tasks = [
-				asyncio.create_task(run_endpoint()),
-				asyncio.create_task(monitor_disconnection()),
-				asyncio.create_task(monitor_shutdown()),
-			]
-
-			if send_heartbeats:
-				async def heartbeat_sending():
-					await asyncio.sleep(initial_heartbeat_delay_secs)
-					await emit_instance.event("heartBeat")
-
-					while True:
-						await asyncio.sleep(heartbeat_interval_secs)
-						await emit_instance.event("heartBeat")
-
-				tasks.append(asyncio.create_task(heartbeat_sending()))
-
-			await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-			for task in tasks: task.cancel()
-
-		return wrapped
+		exec(code, namespace, scope)
+		return scope['wrapped']
 
 	return wrapper
 

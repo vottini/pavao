@@ -10,8 +10,57 @@ internationalization = Internationalization(
 	path_to('messages')
 )
 
+accepts_parameters_output = { "parameters" }
+accepts_parameters_params = { "request", "response" }
+accepts_parameters_template = """
+
+@functools.wraps(fnc)
+async def wrapped({ALL_PARAMS}):
+
+	parameters = dict()
+	for name, value in parameter_dict.items():
+		as_list, default_value, ctor = parameter_specs[name]
+
+		if not name in request.params:
+			if default_value is None:
+				accepted_languages = request.parse_locale_priority()
+				localizer = internationalization.create_localizer(accepted_languages)
+				localizer.assign_response_error(response, "PARAMS_MISSING")
+				response.set_status(400)
+				return
+
+			parameters[name] = default_value
+			continue
+
+		try:
+			raw_value = request.params[name]
+			parameters[name] = (
+				[ ctor(element) for element in raw_value.split(',') ] if as_list
+				else ctor(raw_value)
+			)
+
+		except Exception as e:
+			localizer = internationalization.create_localizer(request)
+			localizer.assign_response_error(response, "PARAMS_INVALID")
+			response.set_status(400)
+			return
+
+	all_args = {{
+		'parameters': parameters,
+		{CONTEXT}
+	}}
+
+	selected_args = list()
+	for param_name in {FNC_PARAMS}:
+		selected_args.append(all_args[param_name])
+
+	result = await fnc(*selected_args)
+	return result
+
+"""
+
 def accepts_parameters(parameter_dict):
-	specs = dict()
+	parameter_specs = dict()
 
 	for name, value in parameter_dict.items():
 		if (isinstance(value, collections.abc.Sequence)
@@ -37,7 +86,7 @@ def accepts_parameters(parameter_dict):
 				default_value = value
 				ctor = type(default_value)
 
-		specs[name] = (
+		parameter_specs[name] = (
 			as_list,
 			default_value,
 			ctor
@@ -48,65 +97,29 @@ def accepts_parameters(parameter_dict):
 		fnc_lvars = fnc.__code__.co_varnames
 		fnc_params = fnc_lvars[0:fnc_nargs]
 
-		@functools.wraps(fnc)
-		async def wrapped(
-			server,
-			request,
-			path_variables,
-			db_connection,
-			auth_data,
-			response,
-			receive,
-			broadcasting):
+		all_params = (
+			set(fnc_params)
+			^ accepts_parameters_output
+			| accepts_parameters_params
+		)
 
-			parameters = dict()
-			for name, value in parameter_dict.items():
-				as_list, default_value, ctor = specs[name]
+		code = accepts_parameters_template.format(
+			ALL_PARAMS=",".join(all_params),
+			CONTEXT=",".join(map(lambda x : f"'{x}': {x}", all_params)),
+			FNC_PARAMS=str(fnc_params)
+		)
 
-				if not name in request.params:
-					if default_value is None:
-						accepted_languages = request.parse_locale_priority()
-						localizer = internationalization.create_localizer(accepted_languages)
-						localizer.assign_response_error(response, "PARAMS_MISSING")
-						response.set_status(400)
-						return
+		namespace = globals().copy()
+		scope = locals().copy()
 
-					parameters[name] = default_value
-					continue
+		namespace.update({
+			'parameter_dict': parameter_dict,
+			'parameter_specs': parameter_specs,
+			'fnc': fnc
+		})
 
-				try:
-					raw_value = request.params[name]
-					parameters[name] = (
-						[ ctor(element) for element in raw_value.split(',') ] if as_list
-						else ctor(raw_value)
-					)
-
-				except Exception as e:
-					localizer = internationalization.create_localizer(request)
-					localizer.assign_response_error(response, "PARAMS_INVALID")
-					response.set_status(400)
-					return
-
-			all_args = {
-				'server': server,
-				'request': request,
-				'path_variables': path_variables,
-				'db_connection': db_connection,
-				'auth_data': auth_data,
-				'response': response,
-				'receive': receive,
-				'parameters': parameters,
-				'broadcasting': broadcasting,
-			}
-
-			selected_args = list()
-			for param_name in fnc_params:
-				selected_args.append(all_args[param_name])
-
-			result = await fnc(*selected_args)
-			return result
-
-		return wrapped
+		exec(code, namespace, scope)
+		return scope['wrapped']
 
 	return wrapper
 
