@@ -36,7 +36,7 @@ class DatabasePool:
 
 
 	async def close(self):
-		if None != self.pool:
+		if self.pool is not None:
 			await self.pool.close()
 			Logger.info("Database pool closed")
 			self.pool = None

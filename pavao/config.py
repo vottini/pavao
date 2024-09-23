@@ -86,7 +86,7 @@ def process_config(configured, entry, schema):
 	# and if possible just return the schema if it is
 	# comprised only of default values
 
-	if None == configured:
+	if configured is None:
 		if requires_definition(schema):
 			msg = f"{entry} is not defined and has no defaults"
 			raise ConfigException(msg)
@@ -105,7 +105,7 @@ def process_config(configured, entry, schema):
 	if isinstance(configured, str):
 		varMatch = VAR_PATTERN.search(configured)
 
-		if None != varMatch:
+		if varMatch is not None:
 			varName = varMatch.group(1)
 
 			if not varName in os.environ:
@@ -168,11 +168,11 @@ class _Settings:
 		node = self.settings
 
 		counter = 0
-		while node != None and counter < len(components):
+		while node is not None and counter < len(components):
 			node = node.get(components[counter])
 			counter += 1
 
-		if None != node: return process_config(node, entry, schema)
+		if node is not None: return process_config(node, entry, schema)
 		return None
 
 

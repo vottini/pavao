@@ -162,7 +162,7 @@ class EndpointNode:
 			destination_children,
 			current_token)
 
-		if None != existing_arc:
+		if existing_arc is not None:
 			existing_node = existing_arc.node
 			return existing_node.add_leaf(method,
 				remaining_tokens, endpoint_data,
@@ -195,7 +195,7 @@ class EndpointNode:
 			source_children,
 			current_token)
 
-		if None != found_arc:
+		if found_arc is not None:
 			node = found_arc.node
 			has_empty_child = node.remove_endpoint(method,
 				remaining_tokens)
@@ -222,7 +222,7 @@ class EndpointNode:
 		raw_arc = search_sorted(self.raw_children,
 			current_token)
 
-		if None != raw_arc:
+		if raw_arc is not None:
 			node = raw_arc.node
 			return node.lookup_endpoint(method,
 				remaining_tokens, captured)
@@ -232,7 +232,7 @@ class EndpointNode:
 			found = node.lookup_endpoint(method,
 				remaining_tokens, captured)
 
-			if None != found:
+			if found is not None:
 				try: probe_value = capture_arc.assume(current_token)
 				except Exception as e:
 					return None
@@ -282,7 +282,7 @@ class Registry:
 
 		captured = dict()
 		result = self.root.lookup_endpoint(method, valid_tokens, captured)
-		return (result, captured) if None != result else None
+		return (result, captured) if result is not None else None
 
 
 	def list_endpoints(self):

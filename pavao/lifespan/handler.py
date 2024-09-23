@@ -6,7 +6,7 @@ import traceback
 from ..logger import Logger
 
 async def _secure_call(fnc):
-	if fnc != None:
+	if fnc is not None:
 		if inspect.iscoroutinefunction(fnc): return await fnc()
 		else: return fnc()
 

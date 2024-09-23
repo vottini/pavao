@@ -60,7 +60,7 @@ _logging_levels = {
 
 def start_logging(settings):
 	global _log_queue, _log_thread
-	if None != _log_thread:
+	if _log_thread is not None:
 		return
 
 	log_settings = settings.get_setting(
@@ -86,7 +86,7 @@ def start_logging(settings):
 
 def stop_logging():
 	global _log_thread
-	if None != _log_thread:
+	if _log_thread is not None:
 		_schedule_log("__exit__")
 		_log_thread.join()
 		_log_thread = None

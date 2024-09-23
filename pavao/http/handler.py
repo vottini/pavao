@@ -150,7 +150,7 @@ class HttpHandler:
 				request.method,
 				request.path)
 
-			if None == found_endpoint:
+			if found_endpoint is None:
 				response.set_status(404)
 				await emit(response)
 				return

@@ -146,7 +146,7 @@ class Request:
 				quality_part = parts[1]
 				found = _quality_matcher.match(quality_part)
 
-				if None != found:
+				if found is not None:
 					quality_str = found.group(1)
 					quality = float(quality_str)
 

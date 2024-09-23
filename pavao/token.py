@@ -34,7 +34,7 @@ def refresh_secret_key(previous_validity=None):
 
 	global _current, _past_keys
 
-	if None != previous_validity:
+	if previous_validity is not None:
 		if isinstance(previous_validity, int) and previous_validity > 0:
 			previous_validity = timedelta(days=previous_validity)
 
@@ -55,7 +55,7 @@ def refresh_secret_key(previous_validity=None):
 		if secret_key.exp > current_time:
 			filtered[secret_key.ident] = secret_key
 
-	if None != previous_validity:
+	if previous_validity is not None:
 		previous.exp = current_time + previous_validity
 		filtered[previous.ident] = previous
 
@@ -125,17 +125,17 @@ def validate_token(token):
 		return None
 
 	generator_ident = header.get('kid')
-	if None == generator_ident:
+	if generator_ident is None:
 		return None
 
 	generator = (current_key
 		if current_key.ident == generator_ident
 		else previous_keys.get(generator_ident))
 
-	if None == generator:
+	if generator is None:
 		return None
 
-	if None != generator.exp:
+	if generator.exp is not None:
 		if generator.exp < datetime.now(tz=timezone.utc):
 			return None
 
