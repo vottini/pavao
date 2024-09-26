@@ -87,11 +87,8 @@ def process_config(configured, entry, schema):
 	# comprised only of default values
 
 	if configured is None:
-		if requires_definition(schema):
-			msg = f"{entry} is not defined and has no defaults"
-			raise ConfigException(msg)
-
-		return schema
+		return (None if requires_definition(schema)
+			else schema)
 
 	default_value = schema
 	required_type = (default_value
@@ -172,14 +169,15 @@ class _Settings:
 			node = node.get(components[counter])
 			counter += 1
 
-		if node is not None: return process_config(node, entry, schema)
-		return None
+		return process_config(node, entry, schema)
 
 
-def load_settings(config_file="application.yml"):
-	Logger.info(f"Loading configuration file '{config_file}'")
+def load_settings(config_file, is_default):
+	if is_default and not os.path.isfile(config_file):
+		return _Settings(None)
 
 	try:
+		Logger.info(f"Loading configuration file '{config_file}'")
 		with open(config_file) as config_fd:
 			flattened = yaml.safe_load(config_fd)
 			structured = unflatten(flattened)
@@ -198,7 +196,6 @@ def load_settings(config_file="application.yml"):
 import asyncio
 import builtins
 import collections
-import re
 
 list_pattern = re.compile(r"\[([^\]]+)\]")
 get_query = "SELECT type, value FROM pavao.parameters WHERE name = $1"

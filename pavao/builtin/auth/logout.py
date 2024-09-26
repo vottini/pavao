@@ -22,7 +22,10 @@ async def process(server, response, db_connection, auth_data):
 	response.set_status(204)
 
 
-def pavao_endpoint():
+def pavao_endpoint(db_connection):
+	if db_connection is None:
+		return
+
 	return {
 		'method': 'DELETE',
 		'path': '/logout',

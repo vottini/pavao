@@ -45,6 +45,8 @@ class LifespanHandler:
 
 		except Exception as e:
 			Logger.error(f"Exception occured during shutdown: {e}")
+			print(traceback.format_exc())
+
 			await send({'type': 'lifespan.shutdown.failed'})
 
 #------------------------------------------------------------------------------

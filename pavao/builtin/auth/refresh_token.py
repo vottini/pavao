@@ -109,7 +109,10 @@ async def process(request, response, db_connection):
 
 #-------------------------------------------------------------------------------
 
-def pavao_endpoint():
+def pavao_endpoint(db_connection):
+	if db_connection is None:
+		return
+
 	return {
 		'method': 'GET',
 		'path': '/refresh-token',

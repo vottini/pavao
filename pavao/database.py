@@ -25,8 +25,15 @@ class DatabasePool:
 	async def setup(self, settings):
 		await self.close()
 
+		db_settings = settings.get_setting(
+			"pavao.database",
+			_database_schema)
+
+		self.pool = None
+		if db_settings is None:
+			return
+
 		try:
-			db_settings = settings.get_setting("pavao.database", _database_schema)
 			self.pool = await asyncpg.create_pool(**db_settings)
 			Logger.info("Database pool connected")
 
@@ -35,15 +42,20 @@ class DatabasePool:
 			raise DatabaseException("Unable to start database pool")
 
 
+	@property
+	def configured(self):
+		return self.pool is not None
+
+
 	async def close(self):
-		if self.pool is not None:
+		if self.configured:
 			await self.pool.close()
 			Logger.info("Database pool closed")
 			self.pool = None
 
 	#-------------------------------------------------------------------------------
 
-	class Connection:
+	class ValidConnection:
 		def __init__(self, pool):
 			self.pool = pool
 			self.conn = None
@@ -56,8 +68,16 @@ class DatabasePool:
 			await self.pool.release(self.conn)
 
 
+	class NullConnection:
+		async def __aenter__(self): return None
+		async def __aexit__(self, *args): ...
+
+
 	def connection(self):
-		return DatabasePool.Connection(self.pool)
+		return (
+			DatabasePool.ValidConnection(self.pool) if self.configured
+			else DatabasePool.NullConnection()
+		)
 
 #-------------------------------------------------------------------------------
 

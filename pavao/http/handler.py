@@ -87,8 +87,9 @@ class HttpHandler:
 			entry = (endpoint.package, endpoint.functionality)
 			funcs.add(entry)
 
-		async with self.db_pool.connection() as db_connection:
-			await self.authorizer.setup(db_connection, funcs)
+		if self.db_pool.configured:
+			async with self.db_pool.connection() as db_connection:
+				await self.authorizer.setup(db_connection, funcs)
 
 	#------------------------------------------------------------
 

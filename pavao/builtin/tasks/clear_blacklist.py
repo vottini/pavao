@@ -8,7 +8,10 @@ async def proccess(server):
 	removed = server.authorizer.clear_blacklist()
 	yield f"{removed} expired tokens purged from blacklist"
 
-def pavao_task():
+
+def pavao_task(db_connection):
+	if db_connection is None:
+		return
 
 	return {
 		'package': "Pavão",

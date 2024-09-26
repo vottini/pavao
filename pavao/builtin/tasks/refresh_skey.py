@@ -11,7 +11,9 @@ async def proccess():
 	yield "Secret key refreshed"
 
 
-def pavao_task():
+def pavao_task(db_connection):
+	if db_connection is None:
+		return
 
 	return {
 		'package': "Pavão",

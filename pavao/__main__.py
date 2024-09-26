@@ -165,10 +165,12 @@ if (import_file := args.import_admin) is not None:
 
 #-------------------------------------------------------------------------------
 
-if (endpoints_dir := args.execute) is not None:
+if (modules_dir := args.execute) is not None:
+	is_default_config = args.config_file == default_config
+
 	server = pavao.Server(
-		args.config_file,
-		args.execute
+		args.config_file, is_default_config,
+		modules_dir
 	)
 
 	# monkey patch sigterm handler in uvicorn
@@ -188,5 +190,7 @@ if (endpoints_dir := args.execute) is not None:
 		loop=server.loop)
 
 	asgi_server = uvicorn.Server(asgi_config)
-	server.loop.run_until_complete(asgi_server.serve())
+	try: server.loop.run_until_complete(asgi_server.serve())
+	except KeyboardInterrupt:
+		pass
 

@@ -61,6 +61,15 @@ def get_identity(entity):
 #-------------------------------------------------------------------------------
 
 class Task:
+	ident_counter = 1
+
+	@staticmethod
+	def generate_ident():
+		ident = Task.ident_counter
+		Task.ident_counter += 1
+		return ident
+
+
 	def __init__(self, source, specs):
 		processor = specs['processor']
 		if not inspect.isasyncgenfunction(processor):
@@ -70,24 +79,23 @@ class Task:
 		self.package = specs.get('package')
 		self.name = specs['name']
 
-		self.enabled = False
+		self.enabled = True
 		self.function = adapter(processor,
 			possibly_asynchronous=False)
 
-		self.ident = None
+		self.ident = Task.generate_ident()
 		self.execution = None
 
 	#----------------------------------------------------------------------------
 
 	async def register_self(self, connection):
-		result = await connection.fetchrow(
-			assert_task_exists,
+		result = await connection.fetchrow(assert_task_exists,
 			get_identity(self.package),
 			get_identity(self.name))
 
 		self.ident = result['id']
-		if result['enabled']:
-			await self.enable()
+		if not result['enabled']:
+			await self.disable()
 
 	#----------------------------------------------------------------------------
 
@@ -116,9 +124,10 @@ class Task:
 		async def process_output(output):
 			await on_output(self, output)
 
-			async with db_pool.connection() as connection:
-				await connection.execute(insert_task_output, self.ident,
-					datetime.now(timezone.utc), str(output))
+			if db_pool.configured:
+				async with db_pool.connection() as connection:
+					await connection.execute(insert_task_output, self.ident,
+						datetime.now(timezone.utc), str(output))
 
 		async def async_task():
 			await broadcaster.write_message(
@@ -225,9 +234,10 @@ class TaskManager:
 
 
 	async def register_tasks(self):
-		async with self.db_pool.connection() as connection:
-			for task in self.loaded_tasks:
-				await task.register_self(connection)
+		if self.db_pool.configured:
+			async with self.db_pool.connection() as connection:
+				for task in self.loaded_tasks:
+					await task.register_self(connection)
 
 	#----------------------------------------------------------------------------
 

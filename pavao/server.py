@@ -26,7 +26,7 @@ non_python_source = lambda x : not python_source(x)
 #-------------------------------------------------------------------------------
 
 class Server:
-	def __init__(self, config_file, modules_dir):
+	def __init__(self, config_file, is_default_file, modules_dir):
 
 		self.loaded_settings = None
 		self.modules_dir = os.path.abspath(modules_dir)
@@ -47,7 +47,7 @@ class Server:
 
 		async def init():
 			Logger.info("Starting up Pavão...")
-			self.loaded_settings = load_settings(config_file)
+			self.loaded_settings = load_settings(config_file, is_default_file)
 			start_logging(self.loaded_settings)
 
 			await self.db_pool.setup(self.loaded_settings)
@@ -113,11 +113,12 @@ class Server:
 			}
 
 			for file_path, specifier in scripts:
-				kind, method = specifier
+				kind, initializer = specifier
 
 				try:
-					wrapped_fnc = adapter(method)
+					wrapped_fnc = adapter(initializer)
 					specs = await wrapped_fnc(all_args)
+					if specs is None: continue
 					destinations[kind][file_path] = specs
 
 				except KeyError as e:
