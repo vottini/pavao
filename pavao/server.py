@@ -156,7 +156,11 @@ class Server:
 
 		registry = Registry()
 		for spec in all_specs:
-			registry.add_endpoint(spec)
+			try: registry.add_endpoint(spec)
+			except Exception as e:
+				msg = f"Unable to add endpoint: {e}"
+				Logger.warning(msg)
+				continue
 
 		await self.http_handler.update_registry(registry)
 
@@ -165,7 +169,6 @@ class Server:
 	def update_modules(self, creations, deletions, updates):
 		to_unload = set(filter(python_source, (*deletions, *updates)))
 		to_load = set(filter(python_source, (*updates, *creations)))
-
 		#print("RUNNING update_modules")
 
 		updated_dependencies = set()

@@ -152,7 +152,7 @@ class EndpointNode:
 				transform = getattr(builtins, specified_type, None)
 
 				if transform is None:
-					msg = f"Unknown type: {specified_type}"
+					msg = f"Unknown type '{specified_type}'"
 					raise EndpointException(msg)
 
 			destination_children = self.capture_children
