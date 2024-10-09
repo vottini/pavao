@@ -157,8 +157,13 @@ class HttpHandler:
 				return
 
 			endpoint, path_variables = found_endpoint
-			has_access, validation_outcome = await self.authorizer.validate_access(
-				request, endpoint)
+			if self.db_pool.configured:
+				has_access, validation_outcome = await self.authorizer.validate_access(
+					request, endpoint)
+
+			else:
+				has_access = True
+				validation_outcome = None
 
 			if not has_access:
 				if validation_outcome in (
