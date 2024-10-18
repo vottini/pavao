@@ -17,7 +17,7 @@ class Daemon(TaskManager):
 
 		args = {
 			'server': self.server,
-			'db_pool': self.db_pool,
+			#'db_pool': self.db_pool,
 			'broadcasting': self.broadcaster,
 			'on_finish': add_finish_callback
 		}

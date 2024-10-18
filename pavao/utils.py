@@ -6,10 +6,16 @@ import os
 
 #-------------------------------------------------------------------------------
 
+def deduce_parameters(fnc):
+	n_params = fnc.__code__.co_argcount
+	variables = fnc.__code__.co_varnames
+	bound_method = hasattr(fnc, '__self__')
+	start_index = 1 if bound_method else 0
+	return variables[start_index:n_params]
+
+
 def adapter(fnc, possibly_asynchronous=True):
-	fnc_nParams = fnc.__code__.co_argcount
-	fnc_localVars = fnc.__code__.co_varnames
-	fnc_params = fnc_localVars[0:fnc_nParams]
+	fnc_params = deduce_parameters(fnc)
 
 	utilized_params = list()
 	for param_name in fnc_params:

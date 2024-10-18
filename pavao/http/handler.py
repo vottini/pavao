@@ -37,7 +37,8 @@ class HttpHandler:
 		self.server = server
 		self.active = True
 
-		self.db_pool = server.db_pool
+		#self.db_pool = server.db_pool
+		self.parameters = dict()
 		self.authorizer = server.authorizer
 		self.registry = Registry()
 
@@ -69,13 +70,19 @@ class HttpHandler:
 
 	#------------------------------------------------------------
 
-	async def init(self, settings):
+	async def init(self, settings, suppliers):
 		http_settings = settings.get_setting("pavao.http", _http_schema)
 
 		if http_settings is not None:
 			cors_settings = http_settings.get('CORS', dict())
 			self.cors_headers.update(cors_settings.get('headers', list()))
 			self.cors_origins = cors_settings.get('origins', list())
+
+		for supplier in suppliers:
+			supplied = supplier.parameters_supplied()
+			for parameter in supplied:
+				self.parameters[parameter] = supplied[parameter]
+
 
 
 	async def update_registry(self, registry):
@@ -87,13 +94,14 @@ class HttpHandler:
 			entry = (endpoint.package, endpoint.functionality)
 			funcs.add(entry)
 
-		if self.db_pool.configured:
-			async with self.db_pool.connection() as db_connection:
-				await self.authorizer.setup(db_connection, funcs)
+		#if self.db_pool.configured:
+		#	async with self.db_pool.connection() as db_connection:
+		#		await self.authorizer.setup(db_connection, funcs)
 
 	#------------------------------------------------------------
 
 	async def handle(self, scope, receive, send):
+		all_args = {}
 
 		try:
 			request = Request(scope)
@@ -157,13 +165,13 @@ class HttpHandler:
 				return
 
 			endpoint, path_variables = found_endpoint
-			if self.db_pool.configured:
-				has_access, validation_outcome = await self.authorizer.validate_access(
-					request, endpoint)
+			#if self.db_pool.configured:
+			#	has_access, validation_outcome = await self.authorizer.validate_access(
+			#		request, endpoint)
 
-			else:
-				has_access = True
-				validation_outcome = None
+			#else:
+			has_access = True
+			validation_outcome = None
 
 			if not has_access:
 				if validation_outcome in (
@@ -185,21 +193,31 @@ class HttpHandler:
 			broadcasting = self.server.broadcaster
 			handler = endpoint.function
 
-			async with self.db_pool.connection() as db_connection:
-				all_args = { 'server': self.server }
+			#async with self.db_pool.connection() as db_connection:
 
-				for arg in self.arguments:
-					current_value = locals()[arg]
-					all_args[arg] = current_value
+			for arg in self.arguments:
+				current_value = locals()[arg]
+				all_args[arg] = current_value
 
-				await handler(all_args)
-				await emit(response)
+			all_args['server'] = self.server
+			for parameter in self.parameters:
+				ctor, dtor = self.parameter[parameter]
+				all_args[parameter] = ctor()
+
+			await handler(all_args)
+			await emit(response)
 
 		except Exception as e:
 			Logger.error(f"Error processing request: {e}")
 			Logger.error(traceback.format_exc())
 			response.set_status(500)
 			await emit(response)
+
+		finally:
+			for parameter in all_args:
+				if parameter in self.parameters:
+					ctor, dtor = self.parameter[parameter]
+					dtor(all_args[parameter])
 
 
 __all__ = [

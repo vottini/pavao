@@ -4,16 +4,17 @@ import asyncio
 import uvloop
 import traceback
 
-from .utils import adapter, remove_prefix
-from .config import load_settings, PersistedSettings
+from .config import load_settings
 from .logger import Logger, start_logging, stop_logging
-from .database import DatabasePool
+from .utils import adapter, remove_prefix
 from .loader import load_file, load_dir, retrieve_dependees, load_module
 from .refresher import PathMonitor
 from .registry import Registry
 from .scheduler import Scheduler
 from .daemon import Daemon
 from .broadcasting import Broadcaster
+from .supplier import ParameterSupplier
+from .factory import ParameterFactory
 from .authorizer import Authorizer
 
 from . import predicates
@@ -31,9 +32,9 @@ class Server:
 		self.loaded_settings = None
 		self.modules_dir = os.path.abspath(modules_dir)
 		self.monitor = PathMonitor(self.modules_dir, self.update_modules)
-		self.db_pool = DatabasePool()
 
 		self.authorizer = Authorizer()
+		self.parameter_factory = ParameterFactory()
 		self.broadcaster = Broadcaster()
 		self.registry = Registry()
 
@@ -50,8 +51,8 @@ class Server:
 			self.loaded_settings = load_settings(config_file, is_default_file)
 			start_logging(self.loaded_settings)
 
-			await self.db_pool.setup(self.loaded_settings)
-			await self.http_handler.init(self.loaded_settings)
+			await self.parameter_factory.init(self.loaded_settings)
+			await self.http_handler.init(self.loaded_settings, self.parameter_factory.suppliers)
 			await self.load_builtin_modules()
 
 			Logger.info(f"Scanning '{self.modules_dir}'")
@@ -75,15 +76,15 @@ class Server:
 			Logger.info("Stopping Pavão...")
 			self.monitor.stop()
 			self.scheduler.stop()
+
 			await self.daemon.stop()
-			await self.db_pool.close()
+			await self.parameter_factory.shutdown()
+
 			stop_logging()
 
 		self.loop = uvloop.new_event_loop()
-		self.persisted_settings = PersistedSettings(self.db_pool)
 		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
 		self.http_handler = http.HttpHandler(self)
-
 		self.scheduler = Scheduler(self.loop, self)
 		self.daemon = Daemon(self.loop, self)
 
@@ -104,13 +105,17 @@ class Server:
 			'TASK': task_destination,
 		}
 
-		async with self.db_pool.connection() as db_connection:
+		all_args = {
+			'server': self,
+			'loaded_settings': self.loaded_settings,
+			'request': None,
+			'response': None
+		}
 
-			all_args = {
-				'loaded_settings': self.loaded_settings,
-				'persisted_settings': self.persisted_settings,
-				'db_connection': db_connection
-			}
+		try:
+			for parameter in self.parameter_factory.parameters:
+				all_args[parameter] = await self.parameter_factory.produce(
+					parameter, all_args)
 
 			for file_path, specifier in scripts:
 				kind, initializer = specifier
@@ -118,8 +123,11 @@ class Server:
 				try:
 					wrapped_fnc = adapter(initializer)
 					specs = await wrapped_fnc(all_args)
-					if specs is None: continue
-					destinations[kind][file_path] = specs
+					if specs is None:
+						continue
+
+					destination = destinations[kind]
+					destination[file_path] = specs
 
 				except KeyError as e:
 					msg = f"Incomplete spec in '{file_path}': missing field {e}"
@@ -130,6 +138,11 @@ class Server:
 					msg = f"Unable to process specs from file '{file_path}': {e}"
 					Logger.warning(msg)
 					continue
+
+		finally:
+			for parameter in self.parameter_factory.parameters:
+				await self.parameter_factory.destroy(parameter,
+					all_args[parameter])
 
 
 	async def load_builtin_modules(self):

@@ -62,6 +62,30 @@ def clear_dependencies(abs_path):
 
 #-------------------------------------------------------------------------------
 
+def load_script(full_path, common_path, verbose):
+	abs_path = os.path.abspath(full_path)
+	module_path = remove_prefix(full_path, common_path)
+	clear_dependencies(abs_path)
+
+	try:
+		random_name = str(uuid.uuid1())
+		spec = importlib.util.spec_from_file_location(random_name, abs_path)
+		module = importlib.util.module_from_spec(spec)
+		spec.loader.exec_module(module)
+
+	except Exception as e:
+		Logger.warning(f"Unable to load file '{module_path}': {e}")
+		return None
+
+
+def load_folder(dir_path, verbose=True):
+	files = _find_python_scripts(dir_path)
+	for file_path in files:
+		full_path = os.path.join(dir_path, file_path)
+		load_script(full_path, dir_path, verbose)
+
+#-------------------------------------------------------------------------------
+
 loadable_methods = [
 	('SERVICE', 'pavao_service', 'service'),
 	('ENDPOINT', 'pavao_endpoint', 'endpoint'),
@@ -212,6 +236,7 @@ __all__ = [
 	"retrieve_dependees",
 	"load_file",
 	"load_dir",
+	"load_folder",
 	"path_to",
 	"include",
 	"load_module",

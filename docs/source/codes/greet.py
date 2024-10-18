@@ -14,7 +14,6 @@ def pavao_endpoint():
   return {
     'method': 'GET',
     'path': '/greet/{name}/{age:int}',
-    'processor': process,
-    'public': True
+    'processor': process
   }
 

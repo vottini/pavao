@@ -119,15 +119,15 @@ class Task:
 
 	def create_future(self, args, on_output, on_finish):
 		broadcaster = args['broadcasting']
-		db_pool = args['db_pool']
+		#db_pool = args['db_pool']
 
 		async def process_output(output):
 			await on_output(self, output)
 
-			if db_pool.configured:
-				async with db_pool.connection() as connection:
-					await connection.execute(insert_task_output, self.ident,
-						datetime.now(timezone.utc), str(output))
+			#if db_pool.configured:
+			#	async with db_pool.connection() as connection:
+			#		await connection.execute(insert_task_output, self.ident,
+			#			datetime.now(timezone.utc), str(output))
 
 		async def async_task():
 			await broadcaster.write_message(
@@ -190,7 +190,7 @@ class TaskManager:
 	def __init__(self, loop, server):
 		self.loop = loop
 		self.server = server
-		self.db_pool = server.db_pool
+		#self.db_pool = server.db_pool
 		self.broadcaster = server.broadcaster
 
 		self.executor = None
@@ -234,10 +234,11 @@ class TaskManager:
 
 
 	async def register_tasks(self):
-		if self.db_pool.configured:
-			async with self.db_pool.connection() as connection:
-				for task in self.loaded_tasks:
-					await task.register_self(connection)
+		#if self.db_pool.configured:
+		#	async with self.db_pool.connection() as connection:
+		#		for task in self.loaded_tasks:
+		#			await task.register_self(connection)
+		pass
 
 	#----------------------------------------------------------------------------
 
@@ -269,4 +270,4 @@ class TaskManager:
 				return task_data
 
 		return None
-
+#

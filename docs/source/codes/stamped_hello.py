@@ -10,7 +10,6 @@ def pavao_endpoint():
   return {
     'method': 'GET',
     'path': '/hello/stamped',
-    'processor': process,
-    'public': True
+    'processor': process
   }
 
