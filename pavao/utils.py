@@ -21,13 +21,14 @@ def adapter(fnc, possibly_asynchronous=True):
 	for param_name in fnc_params:
 		utilized_params.append(param_name)
 
+	asynchronous = False
 	if possibly_asynchronous:
-		is_awaitable = inspect.iscoroutinefunction(fnc)
+		asynchronous = inspect.iscoroutinefunction(fnc)
 
+	if asynchronous:
 		async def wrapped_call(variables):
 			selected_args = [ variables[param] for param in utilized_params ]
-			if is_awaitable: return await fnc(*selected_args)
-			else: return fnc(*selected_args)
+			return await fnc(*selected_args)
 
 	else:
 		def wrapped_call(variables):
@@ -35,6 +36,16 @@ def adapter(fnc, possibly_asynchronous=True):
 			return fnc(*selected_args)
 
 	return wrapped_call
+
+#-------------------------------------------------------------------------------
+
+def async_adapter(fnc):
+	asynchronous = inspect.iscoroutinefunction(fnc)
+	if asynchronous:
+		return fnc
+
+	async def adaptation(*args): return fnc(*args)
+	return adaptation
 
 #-------------------------------------------------------------------------------
 
@@ -57,7 +68,9 @@ def remove_prefix(text, prefix):
 #-------------------------------------------------------------------------------
 
 __all__ = [
+	"deduce_parameters",
 	"adapter",
+	"async_adapter",
 	"silent_generator",
 	"remove_prefix"
 ]

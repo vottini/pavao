@@ -9,11 +9,12 @@ from .utils import deduce_parameters
 from .loader import load_folder
 
 
-basic_context = {
+base_parameters = {
 	'request',
 	'response',
+	'path_variables',
 	'broadcasting',
-	'server'
+	'receive'
 }
 
 
@@ -51,7 +52,7 @@ class ParameterFactory:
 			self.dependencies[parameter] = dependencies
 
 			for dependency in dependencies:
-				if not (dependency in self.parameters or dependency in basic_context):
+				if not (dependency in self.parameters or dependency in base_parameters):
 					msg = f"Unknown dependency '{dependency}' to produce '{parameter}'"
 					raise PavaoException(msg)
 
@@ -63,28 +64,76 @@ class ParameterFactory:
 		deps = self.dependencies[parameter]
 		analyzed.add(parameter)
 
-		for dep in deps:
-			if not dep in produced:
-				if dep in analyzed:
-					msg = f"Circular dependency on '{parameter}' to produce '{dep}'"
+		for dependency in deps:
+			if not dependency in produced:
+				if dependency in analyzed:
+					msg = f"Circular dependency on '{parameter}' to produce '{dependency}'"
 					raise PavaoException(msg)
 
-				self._check_circularity(dep, analyzed, produced)
+				self._check_circularity(dependency,
+					analyzed, produced)
 
 		produced.add(parameter)
 
 
-	def create_solution(self, fnc):
-		pass
+	def create_wrappers(self, fnc):
+		dependencies = deduce_parameters(fnc)
+		generated_dependencies = set(dependencies) - base_parameters
+		simple_deps = set()
+
+		for dep in generated_dependencies:
+			build_deps = self.dependencies[dep]
+			if len(build_deps) == 0:
+				simple_deps.add(dep)
+
+		available_parameters = base_parameters | simple_deps
+		remaining_deps = generated_dependencies - simple_deps
+		generation_order = list(simple_deps)
+
+		while len(remaining_deps) > 0:
+			for parameter in remaining_deps:
+				parameter_deps = self.dependencies[parameter]
+				missing_deps = set(parameter_deps) - available_parameters
+
+				if len(missing_deps) == 0:
+					available_parameters.add(parameter)
+					generation_order.append(parameter)
+					remaining_deps.remove(parameter)
+					break
+
+			else:
+				msg = f"Unable to create any of these parameters: {remaining_deps}"
+				raise PavaoException(msg)
+
+		if len(generation_order) > 0:
+			destruction_order = reversed(generation_order)
+
+			async def creation(context):
+				for parameter in generation_order:
+					if not parameter in context:
+						await self.produce(parameter, context)
+
+			async def tear_down(context):
+				for parameter in destruction_order:
+					if parameter in context:
+						await self.destroy(parameter,
+							context[parameter])
+
+			return (
+				creation,
+				tear_down
+			)
+
+		return None, None
 
 
 	async def produce(self, parameter, context=None):
 		deps = self.dependencies[parameter]
 		context = context or dict()
 
-		for dep in deps:
-			if not dep in context:
-				self.produce(dep, context)
+		for dependency in deps:
+			if not dependency in context:
+				await self.produce(dependency, context)
 
 		arguments = list()
 		for dependency in deps:

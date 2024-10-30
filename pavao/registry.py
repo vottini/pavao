@@ -1,9 +1,6 @@
 
 import re
 import builtins
-import operator
-
-routing_destructor = operator.itemgetter('method', 'path')
 
 _identifier = r'[a-zA-Z_][a-zA-Z_0-9]*'
 _capture_pattern = re.compile(fr'^{{({_identifier})(?::({_identifier}))?}}$')
@@ -101,16 +98,7 @@ class CaptureArc(RawArc):
 
 #-------------------------------------------------------------------------------
 
-class EndpointData:
-	def __init__(self, specs):
-		self.function = adapter(specs['processor'])
-		self.package = specs.get('package')
-		self.functionality = specs.get('functionality')
-		self.public = specs.get('public', False)
-
-#-------------------------------------------------------------------------------
-
-class EndpointNode:
+class RegistryNode:
 	def __init__(self, parent):
 		self.parent = parent
 		self.raw_children = list()
@@ -168,7 +156,7 @@ class EndpointNode:
 				remaining_tokens, endpoint_data,
 				verify_existence)
 
-		new_node = EndpointNode(self)
+		new_node = RegistryNode(self)
 		new_node.add_leaf(method, remaining_tokens,
 			endpoint_data, verify_existence)
 
@@ -247,15 +235,13 @@ class EndpointNode:
 
 class Registry:
 	def __init__(self, max_depth=10):
-		self.root = EndpointNode(None)
+		self.root = RegistryNode(None)
 		self.max_depth = max_depth
 
 
-	def add_endpoint(self, specs):
-		method, path = routing_destructor(specs)
+	def add_endpoint(self, method, path, endpoint_data):
 		raw_tokens = path.strip("/").split("/")
 		valid_tokens = tuple(filter(_not_empty, raw_tokens))
-		endpoint_data = EndpointData(specs)
 
 		if len(valid_tokens) > self.max_depth:
 			msg = "Given endpoint requires depth greater than allowed"

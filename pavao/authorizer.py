@@ -16,7 +16,8 @@ list_roles_accesses = """
 	SELECT rl.id, func.package, func.name
 		FROM pavao.access acs
 			INNER JOIN pavao."role" rl ON acs."role" = rl.id
-			INNER JOIN pavao.functionality func ON acs.functionality = func.id;
+			INNER JOIN pavao.functionality func
+				ON acs.functionality = func.id;
 
 """
 
@@ -25,7 +26,8 @@ list_functionality_roles = """
 	SELECT rl.id
 		FROM pavao.access acs
 			INNER JOIN pavao."role" rl ON acs."role" = rl.id
-			INNER JOIN pavao.functionality func ON acs.functionality = func.id
+			INNER JOIN pavao.functionality func
+				ON acs.functionality = func.id
 
 		WHERE func.name = $1;
 
@@ -117,6 +119,7 @@ def get_identity(entity):
 		if isinstance(entity, LazyLocalizer)
 		else entity)
 
+
 def parse_roles(token_claims):
 	token_roles = token_claims['roles'].split(',')
 	str_roles = filter(lambda x : len(x) > 0, token_roles)
@@ -135,9 +138,9 @@ class Authorizer:
 		self.blacklisted = dict()
 
 
-	async def setup(self, db_conn, funcs):
-		self.disabled = set(await db_conn.fetch(list_disabled_functionalities))
-		accesses = await db_conn.fetch(list_roles_accesses)
+	async def setup(self, db_connection, funcs):
+		self.disabled = set(await db_connection.fetch(list_disabled_functionalities))
+		accesses = await db_connection.fetch(list_roles_accesses)
 
 		for role_id, package, functionality in accesses:
 			func_set = self.roles_access.get(role_id, set())
@@ -145,7 +148,7 @@ class Authorizer:
 			self.roles_access[role_id] = func_set
 
 		verified_ids = [
-			await db_conn.fetchval(
+			await db_connection.fetchval(
 				assert_functionality_exists,
 				get_identity(package),
 				get_identity(functionality)
@@ -154,7 +157,7 @@ class Authorizer:
 			for package, functionality in funcs
 		]
 
-		await db_conn.execute(
+		await db_connection.execute(
 			set_active_functionalities,
 			verified_ids)
 
@@ -312,8 +315,8 @@ class Authorizer:
 
 	def get_package_translation(self, package, request):
 		accepted_languages = request.parse_locale_priority()
-
 		mapping = self.packages.get(package)
+
 		return (mapping.localize(accepted_languages)
 			if isinstance(mapping, LazyLocalizer)
 			else mapping)
@@ -321,8 +324,9 @@ class Authorizer:
 
 	def get_func_translation(self, package, functionality, request):
 		accepted_languages = request.parse_locale_priority()
+		mapping = self.functionalities.get(
+			(package, functionality))
 
-		mapping = self.functionalities.get((package, functionality))
 		return (mapping.localize(accepted_languages)
 			if isinstance(mapping, LazyLocalizer)
 			else mapping)

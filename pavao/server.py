@@ -3,19 +3,20 @@ import os
 import asyncio
 import uvloop
 import traceback
+import operator
 
 from .config import load_settings
 from .logger import Logger, start_logging, stop_logging
-from .utils import adapter, remove_prefix
+from .utils import adapter, async_adapter, remove_prefix
 from .loader import load_file, load_dir, retrieve_dependees, load_module
 from .refresher import PathMonitor
+from .endpoint import EndpointData, EndpointFunction
 from .registry import Registry
 from .scheduler import Scheduler
 from .daemon import Daemon
 from .broadcasting import Broadcaster
 from .supplier import ParameterSupplier
 from .factory import ParameterFactory
-from .authorizer import Authorizer
 
 from . import predicates
 from . import lifespan
@@ -23,6 +24,7 @@ from . import http
 
 python_source = lambda x : x.endswith('.py')
 non_python_source = lambda x : not python_source(x)
+routing_destructor = operator.itemgetter('method', 'path', 'processor')
 
 #-------------------------------------------------------------------------------
 
@@ -31,12 +33,12 @@ class Server:
 
 		self.loaded_settings = None
 		self.modules_dir = os.path.abspath(modules_dir)
-		self.monitor = PathMonitor(self.modules_dir, self.update_modules)
+		self.monitor = PathMonitor(self.modules_dir,
+			self.update_modules)
 
-		self.authorizer = Authorizer()
-		self.parameter_factory = ParameterFactory()
 		self.broadcaster = Broadcaster()
-		self.registry = Registry()
+		self.parameter_factory = ParameterFactory()
+		#self.registry = Registry()
 
 		self.builtin_services = dict()
 		self.builtin_endpoints = dict()
@@ -52,17 +54,9 @@ class Server:
 			start_logging(self.loaded_settings)
 
 			await self.parameter_factory.init(self.loaded_settings)
-			await self.http_handler.init(self.loaded_settings, self.parameter_factory.suppliers)
+			await self.http_handler.init(self.loaded_settings)
 			await self.load_builtin_modules()
-
-			Logger.info(f"Scanning '{self.modules_dir}'")
-			script_files = load_dir(self.modules_dir, True)
-
-			await self.load_modules(
-				self.external_endpoints,
-				self.external_tasks,
-				self.external_services,
-				*script_files)
+			await self.load_user_modules()
 
 			self.scheduler.parse_tasks({**self.builtin_tasks, **self.external_tasks})
 			self.daemon.parse_tasks({**self.builtin_services, **self.external_services})
@@ -79,12 +73,13 @@ class Server:
 
 			await self.daemon.stop()
 			await self.parameter_factory.shutdown()
-
 			stop_logging()
 
-		self.loop = uvloop.new_event_loop()
 		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
-		self.http_handler = http.HttpHandler(self)
+		self.http_handler = http.HttpHandler(self, self.broadcaster,
+			self.parameter_factory)
+
+		self.loop = uvloop.new_event_loop()
 		self.scheduler = Scheduler(self.loop, self)
 		self.daemon = Daemon(self.loop, self)
 
@@ -100,29 +95,28 @@ class Server:
 			return
 
 		destinations = {
-			'SERVICE': service_destination,
 			'ENDPOINT': endpoint_destination,
+			'SERVICE': service_destination,
 			'TASK': task_destination,
 		}
 
 		all_args = {
-			'server': self,
 			'loaded_settings': self.loaded_settings,
-			'request': None,
-			'response': None
+			'server': self
 		}
 
 		try:
 			for parameter in self.parameter_factory.parameters:
-				all_args[parameter] = await self.parameter_factory.produce(
+				await self.parameter_factory.produce(
 					parameter, all_args)
 
 			for file_path, specifier in scripts:
 				kind, initializer = specifier
 
 				try:
-					wrapped_fnc = adapter(initializer)
+					wrapped_fnc = async_adapter(adapter(initializer))
 					specs = await wrapped_fnc(all_args)
+
 					if specs is None:
 						continue
 
@@ -136,6 +130,7 @@ class Server:
 
 				except Exception as e:
 					msg = f"Unable to process specs from file '{file_path}': {e}"
+					Logger.error(traceback.format_exc())
 					Logger.warning(msg)
 					continue
 
@@ -144,6 +139,7 @@ class Server:
 				await self.parameter_factory.destroy(parameter,
 					all_args[parameter])
 
+	#-------------------------------------------------------------------------------
 
 	async def load_builtin_modules(self):
 		Logger.info("Loading builtin modules...")
@@ -158,20 +154,44 @@ class Server:
 			self.builtin_services,
 			*script_files)
 
+
+	async def load_user_modules(self):
+		Logger.info(f"Scanning '{self.modules_dir}'")
+		script_files = load_dir(self.modules_dir, True)
+
+		await self.load_modules(
+			self.external_endpoints,
+			self.external_tasks,
+			self.external_services,
+			*script_files)
+
 	#-------------------------------------------------------------------------------
 
 	async def register_endpoints(self):
+		registry = Registry()
 
 		all_specs = [
 			*self.builtin_endpoints.values(),
 			*self.external_endpoints.values()
 		]
 
-		registry = Registry()
-		for spec in all_specs:
-			try: registry.add_endpoint(spec)
+		for specs in all_specs:
+
+			try:
+				method, path, processor = routing_destructor(specs)
+				pre, post = self.parameter_factory.create_wrappers(processor)
+				processing = EndpointFunction(pre, processor, post)
+
+				registry.add_endpoint(method, path,
+					EndpointData(
+						processing,
+						specs
+					)
+				)
+
 			except Exception as e:
 				msg = f"Unable to add endpoint: {e}"
+				Logger.error(traceback.format_exc())
 				Logger.warning(msg)
 				continue
 
@@ -182,7 +202,7 @@ class Server:
 	def update_modules(self, creations, deletions, updates):
 		to_unload = set(filter(python_source, (*deletions, *updates)))
 		to_load = set(filter(python_source, (*updates, *creations)))
-		#print("RUNNING update_modules")
+		print("!!! update_modules")
 
 		updated_dependencies = set()
 		for script in filter(python_source, updates):

@@ -5,7 +5,6 @@ import traceback
 
 from ..logger import Logger
 from ..registry import Registry
-from ..authorizer import AuthError
 
 from .request import Request
 from .response import Response, emit
@@ -33,14 +32,12 @@ _cors_allow_origin = 'access-control-allow-origin'
 _cors_allow_headers = 'access-control-allow-headers'
 
 class HttpHandler:
-	def __init__(self, server):
+	def __init__(self, server, broadcasting, parameter_factory):
 		self.server = server
-		self.active = True
-
-		#self.db_pool = server.db_pool
-		self.parameters = dict()
-		self.authorizer = server.authorizer
+		self.broadcasting = broadcasting
+		self.parameter_factory = parameter_factory
 		self.registry = Registry()
+		self.active = True
 
 		self.cors_origins = list()
 		self.cors_headers = set([
@@ -51,48 +48,35 @@ class HttpHandler:
 			'authorization',
 		])
 
-		self.arguments = [
-			'request',
-			'path_variables',
-			'db_connection',
-			'broadcasting',
-			'auth_data',
-			'response',
-			'receive'
-		]
-
-
-	def get_arguments(self):
-		return ['server'] + self.arguments
 
 	def deactivate(self):
 		self.active = False
 
 	#------------------------------------------------------------
 
-	async def init(self, settings, suppliers):
-		http_settings = settings.get_setting("pavao.http", _http_schema)
+	async def init(self, loaded_settings):
+		http_settings = loaded_settings.get_setting("pavao.http",
+			_http_schema)
 
 		if http_settings is not None:
 			cors_settings = http_settings.get('CORS', dict())
 			self.cors_headers.update(cors_settings.get('headers', list()))
 			self.cors_origins = cors_settings.get('origins', list())
 
-		for supplier in suppliers:
-			supplied = supplier.parameters_supplied()
-			for parameter in supplied:
-				self.parameters[parameter] = supplied[parameter]
-
+		#for supplier in suppliers:
+		#	supplied = supplier.parameters_supplied()
+		#	for parameter in supplied:
+		#		self.parameters[parameter] = supplied[parameter]
 
 
 	async def update_registry(self, registry):
 		self.registry = registry
-		funcs = set()
+		#funcs = set()
 
-		for endpoint in registry.list_endpoints():
-			if endpoint.functionality is None: continue
-			entry = (endpoint.package, endpoint.functionality)
-			funcs.add(entry)
+		#for endpoint in registry.list_endpoints():
+		#	if endpoint.functionality is None: continue
+		#	entry = (endpoint.package, endpoint.functionality)
+		#	funcs.add(entry)
 
 		#if self.db_pool.configured:
 		#	async with self.db_pool.connection() as db_connection:
@@ -101,7 +85,6 @@ class HttpHandler:
 	#------------------------------------------------------------
 
 	async def handle(self, scope, receive, send):
-		all_args = {}
 
 		try:
 			request = Request(scope)
@@ -125,9 +108,7 @@ class HttpHandler:
 				found_methods = list()
 
 				for method in requested_methods:
-					found_endpoint = self.registry.find_endpoint(
-						method, request.path)
-
+					found_endpoint = self.registry.find_endpoint(method, request.path)
 					if found_endpoint is not None:
 						found_methods.append(method)
 
@@ -165,59 +146,53 @@ class HttpHandler:
 				return
 
 			endpoint, path_variables = found_endpoint
-			#if self.db_pool.configured:
 			#	has_access, validation_outcome = await self.authorizer.validate_access(
 			#		request, endpoint)
 
-			#else:
-			has_access = True
-			validation_outcome = None
+			#if not has_access:
+			#	if validation_outcome in (
+			#		AuthError.MISSING_TOKEN,
+			#		AuthError.INVALID_TOKEN,
+			#		AuthError.EXPIRED_AUTH,
+			#		AuthError.BLOCKED_USER
+			#	): status = 401
 
-			if not has_access:
-				if validation_outcome in (
-					AuthError.MISSING_TOKEN,
-					AuthError.INVALID_TOKEN,
-					AuthError.EXPIRED_AUTH,
-					AuthError.BLOCKED_USER
-				): status = 401
+			#	if validation_outcome is AuthError.NOT_ALLOWED: status = 403
+			#	if validation_outcome is AuthError.DISABLED_ENDPOINT: status = 410
 
-				if validation_outcome is AuthError.NOT_ALLOWED: status = 403
-				if validation_outcome is AuthError.DISABLED_ENDPOINT: status = 410
+			#	failure_status = validation_outcome
+			#	response.set_status(status)
+			#	await emit(response)
+			#	return
 
-				failure_status = validation_outcome
-				response.set_status(status)
-				await emit(response)
-				return
+			#auth_data = validation_outcome
+			#broadcasting = self.server.broadcaster
 
-			auth_data = validation_outcome
-			broadcasting = self.server.broadcaster
-			handler = endpoint.function
+			context = {
+				'request': request,
+				'response': response,
+				'path_variables': path_variables,
+				'broadcasting': self.broadcasting,
+				'receive': receive
+			}
 
-			#async with self.db_pool.connection() as db_connection:
+			# TODO: if some filter applies, apply it and check result
 
-			for arg in self.arguments:
-				current_value = locals()[arg]
-				all_args[arg] = current_value
-
-			all_args['server'] = self.server
-			for parameter in self.parameters:
-				ctor, dtor = self.parameter[parameter]
-				all_args[parameter] = ctor()
-
-			await handler(all_args)
+			await endpoint.function.execute(context)
 			await emit(response)
 
 		except Exception as e:
+			# TODO: criar uuid e printar no log / devolver na response
 			Logger.error(f"Error processing request: {e}")
 			Logger.error(traceback.format_exc())
 			response.set_status(500)
 			await emit(response)
 
-		finally:
-			for parameter in all_args:
-				if parameter in self.parameters:
-					ctor, dtor = self.parameter[parameter]
-					dtor(all_args[parameter])
+		#finally:
+		#	for parameter in all_args:
+		#		if parameter in self.parameters:
+		#			ctor, dtor = self.parameter[parameter]
+		#			dtor(all_args[parameter])
 
 
 __all__ = [
