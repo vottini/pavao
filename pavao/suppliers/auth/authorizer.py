@@ -1,101 +1,23 @@
 
 import re
 import asyncio
+
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
 
-from .loader import include
-from .token import validate_token
-from .i18n import LazyLocalizer
+from pavao import import_module, include, LazyLocalizer
+import_module('token')
+
+list_roles_accesses = include("./queries/list_roles_accesses.sql")
+list_functionality_roles = include("./queries/list_functionality_roles.sql")
+assert_functionality_exists = include("./queries/assert_functionality_exists.sql")
+set_active_functionalities = include("./queries/set_active_functionalities.sql")
+list_disabled_functionalities = include("./queries/list_disabled_functionalities.sql")
+enable_functionality = include("./queries/enable_functionality.sql")
+retrieve_functionality = include("./queries/retrieve_functionality.sql")
 
 _bearer_pattern = re.compile(r"^Bearer (\S+)$")
-
-list_roles_accesses = """
-
-	SELECT rl.id, func.package, func.name
-		FROM pavao.access acs
-			INNER JOIN pavao."role" rl ON acs."role" = rl.id
-			INNER JOIN pavao.functionality func
-				ON acs.functionality = func.id;
-
-"""
-
-list_functionality_roles = """
-
-	SELECT rl.id
-		FROM pavao.access acs
-			INNER JOIN pavao."role" rl ON acs."role" = rl.id
-			INNER JOIN pavao.functionality func
-				ON acs.functionality = func.id
-
-		WHERE func.name = $1;
-
-"""
-
-assert_functionality_exists = """
-
-	WITH
-
-	existing AS (
-		SELECT id, enabled
-			FROM pavao.functionality func
-
-			WHERE
-				func.package = $1 AND
-				func."name" = $2
-	),
-
-	created AS (
-		INSERT INTO pavao.functionality (package, name)
-			SELECT $1, $2
-				WHERE NOT EXISTS (
-					SELECT 1
-						FROM pavao.functionality fnc
-
-						WHERE
-							fnc.package = $1 AND
-							fnc."name" = $2
-				)
-
-		RETURNING id, enabled
-	)
-
-	SELECT id FROM existing UNION ALL
-	SELECT id FROM created;
-
-"""
-
-set_active_functionalities = """
-
-	UPDATE pavao.functionality
-		SET active = (id = ANY($1::INTEGER[]));
-
-"""
-
-list_disabled_functionalities = """
-
-	SELECT package, "name" FROM pavao.functionality
-		WHERE enabled IS FALSE;
-
-"""
-
-enable_query = """
-
-	UPDATE pavao.functionality
-		SET enabled = $2
-		WHERE id = $1
-		RETURNING package, name;
-
-"""
-
-retrieve_functionality = """
-
-	SELECT package, name
-		FROM pavao.functionality
-		WHERE id = $1;
-
-"""
 
 class AuthError:
 	DISABLED_ENDPOINT = 1
@@ -194,7 +116,7 @@ class Authorizer:
 	#--------------------------------------------------------------------------
 
 	async def enable_functionality(self, db_conn, functionality_id):
-		enabled = await db_conn.fetchrow(enable_query,
+		enabled = await db_conn.fetchrow(enable_functionality,
 			functionality_id, True)
 
 		if enabled is None:
@@ -206,7 +128,7 @@ class Authorizer:
 
 
 	async def disable_functionality(self, db_conn, functionality_id):
-		disabled = await db_conn.fetchrow(enable_query,
+		disabled = await db_conn.fetchrow(enable_functionality,
 			functionality_id, False)
 
 		if disabled is None:
@@ -252,7 +174,7 @@ class Authorizer:
 			return False, AuthError.MISSING_TOKEN
 
 		sent_token = found_token.group(1)
-		if (token_claims := validate_token(sent_token)) is not None:
+		if (token_claims := token.validate_token(sent_token)) is not None:
 			return True, token_claims
 
 		return False, AuthError.INVALID_TOKEN

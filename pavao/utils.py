@@ -67,11 +67,33 @@ def remove_prefix(text, prefix):
 
 #-------------------------------------------------------------------------------
 
+class WrappedFunction:
+	def __init__(self, preprocessor, processor, postprocessor):
+		self.preprocessor = preprocessor
+		self.processor = processor
+		self.postprocessor = postprocessor
+
+	async def __call__(self, context):
+		if self.preprocessor is None:
+			await self.processor(context)
+			return
+
+		try:
+			await self.preprocessor(context)
+			await self.processor(context)
+
+		finally:
+			if self.postprocessor is not None:
+				await self.postprocessor(context)
+
+#-------------------------------------------------------------------------------
+
 __all__ = [
 	"deduce_parameters",
 	"adapter",
 	"async_adapter",
 	"silent_generator",
-	"remove_prefix"
+	"remove_prefix",
+	"WrappedFunction"
 ]
 

@@ -7,16 +7,16 @@ import operator
 
 from .config import load_settings
 from .logger import Logger, start_logging, stop_logging
-from .utils import adapter, async_adapter, remove_prefix
+from .utils import adapter, async_adapter, remove_prefix, WrappedFunction
 from .loader import load_file, load_dir, retrieve_dependees, load_module
 from .refresher import PathMonitor
-from .endpoint import EndpointData, EndpointFunction
+from .endpoint import EndpointData
 from .registry import Registry
 from .scheduler import Scheduler
 from .daemon import Daemon
 from .broadcasting import Broadcaster
-from .supplier import ParameterSupplier
-from .factory import ParameterFactory
+from .supplier import ParameterFactory
+from .filter import FilterCollection
 
 from . import predicates
 from . import lifespan
@@ -24,7 +24,12 @@ from . import http
 
 python_source = lambda x : x.endswith('.py')
 non_python_source = lambda x : not python_source(x)
-routing_destructor = operator.itemgetter('method', 'path', 'processor')
+
+routing_destructor = operator.itemgetter(
+	'method',
+	'path',
+	'processor'
+)
 
 #-------------------------------------------------------------------------------
 
@@ -38,7 +43,7 @@ class Server:
 
 		self.broadcaster = Broadcaster()
 		self.parameter_factory = ParameterFactory()
-		#self.registry = Registry()
+		self.filter_collection = FilterCollection()
 
 		self.builtin_services = dict()
 		self.builtin_endpoints = dict()
@@ -53,8 +58,10 @@ class Server:
 			self.loaded_settings = load_settings(config_file, is_default_file)
 			start_logging(self.loaded_settings)
 
-			await self.parameter_factory.init(self.loaded_settings)
 			await self.http_handler.init(self.loaded_settings)
+			await self.parameter_factory.init(self.loaded_settings)
+			await self.filter_collection.init(self.loaded_settings)
+
 			await self.load_builtin_modules()
 			await self.load_user_modules()
 
@@ -76,8 +83,7 @@ class Server:
 			stop_logging()
 
 		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
-		self.http_handler = http.HttpHandler(self, self.broadcaster,
-			self.parameter_factory)
+		self.http_handler = http.HttpHandler(self.broadcaster)
 
 		self.loop = uvloop.new_event_loop()
 		self.scheduler = Scheduler(self.loop, self)
@@ -100,22 +106,21 @@ class Server:
 			'TASK': task_destination,
 		}
 
-		all_args = {
-			'loaded_settings': self.loaded_settings,
-			'server': self
+		context = {
+			'loaded_settings': self.loaded_settings
 		}
 
 		try:
 			for parameter in self.parameter_factory.parameters:
 				await self.parameter_factory.produce(
-					parameter, all_args)
+					parameter, context)
 
 			for file_path, specifier in scripts:
 				kind, initializer = specifier
 
 				try:
 					wrapped_fnc = async_adapter(adapter(initializer))
-					specs = await wrapped_fnc(all_args)
+					specs = await wrapped_fnc(context)
 
 					if specs is None:
 						continue
@@ -137,7 +142,7 @@ class Server:
 		finally:
 			for parameter in self.parameter_factory.parameters:
 				await self.parameter_factory.destroy(parameter,
-					all_args[parameter])
+					context[parameter])
 
 	#-------------------------------------------------------------------------------
 
@@ -168,6 +173,7 @@ class Server:
 	#-------------------------------------------------------------------------------
 
 	async def register_endpoints(self):
+		filter_list = self.filter_collection.list_filters()
 		registry = Registry()
 
 		all_specs = [
@@ -179,15 +185,44 @@ class Server:
 
 			try:
 				method, path, processor = routing_destructor(specs)
-				pre, post = self.parameter_factory.create_wrappers(processor)
-				processing = EndpointFunction(pre, processor, post)
+				pre_processor, post_processor = self.parameter_factory.create_wrappers(
+					processor)
 
-				registry.add_endpoint(method, path,
-					EndpointData(
-						processing,
-						specs
-					)
-				)
+				endpoint_processing = WrappedFunction(pre_processor,
+					async_adapter(adapter(processor)),
+					post_processor)
+
+				filtering = list()
+				pre_filtering = list()
+				post_filtering = list()
+
+				for enabler, allower in filter_list:
+					if enabler(specs):
+						filtering.append(async_adapter(adapter(allower)))
+						preproc, postproc = self.parameter_factory.create_wrappers(allower)
+						if preproc is not None: pre_filtering.append(preproc)
+						if postproc is not None: post_filtering.insert(0, postproc)
+
+				async def full_preprocessing(context):
+
+					try:
+						for preprocessor in pre_filtering:
+							await preprocessor(context)
+
+						for allower in filtering:
+							can_proceed = await allower(context)
+							if not can_proceed:
+								break
+
+						else:
+							await endpoint_processing(context)
+
+					finally:
+						for postprocessor in post_filtering:
+							await postprocessor(context)
+
+				endpoint = EndpointData(full_preprocessing, specs)
+				registry.add_endpoint(method, path, endpoint)
 
 			except Exception as e:
 				msg = f"Unable to add endpoint: {e}"

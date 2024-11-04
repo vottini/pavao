@@ -9,7 +9,7 @@ from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 
-from .logger import Logger
+from pavao import Logger
 
 class SecretKey:
 	def __init__(self):

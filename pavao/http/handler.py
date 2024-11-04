@@ -32,10 +32,8 @@ _cors_allow_origin = 'access-control-allow-origin'
 _cors_allow_headers = 'access-control-allow-headers'
 
 class HttpHandler:
-	def __init__(self, server, broadcasting, parameter_factory):
-		self.server = server
+	def __init__(self, broadcasting):
 		self.broadcasting = broadcasting
-		self.parameter_factory = parameter_factory
 		self.registry = Registry()
 		self.active = True
 
@@ -62,11 +60,6 @@ class HttpHandler:
 			cors_settings = http_settings.get('CORS', dict())
 			self.cors_headers.update(cors_settings.get('headers', list()))
 			self.cors_origins = cors_settings.get('origins', list())
-
-		#for supplier in suppliers:
-		#	supplied = supplier.parameters_supplied()
-		#	for parameter in supplied:
-		#		self.parameters[parameter] = supplied[parameter]
 
 
 	async def update_registry(self, registry):
@@ -168,7 +161,7 @@ class HttpHandler:
 			#auth_data = validation_outcome
 			#broadcasting = self.server.broadcaster
 
-			context = {
+			default_context = {
 				'request': request,
 				'response': response,
 				'path_variables': path_variables,
@@ -176,23 +169,14 @@ class HttpHandler:
 				'receive': receive
 			}
 
-			# TODO: if some filter applies, apply it and check result
-
-			await endpoint.function.execute(context)
+			await endpoint.function(default_context)
 			await emit(response)
 
 		except Exception as e:
-			# TODO: criar uuid e printar no log / devolver na response
 			Logger.error(f"Error processing request: {e}")
 			Logger.error(traceback.format_exc())
 			response.set_status(500)
 			await emit(response)
-
-		#finally:
-		#	for parameter in all_args:
-		#		if parameter in self.parameters:
-		#			ctor, dtor = self.parameter[parameter]
-		#			dtor(all_args[parameter])
 
 
 __all__ = [
