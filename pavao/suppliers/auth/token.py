@@ -25,11 +25,11 @@ _past_keys = dict()
 def refresh_secret_key(previous_validity=None):
 
 	"""
-			Replaces the current secret key used to sign internal jwt tokens.
-			If previous_validity contains an int (number of days) or a
-			datetime.timedelta instance, this value will serve as the interval
-			while the previous secret key will remain valid. More than one previous
-			secret key may remain valid at the same time.
+		Replaces the current secret key used to sign internal jwt tokens.
+		If previous_validity contains an int (number of days) or a
+		datetime.timedelta instance, this value will serve as the interval
+		while the previous secret key will remain valid. More than one previous
+		secret key may remain valid at the same time.
 	"""
 
 	global _current, _past_keys

@@ -29,7 +29,9 @@ class FilterCollection:
 		self.unordered = list()
 
 
-	async def init(self, loaded_settings):
+	async def init(self,
+		loaded_settings,
+		parameter_factory):
 
 		found_filters = [
 			(cls.__name__, cls())
@@ -39,11 +41,15 @@ class FilterCollection:
 		collected_filters = dict()
 		for name, instance in found_filters:
 			await instance.init(loaded_settings)
-			collected_filters[name] = instance
+			disabled_dep = parameter_factory.find_disabled_parameters(
+				instance.allow)
 
-			#if verbose:
-			#	msg = f"Filter '{name}' loaded"
-			#	Logger.info(msg)
+			if disabled_dep is not None:
+				Logger.warning(f"Filter '{name}' disabled due to missing dep '{disabled_dep}'")
+				continue
+
+			collected_filters[name] = instance
+			Logger.info(f"Filter '{name}' loaded")
 
 		for cls in self.ordered_config:
 			if cls in collected_filters:

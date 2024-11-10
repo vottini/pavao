@@ -9,7 +9,7 @@ class TestRequestFilter(pavao.RequestFilter):
 	def enabled(self, endpoint_specs):
 		return True
 
-	async def allow(self, response):
-		response.set_status(403)
+	async def allow(self, request, response, authorizer):
+		print(authorizer)
 		return False
 

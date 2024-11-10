@@ -5,28 +5,9 @@ import builtins
 import collections
 import pavao
 
+get_setting = pavao.include("queries/get_setting.sql")
+upsert_setting = pavao.include("queries/upsert_setting.sql")
 list_pattern = re.compile(r"\[([^\]]+)\]")
-
-get_query = """
-
-  SELECT type, value
-    FROM settings
-    WHERE name = $1;
-
-"""
-
-upsert_query = """
-
-  INSERT INTO
-    settings (name, type, value)
-    VALUES ($1, $2, $3)
-
-    ON CONFLICT (name) DO UPDATE
-      SET type = excluded.type,
-          value = excluded.value;
-
-"""
-
 
 class PersistedSettings:
 	def __init__(self, sqlite_cursor):
@@ -34,7 +15,7 @@ class PersistedSettings:
 
 
 	async def get(self, name):
-		row = await self.sqlite_cursor.fetchrow(get_query, name)
+		row = await self.sqlite_cursor.fetchrow(get_setting, name)
 		if row is None:
 			return None
 
@@ -58,12 +39,15 @@ class PersistedSettings:
 			str_values = map(str, value)
 			value = f"[{'::'.join(str_values)}]"
 
-		await self.sqlite_cursor.execute(upsert_query,
+		await self.sqlite_cursor.execute(upsert_setting,
 			name, value_type, str(value))
 
 #-------------------------------------------------------------------------------
 
 class StoredSettingsSupplier(pavao.ParameterSupplier):
+	async def init(self, loaded_settings):
+		return True
+
 	async def create_stored_settings(self, sqlite_cursor):
 		return PersistedSettings(sqlite_cursor)
 
@@ -72,6 +56,6 @@ class StoredSettingsSupplier(pavao.ParameterSupplier):
 			'stored_settings': [
 				self.create_stored_settings,
 				None
-			],
+			]
 		}
 

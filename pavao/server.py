@@ -15,7 +15,7 @@ from .registry import Registry
 from .scheduler import Scheduler
 from .daemon import Daemon
 from .broadcasting import Broadcaster
-from .supplier import ParameterFactory
+from .supplier import ParameterFactory, ParameterException
 from .filter import FilterCollection
 
 from . import predicates
@@ -31,6 +31,40 @@ routing_destructor = operator.itemgetter(
 	'processor'
 )
 
+base_parameters = {
+	'request',
+	'response',
+	'path_variables',
+	'broadcasting',
+	'receive'
+}
+
+def create_processing_pipeline(
+	pre_filtering,
+	filtering,
+	processor,
+	post_filtering):
+
+	async def full_preprocessing(context):
+
+		try:
+			for preprocessor in pre_filtering:
+				await preprocessor(context)
+
+			for allower in filtering:
+				can_proceed = await allower(context)
+				if not can_proceed:
+					break
+
+			else:
+				await processor(context)
+
+		finally:
+			for postprocessor in post_filtering:
+				await postprocessor(context)
+
+	return full_preprocessing
+
 #-------------------------------------------------------------------------------
 
 class Server:
@@ -42,7 +76,7 @@ class Server:
 			self.update_modules)
 
 		self.broadcaster = Broadcaster()
-		self.parameter_factory = ParameterFactory()
+		self.parameter_factory = ParameterFactory(base_parameters)
 		self.filter_collection = FilterCollection()
 
 		self.builtin_services = dict()
@@ -60,7 +94,8 @@ class Server:
 
 			await self.http_handler.init(self.loaded_settings)
 			await self.parameter_factory.init(self.loaded_settings)
-			await self.filter_collection.init(self.loaded_settings)
+			await self.filter_collection.init(self.loaded_settings,
+				self.parameter_factory)
 
 			await self.load_builtin_modules()
 			await self.load_user_modules()
@@ -106,22 +141,26 @@ class Server:
 			'TASK': task_destination,
 		}
 
-		context = {
-			'loaded_settings': self.loaded_settings
-		}
+		context = { key: None for key in base_parameters }
+		context['loaded_settings'] = self.loaded_settings
 
 		try:
 			for parameter in self.parameter_factory.parameters:
-				await self.parameter_factory.produce(
-					parameter, context)
+				await self.parameter_factory.produce(parameter, context)
 
-			for file_path, specifier in scripts:
-				kind, initializer = specifier
+			for file_path, (kind, initializer) in scripts:
+				disabled_dep = self.parameter_factory.find_disabled_parameters(
+					initializer)
+
+				if disabled_dep is not None:
+					relpath = os.path.relpath(file_path, self.modules_dir)
+					msg = f"{relpath} disabled due to missing dep '{disabled_dep}'"
+					Logger.warning(msg)
+					continue
 
 				try:
 					wrapped_fnc = async_adapter(adapter(initializer))
 					specs = await wrapped_fnc(context)
-
 					if specs is None:
 						continue
 
@@ -185,8 +224,21 @@ class Server:
 
 			try:
 				method, path, processor = routing_destructor(specs)
-				pre_processor, post_processor = self.parameter_factory.create_wrappers(
+				disabled_dep = self.parameter_factory.find_disabled_parameters(
 					processor)
+
+				if disabled_dep is not None:
+					msg = f"'{method} {path}' disabled due to missing parameter '{disabled_dep}'"
+					Logger.warning(msg)
+					continue
+
+				try:
+					wrappers = self.parameter_factory.create_wrappers(processor)
+					pre_processor, post_processor = wrappers
+
+				except ParameterException as e:
+					Logger.warning(f"'{method} {path}' has a problem: {e}")
+					continue
 
 				endpoint_processing = WrappedFunction(pre_processor,
 					async_adapter(adapter(processor)),
@@ -196,32 +248,20 @@ class Server:
 				pre_filtering = list()
 				post_filtering = list()
 
-				for enabler, allower in filter_list:
-					if enabler(specs):
+				for should_enable, allower in filter_list:
+					if should_enable(specs):
 						filtering.append(async_adapter(adapter(allower)))
 						preproc, postproc = self.parameter_factory.create_wrappers(allower)
 						if preproc is not None: pre_filtering.append(preproc)
-						if postproc is not None: post_filtering.insert(0, postproc)
+						if postproc is not None: post_filtering.append(postproc)
 
-				async def full_preprocessing(context):
+				post_filtering = reversed(post_filtering)
+				full_processing = create_processing_pipeline(
+					pre_filtering, filtering,
+					endpoint_processing,
+					post_filtering)
 
-					try:
-						for preprocessor in pre_filtering:
-							await preprocessor(context)
-
-						for allower in filtering:
-							can_proceed = await allower(context)
-							if not can_proceed:
-								break
-
-						else:
-							await endpoint_processing(context)
-
-					finally:
-						for postprocessor in post_filtering:
-							await postprocessor(context)
-
-				endpoint = EndpointData(full_preprocessing, specs)
+				endpoint = EndpointData(full_processing, specs)
 				registry.add_endpoint(method, path, endpoint)
 
 			except Exception as e:

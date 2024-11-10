@@ -2,6 +2,10 @@
 import os
 import asyncio
 
+from .exception import PavaoException
+class ParameterException(PavaoException):
+	pass
+
 from .logger import Logger
 from .exception import PavaoException
 from .utils import deduce_parameters
@@ -20,25 +24,21 @@ class ParameterSupplier:
 		super().__init_subclass__(**kwargs)
 		ParameterSupplier.implementations.append(cls)
 
-	def parameters_supplied(self): pass
-	async def init(self, loaded_settings): pass
+	def parameters_supplied(self): return dict()
+	def required_parameters(self): return list()
+	async def init(self, loaded_settings): return False
 	async def shutdown(self): pass
 
 #------------------------------------------------------------------------------
 
-base_parameters = {
-	'request',
-	'response',
-	'path_variables',
-	'broadcasting',
-	'receive'
-}
-
 class ParameterFactory:
-	def __init__(self):
+	def __init__(self, base_parameters):
+		self.base_parameters = base_parameters
+
 		self.suppliers = list()
 		self.parameters = dict()
 		self.dependencies = dict()
+		self.disabled = set()
 
 
 	def _load_builtin_suppliers(self, verbose):
@@ -51,14 +51,51 @@ class ParameterFactory:
 	async def init(self, loaded_settings, verbose=False):
 		self._load_builtin_suppliers(verbose)
 
-		for supplier in (cls() for cls in ParameterSupplier.implementations):
-			await supplier.init(loaded_settings)
-			self.suppliers.append(supplier)
+		# first discard suppliers not enabled
+		# by configuration, disabling its supplied
+		# parameters
 
+		enabled_suppliers = list()
+		for supplier in (cls() for cls in ParameterSupplier.implementations):
+			enabled = await supplier.init(loaded_settings)
+
+			if enabled:
+				enabled_suppliers.append(supplier)
+				continue
+
+			for parameter in supplier.parameters_supplied():
+				Logger.warning(f"Supplier for parameter '{parameter}' is not enabled")
+				self.disabled.add(parameter)
+
+		# then disable suppliers which
+		# depend on disabled parameters
+
+		for supplier in enabled_suppliers:
+			dependencies = supplier.required_parameters()
+			satisfied = tuple(dep not in self.disabled for dep in dependencies)
+
+			if all(satisfied):
+				self.suppliers.append(supplier)
+				continue
+
+			missing = dependencies[satisfied.index(False)]
+			for parameter in supplier.parameters_supplied():
+				self.disabled.add(parameter)
+
+				Logger.warning(
+					f"Parameter '{parameter}' disabled due to "
+					f"unsatisfied dependency '{missing}'"
+				)
+
+		# also check if any parameter is
+		# supplied by multiple suppliers, capturing
+		# the parameters along the way
+
+		for supplier in self.suppliers:
 			supplied = supplier.parameters_supplied()
 			for parameter, methods in supplied.items():
-				if parameter in self.parameters:
-					msg = f"More than one supplier defined for parameter '{parameter}'"
+				if parameter in self.parameters or parameter in self.base_parameters:
+					msg = f"Multiple suppliers defined for parameter '{parameter}'"
 					raise PavaoException(msg)
 
 				self.parameters[parameter] = methods
@@ -68,12 +105,13 @@ class ParameterFactory:
 			self.dependencies[parameter] = dependencies
 
 			for dependency in dependencies:
-				if not (dependency in self.parameters or dependency in base_parameters):
+				if not (dependency in self.parameters or dependency in self.base_parameters):
 					msg = f"Unknown dependency '{dependency}' to produce '{parameter}'"
 					raise PavaoException(msg)
 
 		for parameter in self.parameters:
-			self._check_circularity(parameter, set(), set())
+			self._check_circularity(parameter, set(),
+				set(self.base_parameters))
 
 
 	def _check_circularity(self, parameter, analyzed, produced):
@@ -92,17 +130,31 @@ class ParameterFactory:
 		produced.add(parameter)
 
 
+	def find_disabled_parameters(self, fnc):
+		dependencies = deduce_parameters(fnc)
+
+		for dep in dependencies:
+			if dep in self.disabled:
+				return dep
+
+		return None
+
+
 	def create_wrappers(self, fnc):
 		dependencies = deduce_parameters(fnc)
-		generated_dependencies = set(dependencies) - base_parameters
+		generated_dependencies = set(dependencies) - self.base_parameters
 		simple_deps = set()
 
 		for dep in generated_dependencies:
+			if not dep in self.dependencies:
+				msg = f"Parameter '{dep}' is neither baseline nor supplied"
+				raise ParameterException(msg)
+
 			build_deps = self.dependencies[dep]
 			if len(build_deps) == 0:
 				simple_deps.add(dep)
 
-		available_parameters = base_parameters | simple_deps
+		available_parameters = self.base_parameters | simple_deps
 		remaining_deps = generated_dependencies - simple_deps
 		generation_order = list(simple_deps)
 

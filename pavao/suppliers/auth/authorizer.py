@@ -253,3 +253,7 @@ class Authorizer:
 			if isinstance(mapping, LazyLocalizer)
 			else mapping)
 
+#------------------------------------------------------------
+
+instance = Authorizer()
+

@@ -9,8 +9,8 @@ _database_info = {
 	"filename": "pavao.db"
 }
 
-internal_db = pavao.path_to('internal_db')
-db_creation = [arq for arq in os.listdir(internal_db) if arq.endswith('.sql')]
+queries_dir = pavao.path_to('database')
+db_creation = [arq for arq in os.listdir(queries_dir) if arq.endswith('.sql')]
 db_creation.sort()
 
 #-------------------------------------------------------------------------------
@@ -52,8 +52,10 @@ class SqlConnectionSupplier(pavao.ParameterSupplier):
 
 			async with self.connection.cursor() as cursor:
 				for query in db_creation:
-					with open(os.path.join(internal_db, query)) as fd:
+					with open(os.path.join(queries_dir, query)) as fd:
 						await cursor.execute(fd.read())
+
+			return True
 
 		except Exception as e:
 			pavao.Logger.error("Error while setting up internal database: " + str(e))
@@ -61,16 +63,14 @@ class SqlConnectionSupplier(pavao.ParameterSupplier):
 
 	#------------------------------------------------------------
 
-	async def create_cursor(self):
-		return await self.connection.cursor()
-
-	async def close_cursor(self, conn):
-		await conn.close()
+	async def create_cursor(self): return await self.connection.cursor()
+	async def close_cursor(self, conn): await conn.close()
 
 	#------------------------------------------------------------
 
 	async def shutdown(self):
 		if self.connection is not None:
-			pavao.Logger.info("Pavao internal database connection closed")
 			await self.connection.close()
+			pavao.Logger.info("Pavao internal database connection closed")
+			self.connection = None
 

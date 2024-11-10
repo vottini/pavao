@@ -16,8 +16,6 @@ class Daemon(TaskManager):
 			finish_callbacks.append(callback)
 
 		args = {
-			'server': self.server,
-			#'db_pool': self.db_pool,
 			'broadcasting': self.broadcaster,
 			'on_finish': add_finish_callback
 		}

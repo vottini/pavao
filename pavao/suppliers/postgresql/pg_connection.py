@@ -25,11 +25,6 @@ class ConnectionSupplier(pavao.ParameterSupplier):
 		}
 
 
-	@property
-	def configured(self):
-		return self.pool is not None
-
-
 	async def init(self, loaded_settings):
 		db_settings = loaded_settings.get_setting(
 			"pavao.database.postgresql",
@@ -37,11 +32,12 @@ class ConnectionSupplier(pavao.ParameterSupplier):
 
 		if db_settings is None:
 			pavao.Logger.info("PostgreSQL database not configured")
-			return
+			return False
 
 		try:
 			self.pool = await asyncpg.create_pool(**db_settings)
 			pavao.Logger.info("PostgreSQL database connected")
+			return True
 
 		except Exception as e:
 			pavao.Logger.error("Error while setting up PostgreSQL database: " + str(e))
@@ -49,19 +45,14 @@ class ConnectionSupplier(pavao.ParameterSupplier):
 
 	#------------------------------------------------------------
 
-	async def create_connection(self):
-		conn = await self.pool.acquire() if self.configured else None
-		return conn
-
-
-	async def close_connection(self, conn):
-		if conn is not None:
-			await self.pool.release(conn)
+	async def create_connection(self): return await self.pool.acquire()
+	async def close_connection(self, conn): await self.pool.release(conn)
 
 	#------------------------------------------------------------
 
 	async def shutdown(self):
-		if self.configured:
+		if self.pool is not None:
 			await self.pool.close()
 			pavao.Logger.info("PostgreSQL database pool closed")
+			self.pool = None
 
