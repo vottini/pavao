@@ -12,9 +12,9 @@ class RequestFilter:
 		super().__init_subclass__(**kwargs)
 		RequestFilter.implementations.append(cls)
 
-	async def init(self, loaded_settings): pass
+	def init(self, loaded_settings): pass
 	def enabled(self, endpoint_specs): return False
-	async def allow(self): return True
+	def allow(self): return True
 
 #-------------------------------------------------------------------------------
 
@@ -41,13 +41,6 @@ class FilterCollection:
 		collected_filters = dict()
 		for name, instance in found_filters:
 			await instance.init(loaded_settings)
-			disabled_dep = parameter_factory.find_disabled_parameters(
-				instance.allow)
-
-			if disabled_dep is not None:
-				Logger.warning(f"Filter '{name}' disabled due to missing dep '{disabled_dep}'")
-				continue
-
 			collected_filters[name] = instance
 			Logger.info(f"Filter '{name}' loaded")
 

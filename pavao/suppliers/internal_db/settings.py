@@ -42,20 +42,4 @@ class PersistedSettings:
 		await self.sqlite_cursor.execute(upsert_setting,
 			name, value_type, str(value))
 
-#-------------------------------------------------------------------------------
-
-class StoredSettingsSupplier(pavao.ParameterSupplier):
-	async def init(self, loaded_settings):
-		return True
-
-	async def create_stored_settings(self, sqlite_cursor):
-		return PersistedSettings(sqlite_cursor)
-
-	def parameters_supplied(self):
-		return {
-			'stored_settings': [
-				self.create_stored_settings,
-				None
-			]
-		}
 

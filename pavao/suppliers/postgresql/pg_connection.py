@@ -3,7 +3,7 @@ import asyncio
 import asyncpg
 import pavao
 
-_database_schema = {
+database_schema = {
 	"host": str,
 	"port": 5432,
 	"database": str,
@@ -15,8 +15,14 @@ _database_schema = {
 class ConnectionSupplier(pavao.ParameterSupplier):
 	def __init__(self):
 		self.pool = None
+		self.enabled = False
+		self.config = None
+
 
 	def parameters_supplied(self):
+		if not self.enabled:
+			return dict()
+
 		return {
 			'db_connection': [
 				self.create_connection,
@@ -25,19 +31,21 @@ class ConnectionSupplier(pavao.ParameterSupplier):
 		}
 
 
-	async def init(self, loaded_settings):
+	def configure(self, loaded_settings):
 		db_settings = loaded_settings.get_setting(
 			"pavao.database.postgresql",
-			_database_schema)
+			database_schema)
 
-		if db_settings is None:
-			pavao.Logger.info("PostgreSQL database not configured")
-			return False
+		if db_settings is not None:
+			self.config = db_settings
+			self.enabled = True
+
+
+	async def initialize(self):
 
 		try:
-			self.pool = await asyncpg.create_pool(**db_settings)
+			self.pool = await asyncpg.create_pool(**self.config)
 			pavao.Logger.info("PostgreSQL database connected")
-			return True
 
 		except Exception as e:
 			pavao.Logger.error("Error while setting up PostgreSQL database: " + str(e))

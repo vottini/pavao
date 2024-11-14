@@ -20,21 +20,19 @@ async def retrieve_authorizer():
 #-------------------------------------------------------------------------------
 
 class AuthSupplier(pavao.ParameterSupplier):
+	def __init__(self):
+		self.enabled = False
 
-	async def init(self, loaded_settings):
+
+	def configure(self, loaded_settings):
 		auth_settings = loaded_settings.get_setting("pavao.auth", auth_schema)
 		if auth_settings is not None and auth_settings['enabled']:
 			pavao.Logger.info("Builtin auth system enabled")
-			return True
-
-		return True
 
 
-	def required_parameters(self):
-
-		return [
-			'db_connection'
-		]
+	async def initialize(self, db_connection):
+		if not self.enabled:
+			return
 
 
 	def parameters_supplied(self):

@@ -141,47 +141,40 @@ class Server:
 			'TASK': task_destination,
 		}
 
-		context = { key: None for key in base_parameters }
-		context['loaded_settings'] = self.loaded_settings
+		for file_path, (kind, initializer) in scripts:
+			context = { 'loaded_settings': self.loaded_settings }
 
-		try:
-			for parameter in self.parameter_factory.parameters:
-				await self.parameter_factory.produce(parameter, context)
-
-			for file_path, (kind, initializer) in scripts:
-				disabled_dep = self.parameter_factory.find_disabled_parameters(
-					initializer)
-
-				if disabled_dep is not None:
-					relpath = os.path.relpath(file_path, self.modules_dir)
-					msg = f"{relpath} disabled due to missing dep '{disabled_dep}'"
-					Logger.warning(msg)
+			try:
+				context = await self.parameter_factory.prepare_context(initializer, context)
+				wrapped_fnc = async_adapter(adapter(initializer))
+				specs = await wrapped_fnc(context)
+				if specs is None:
 					continue
 
-				try:
-					wrapped_fnc = async_adapter(adapter(initializer))
-					specs = await wrapped_fnc(context)
-					if specs is None:
-						continue
+				destination = destinations[kind]
+				destination[file_path] = specs
 
-					destination = destinations[kind]
-					destination[file_path] = specs
+			except KeyError as e:
+				msg = f"Incomplete spec in '{file_path}': missing field {e}"
+				Logger.warning(msg)
+				continue
 
-				except KeyError as e:
-					msg = f"Incomplete spec in '{file_path}': missing field {e}"
-					Logger.warning(msg)
-					continue
+			except ParameterException as e:
+				short_path = os.path.relpath(file_path, self.modules_dir)
+				msg = f"'{short_path}' register function: {e}"
+				Logger.warning(msg)
+				continue
 
-				except Exception as e:
-					msg = f"Unable to process specs from file '{file_path}': {e}"
-					Logger.error(traceback.format_exc())
-					Logger.warning(msg)
-					continue
+			except Exception as e:
+				msg = f"Unable to process specs from file '{file_path}': {e}"
+				Logger.error(traceback.format_exc())
+				Logger.warning(msg)
+				continue
 
-		finally:
-			for parameter in self.parameter_factory.parameters:
-				await self.parameter_factory.destroy(parameter,
-					context[parameter])
+			finally:
+				for parameter, value in context.items():
+					await self.parameter_factory.destroy(parameter,
+						value)
 
 	#-------------------------------------------------------------------------------
 
@@ -224,22 +217,20 @@ class Server:
 
 			try:
 				method, path, processor = routing_destructor(specs)
-				disabled_dep = self.parameter_factory.find_disabled_parameters(
+				unknown_dep = self.parameter_factory.has_unknown_parameters(
 					processor)
 
-				if disabled_dep is not None:
-					msg = f"'{method} {path}' disabled due to missing parameter '{disabled_dep}'"
+				if unknown_dep is not None:
+					msg = f"'{method} {path}' disabled due to missing parameter '{unknown_dep}'"
 					Logger.warning(msg)
 					continue
 
-				try:
-					wrappers = self.parameter_factory.create_wrappers(processor)
-					pre_processor, post_processor = wrappers
-
+				try: wrappers = self.parameter_factory.create_wrappers(processor)
 				except ParameterException as e:
 					Logger.warning(f"'{method} {path}' has a problem: {e}")
 					continue
 
+				pre_processor, post_processor = wrappers
 				endpoint_processing = WrappedFunction(pre_processor,
 					async_adapter(adapter(processor)),
 					post_processor)

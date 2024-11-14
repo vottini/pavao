@@ -7,8 +7,7 @@ class ParameterException(PavaoException):
 	pass
 
 from .logger import Logger
-from .exception import PavaoException
-from .utils import deduce_parameters
+from .utils import deduce_parameters, async_adapter, adapter
 from .loader import load_folder
 
 #------------------------------------------------------------------------------
@@ -24,10 +23,11 @@ class ParameterSupplier:
 		super().__init_subclass__(**kwargs)
 		ParameterSupplier.implementations.append(cls)
 
+
+	def configure(self, loaded_settings): pass
 	def parameters_supplied(self): return dict()
-	def required_parameters(self): return list()
-	async def init(self, loaded_settings): return False
-	async def shutdown(self): pass
+	def initialize(self): pass
+	def shutdown(self): pass
 
 #------------------------------------------------------------------------------
 
@@ -38,7 +38,6 @@ class ParameterFactory:
 		self.suppliers = list()
 		self.parameters = dict()
 		self.dependencies = dict()
-		self.disabled = set()
 
 
 	def _load_builtin_suppliers(self, verbose):
@@ -51,54 +50,32 @@ class ParameterFactory:
 	async def init(self, loaded_settings, verbose=False):
 		self._load_builtin_suppliers(verbose)
 
-		# first discard suppliers not enabled
-		# by configuration, disabling its supplied
-		# parameters
+		# find and configure suppliers,
+		# capture parameters and check for
+		# ambiguity of suppliers
 
-		enabled_suppliers = list()
-		for supplier in (cls() for cls in ParameterSupplier.implementations):
-			enabled = await supplier.init(loaded_settings)
+		impls = ParameterSupplier.implementations
+		for supplier, name in ((cls(), cls.__name__) for cls in impls):
+			supplier.configure(loaded_settings)
 
-			if enabled:
-				enabled_suppliers.append(supplier)
-				continue
-
-			for parameter in supplier.parameters_supplied():
-				Logger.warning(f"Supplier for parameter '{parameter}' is not enabled")
-				self.disabled.add(parameter)
-
-		# then disable suppliers which
-		# depend on disabled parameters
-
-		for supplier in enabled_suppliers:
-			dependencies = supplier.required_parameters()
-			satisfied = tuple(dep not in self.disabled for dep in dependencies)
-
-			if all(satisfied):
-				self.suppliers.append(supplier)
-				continue
-
-			missing = dependencies[satisfied.index(False)]
-			for parameter in supplier.parameters_supplied():
-				self.disabled.add(parameter)
-
-				Logger.warning(
-					f"Parameter '{parameter}' disabled due to "
-					f"unsatisfied dependency '{missing}'"
-				)
-
-		# also check if any parameter is
-		# supplied by multiple suppliers, capturing
-		# the parameters along the way
-
-		for supplier in self.suppliers:
 			supplied = supplier.parameters_supplied()
+			if len(supplied) == 0:
+				continue
+
+			self.suppliers.append(supplier)
 			for parameter, methods in supplied.items():
 				if parameter in self.parameters or parameter in self.base_parameters:
 					msg = f"Multiple suppliers defined for parameter '{parameter}'"
-					raise PavaoException(msg)
+					raise ParameterException(msg)
 
 				self.parameters[parameter] = methods
+
+			supplied_lst = ",".join(supplied.keys())
+			Logger.info(f"Supplier '{name}' ({supplied_lst}) loaded")
+
+		# scan each parameter's dependencies
+		# and verify that they exist. After that,
+		# check any dependency circularity
 
 		for parameter, (ctor, dtor) in self.parameters.items():
 			dependencies = deduce_parameters(ctor)
@@ -106,12 +83,39 @@ class ParameterFactory:
 
 			for dependency in dependencies:
 				if not (dependency in self.parameters or dependency in self.base_parameters):
-					msg = f"Unknown dependency '{dependency}' to produce '{parameter}'"
-					raise PavaoException(msg)
+					msg = f"Unknown parameter '{dependency}' to produce '{parameter}'"
+					raise ParameterException(msg)
 
 		for parameter in self.parameters:
 			self._check_circularity(parameter, set(),
 				set(self.base_parameters))
+
+		# and finally setup each supplier,
+		# producing all of its initialize dependencies
+
+		#print("###", self.dependencies)
+
+		for supplier in self.suppliers:
+			#print("000", supplier.__class__.__name__)
+			initializer = supplier.initialize
+			dependencies = deduce_parameters(initializer)
+			#print("111", dependencies)
+
+			context = dict()
+			for parameter in dependencies:
+				if not dependency in self.parameters:
+					class_name = supplier.__class__.__name__
+					msg = f"Unknown parameter '{parameter}' to initialize '{class_name}'"
+					raise ParameterException(msg)
+
+				await self.produce(parameter, context)
+
+			wrapped_initialize = async_adapter(adapter(initializer))
+			await wrapped_initialize(context)
+
+			for parameter in dependencies:
+				await self.destroy(parameter,
+					context[parameter])
 
 
 	def _check_circularity(self, parameter, analyzed, produced):
@@ -122,22 +126,12 @@ class ParameterFactory:
 			if not dependency in produced:
 				if dependency in analyzed:
 					msg = f"Circular dependency on '{parameter}' to produce '{dependency}'"
-					raise PavaoException(msg)
+					raise ParameterException(msg)
 
 				self._check_circularity(dependency,
 					analyzed, produced)
 
 		produced.add(parameter)
-
-
-	def find_disabled_parameters(self, fnc):
-		dependencies = deduce_parameters(fnc)
-
-		for dep in dependencies:
-			if dep in self.disabled:
-				return dep
-
-		return None
 
 
 	def create_wrappers(self, fnc):
@@ -171,7 +165,7 @@ class ParameterFactory:
 
 			else:
 				msg = f"Unable to create any of these parameters: {remaining_deps}"
-				raise PavaoException(msg)
+				raise ParameterException(msg)
 
 		if len(generation_order) > 0:
 			destruction_order = reversed(generation_order)
@@ -196,6 +190,10 @@ class ParameterFactory:
 
 
 	async def produce(self, parameter, context=None):
+		if not parameter in self.parameters:
+			msg = f"Unknown parameter '{parameter}'"
+			raise ParameterException(msg)
+
 		deps = self.dependencies[parameter]
 		context = context or dict()
 
@@ -214,12 +212,45 @@ class ParameterFactory:
 
 
 	async def destroy(self, parameter, value):
-		ctor, dtor = self.parameters[parameter]
+		ctor, dtor = self.parameters.get(parameter, (None,None))
 		if dtor is not None:
 			await dtor(value)
 
 
 	async def shutdown(self):
 		for supplier in self.suppliers:
-			await supplier.shutdown()
+			wrapped_shutdown = async_adapter(supplier.shutdown)
+			await wrapped_shutdown()
+
+
+	async def prepare_context(self, fnc, context=None):
+		dependencies = deduce_parameters(fnc)
+		context = context or dict()
+
+		for parameter in dependencies:
+			if parameter in context:
+				continue
+
+			if not parameter in self.parameters:
+				msg = f"Unknown parameter '{parameter}'"
+				raise ParameterException(msg)
+
+			await self.produce(parameter, context)
+
+		return context
+
+
+	def has_unknown_parameters(self, fnc):
+		for parameter in deduce_parameters(fnc):
+			if not parameter in { *self.parameters, *self.base_parameters }:
+				return parameter
+
+
+	def change_base_parameters(self, base_parameters):
+		result = ParameterFactory(base_parameters)
+
+		result.suppliers = self.suppliers
+		result.parameters = self.parameters
+		result.dependencies = self.dependencies
+		return result
 
