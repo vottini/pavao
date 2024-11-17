@@ -60,6 +60,7 @@ class ParameterFactory:
 
 			supplied = supplier.parameters_supplied()
 			if len(supplied) == 0:
+				Logger.info(f"Supplier '{name}' found but supplies no parameters")
 				continue
 
 			self.suppliers.append(supplier)
@@ -93,22 +94,45 @@ class ParameterFactory:
 		# and finally setup each supplier,
 		# producing all of its initialize dependencies
 
-		#print("###", self.dependencies)
+		init_order = list()
+		init_dependencies = dict()
+		initialized = set()
 
 		for supplier in self.suppliers:
-			#print("000", supplier.__class__.__name__)
-			initializer = supplier.initialize
-			dependencies = deduce_parameters(initializer)
-			#print("111", dependencies)
+			dependencies = deduce_parameters(supplier.initialize)
+			init_dependencies[supplier] = dependencies
 
-			context = dict()
 			for parameter in dependencies:
-				if not dependency in self.parameters:
+				if not parameter in self.parameters:
 					class_name = supplier.__class__.__name__
 					msg = f"Unknown parameter '{parameter}' to initialize '{class_name}'"
 					raise ParameterException(msg)
 
-				await self.produce(parameter, context)
+		next_round = dict()
+		while len(init_dependencies) > 0:
+			for supplier, deps in init_dependencies.items():
+				unsatisfied = tuple(dep for dep in deps if dep not in initialized)
+
+				if len(unsatisfied) > 0:
+					next_round[supplier] = deps
+					continue
+
+				init_order.append(supplier)
+				supplied = supplier.parameters_supplied()
+				initialized |= set(supplied.keys())
+
+			init_dependencies = next_round
+			next_round = dict()
+
+		for supplier in init_order:
+			initializer = supplier.initialize
+			dependencies = deduce_parameters(initializer)
+			context = dict()
+
+			for parameter in dependencies:
+				await self.produce(
+					parameter,
+					context)
 
 			wrapped_initialize = async_adapter(adapter(initializer))
 			await wrapped_initialize(context)
@@ -195,7 +219,7 @@ class ParameterFactory:
 			raise ParameterException(msg)
 
 		deps = self.dependencies[parameter]
-		context = context or dict()
+		context = context if context is not None else dict()
 
 		for dependency in deps:
 			if not dependency in context:
@@ -240,7 +264,7 @@ class ParameterFactory:
 		return context
 
 
-	def has_unknown_parameters(self, fnc):
+	def unknown_deps(self, fnc):
 		for parameter in deduce_parameters(fnc):
 			if not parameter in { *self.parameters, *self.base_parameters }:
 				return parameter

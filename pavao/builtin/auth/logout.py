@@ -4,8 +4,8 @@ import pavao
 
 delete_refresh = pavao.include('queries/delete_refresh.sql')
 
-async def process(server, response, db_connection, auth_data):
-	server.authorizer.blacklist(auth_data)
+async def process(authorizer, response, db_connection, auth_data):
+	authorizer.blacklist(auth_data)
 
 	await db_connection.execute(
 		delete_refresh,
@@ -22,9 +22,7 @@ async def process(server, response, db_connection, auth_data):
 	response.set_status(204)
 
 
-def pavao_endpoint(db_connection):
-	if db_connection is None:
-		return
+def pavao_endpoint():
 
 	return {
 		'method': 'DELETE',

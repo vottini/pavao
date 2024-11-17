@@ -28,6 +28,7 @@ class AuthSupplier(pavao.ParameterSupplier):
 		auth_settings = loaded_settings.get_setting("pavao.auth", auth_schema)
 		if auth_settings is not None and auth_settings['enabled']:
 			pavao.Logger.info("Builtin auth system enabled")
+			self.enabled = True
 
 
 	async def initialize(self, db_connection):
@@ -36,6 +37,8 @@ class AuthSupplier(pavao.ParameterSupplier):
 
 
 	def parameters_supplied(self):
+		if not self.enabled:
+			return dict()
 
 		return {
 			'access_validation': [

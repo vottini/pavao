@@ -117,9 +117,7 @@ class Task:
 
 	#----------------------------------------------------------------------------
 
-	def create_future(self, args, on_output, on_finish):
-		broadcaster = args['broadcasting']
-		#db_pool = args['db_pool']
+	def create_future(self, broadcaster, args, on_output, on_finish):
 
 		async def process_output(output):
 			await on_output(self, output)
@@ -179,19 +177,17 @@ class Task:
 		return True
 
 
-	def run(self, loop, args, on_output, on_finish=None):
+	def run(self, loop, broadcaster, args, on_output, on_finish=None):
 		self.cancel_if_executing()
-		task_future = self.create_future(args, on_output, on_finish)
+		task_future = self.create_future(broadcaster, args, on_output, on_finish)
 		self.execution = loop.create_task(task_future())
 
 #-------------------------------------------------------------------------------
 
 class TaskManager:
-	def __init__(self, loop, server):
+	def __init__(self, loop, broadcaster):
+		self.broadcaster = broadcaster
 		self.loop = loop
-		self.server = server
-		#self.db_pool = server.db_pool
-		self.broadcaster = server.broadcaster
 
 		self.executor = None
 		self.loaded_tasks = list()

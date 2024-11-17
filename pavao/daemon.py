@@ -6,8 +6,8 @@ from .task import Task, TaskManager
 from .logger import Logger
 
 class Daemon(TaskManager):
-	def __init__(self, loop, server):
-		TaskManager.__init__(self, loop, server)
+	def __init__(self, loop, broadcaster):
+		TaskManager.__init__(self, loop, broadcaster)
 
 
 	def start_task(self, task):
@@ -26,7 +26,8 @@ class Daemon(TaskManager):
 				await adapted_cb(dict())
 
 		async def on_output(task, output): pass
-		task.run(self.loop, args, on_output, on_finish)
+		task.run(self.loop, self.broadcaster, args,
+			on_output, on_finish)
 
 
 	async def execute_tasks(self):

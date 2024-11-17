@@ -76,7 +76,7 @@ class Server:
 			self.update_modules)
 
 		self.broadcaster = Broadcaster()
-		self.parameter_factory = ParameterFactory(base_parameters)
+		self.parametering = ParameterFactory(base_parameters)
 		self.filter_collection = FilterCollection()
 
 		self.builtin_services = dict()
@@ -93,9 +93,9 @@ class Server:
 			start_logging(self.loaded_settings)
 
 			await self.http_handler.init(self.loaded_settings)
-			await self.parameter_factory.init(self.loaded_settings)
+			await self.parametering.init(self.loaded_settings)
 			await self.filter_collection.init(self.loaded_settings,
-				self.parameter_factory)
+				self.parametering)
 
 			await self.load_builtin_modules()
 			await self.load_user_modules()
@@ -114,15 +114,15 @@ class Server:
 			self.scheduler.stop()
 
 			await self.daemon.stop()
-			await self.parameter_factory.shutdown()
+			await self.parametering.shutdown()
 			stop_logging()
 
 		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
 		self.http_handler = http.HttpHandler(self.broadcaster)
 
 		self.loop = uvloop.new_event_loop()
-		self.scheduler = Scheduler(self.loop, self)
-		self.daemon = Daemon(self.loop, self)
+		self.scheduler = Scheduler(self.loop, self.broadcaster)
+		self.daemon = Daemon(self.loop, self.broadcaster)
 
 	#-------------------------------------------------------------------------------
 
@@ -145,7 +145,7 @@ class Server:
 			context = { 'loaded_settings': self.loaded_settings }
 
 			try:
-				context = await self.parameter_factory.prepare_context(initializer, context)
+				context = await self.parametering.prepare_context(initializer, context)
 				wrapped_fnc = async_adapter(adapter(initializer))
 				specs = await wrapped_fnc(context)
 				if specs is None:
@@ -173,7 +173,7 @@ class Server:
 
 			finally:
 				for parameter, value in context.items():
-					await self.parameter_factory.destroy(parameter,
+					await self.parametering.destroy(parameter,
 						value)
 
 	#-------------------------------------------------------------------------------
@@ -217,17 +217,17 @@ class Server:
 
 			try:
 				method, path, processor = routing_destructor(specs)
-				unknown_dep = self.parameter_factory.has_unknown_parameters(
-					processor)
+				unknown_dep = self.parametering.unknown_deps(processor)
 
-				if unknown_dep is not None:
-					msg = f"'{method} {path}' disabled due to missing parameter '{unknown_dep}'"
-					Logger.warning(msg)
-					continue
+				try:
+					if unknown_dep is not None:
+						msg = f"missing parameter '{unknown_dep}'"
+						raise ParameterException(msg)
 
-				try: wrappers = self.parameter_factory.create_wrappers(processor)
+					wrappers = self.parametering.create_wrappers(processor)
+
 				except ParameterException as e:
-					Logger.warning(f"'{method} {path}' has a problem: {e}")
+					Logger.warning(f"'{method} {path}' disabled: {e}")
 					continue
 
 				pre_processor, post_processor = wrappers
@@ -241,8 +241,8 @@ class Server:
 
 				for should_enable, allower in filter_list:
 					if should_enable(specs):
+						preproc, postproc = self.parametering.create_wrappers(allower)
 						filtering.append(async_adapter(adapter(allower)))
-						preproc, postproc = self.parameter_factory.create_wrappers(allower)
 						if preproc is not None: pre_filtering.append(preproc)
 						if postproc is not None: post_filtering.append(postproc)
 

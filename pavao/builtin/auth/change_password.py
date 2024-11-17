@@ -58,9 +58,7 @@ async def process(request, response, db_connection, auth_data, parsed_json):
 
 #-------------------------------------------------------------------------------
 
-def pavao_endpoint(db_connection):
-	if db_connection is None:
-		return
+def pavao_endpoint():
 
 	return {
 		'method': 'POST',

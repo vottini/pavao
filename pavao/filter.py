@@ -41,6 +41,12 @@ class FilterCollection:
 		collected_filters = dict()
 		for name, instance in found_filters:
 			await instance.init(loaded_settings)
+			missing_dep = parameter_factory.unknown_deps(instance.allow)
+
+			if missing_dep is not None:
+				Logger.info(f"Filter '{name}' found but has missing parameter '{missing_dep}'")
+				continue
+
 			collected_filters[name] = instance
 			Logger.info(f"Filter '{name}' loaded")
 

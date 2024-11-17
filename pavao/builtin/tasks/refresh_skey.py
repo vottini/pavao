@@ -5,15 +5,17 @@ import pavao
 
 from tasks.common import localizer
 
-async def proccess():
+async def proccess(authorizer):
 	validity = datetime.timedelta(days=5)
-	pavao.refresh_secret_key(validity)
+	authorizer.refresh_secret_key(validity)
 	yield "Secret key refreshed"
 
 
-def pavao_task(db_connection):
-	if db_connection is None:
-		return
+#@pavao.enabled_case(
+#	"configuration": "pavao.auth.enabled",
+#	"parameters": ['authorizer']
+#)
+def pavao_task():
 
 	return {
 		'package': "Pavão",

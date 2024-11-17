@@ -89,8 +89,8 @@ async def wait_whole_minute():
 #-------------------------------------------------------------------------------
 
 class Scheduler(TaskManager):
-	def __init__(self, loop, server):
-		TaskManager.__init__(self, loop, server)
+	def __init__(self, loop, broadcaster):
+		TaskManager.__init__(self, loop, broadcaster)
 		self.ctor = SchedulableTask
 
 
@@ -106,13 +106,12 @@ class Scheduler(TaskManager):
 					task_ident, success, start, end)
 
 		args = {
-			'db_pool': self.db_pool,
-			'broadcasting': self.broadcaster,
-			'server': self.server
+			'broadcasting': self.broadcaster
 		}
 
 		async def on_output(task, output): task.append_output(output)
-		task.run(self.loop, args, on_output, on_finish)
+		task.run(self.loop, self.broadcaster, args,
+			on_output, on_finish)
 
 	#--------------------------------------------------------
 

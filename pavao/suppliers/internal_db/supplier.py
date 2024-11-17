@@ -32,7 +32,7 @@ async def create_stored_settings(sqlite_cursor):
 	return PersistedSettings(sqlite_cursor)
 
 
-class SqlConnectionSupplier(pavao.ParameterSupplier):
+class SqliteSupplier(pavao.ParameterSupplier):
 	def __init__(self):
 		self.db_name = None
 		self.connection = None

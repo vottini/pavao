@@ -7,8 +7,7 @@ count_admin_roles = pavao.include('queries/count_admin_roles.sql')
 blueprints = pavao.path_to('blueprints.jbp')
 
 @pavao.generates_json(file_blueprint=blueprints, with_root="userInfo")
-async def process(server, request, db_connection, auth_data):
-	authorizer = server.authorizer
+async def process(authorizer, request, db_connection, auth_data):
 	user_id = auth_data.account_id
 
 	user_info = await db_connection.fetchrow(select_user, user_id)
@@ -26,9 +25,7 @@ async def process(server, request, db_connection, auth_data):
 		id=user_id)
 
 
-def pavao_endpoint(db_connection):
-	if db_connection is None:
-		return
+def pavao_endpoint():
 
 	return {
 		'method': 'GET',

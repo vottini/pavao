@@ -30,7 +30,7 @@ class LifespanHandler:
 
 		except Exception as e:
 			Logger.error(f"Exception occured during startup: {e}")
-			print(traceback.format_exc())
+			#print(traceback.format_exc())
 
 			try: await _secure_call(self.shutdown_callback)
 			finally: await send({'type': 'lifespan.startup.failed'})
@@ -45,7 +45,7 @@ class LifespanHandler:
 
 		except Exception as e:
 			Logger.error(f"Exception occured during shutdown: {e}")
-			print(traceback.format_exc())
+			#print(traceback.format_exc())
 
 			await send({'type': 'lifespan.shutdown.failed'})
 

@@ -126,10 +126,7 @@ async def process(request, response, db_connection, parsed_json):
 
 #-------------------------------------------------------------------------------
 
-async def pavao_endpoint(db_connection, loaded_settings):
-	if db_connection is None:
-		return
-
+async def pavao_endpoint(loaded_settings):
 	await credentials.setup(loaded_settings)
 
 	return {
