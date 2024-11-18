@@ -7,6 +7,7 @@ from .task import TaskException, TaskProblem, Task, TaskManager
 class SchedulableTask(Task):
 	def __init__(self, source, specs):
 		Task.__init__(self, source, specs)
+
 		self.schedule = specs['schedule']
 		self.current_output = list()
 		self.next_execution = None
@@ -187,7 +188,7 @@ class Scheduler(TaskManager):
 
 	#--------------------------------------------------------
 
-	def stop(self):
+	async def stop(self):
 		if self.executor is not None:
 			self.executor.cancel()
 			self.executor = None

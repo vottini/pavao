@@ -179,7 +179,8 @@ class Task:
 
 	def run(self, loop, broadcaster, args, on_output, on_finish=None):
 		self.cancel_if_executing()
-		task_future = self.create_future(broadcaster, args, on_output, on_finish)
+
+		task_future = self.create_future(broadcaster,	args, on_output, on_finish)
 		self.execution = loop.create_task(task_future())
 
 #-------------------------------------------------------------------------------
@@ -196,29 +197,13 @@ class TaskManager:
 
 	#--------------------------------------------------------
 
-	async def execute_tasks(self):
-		...
+	async def execute_tasks(self): ...
+	async def stop(self): ...
 
 	#--------------------------------------------------------
 
-	def parse_tasks(self, modules):
-		tasks = list()
-
-		for file_path, spec in modules.items():
-
-			try:
-				taskData = self.ctor(file_path, spec)
-				tasks.append(taskData)
-
-			except KeyError as e:
-				msg = f"Incomplete spec in '{file_path}': missing field {e}"
-				Logger.warning(msg)
-				continue
-
-			except TaskException as e:
-				msg = f"Invalid task at '{file_path}': {e}"
-				Logger.warning(msg)
-				continue
+	async def set_tasks(self, tasks):
+		await self.stop()
 
 		self.loaded_tasks = tasks
 

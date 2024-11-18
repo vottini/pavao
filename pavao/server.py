@@ -100,8 +100,18 @@ class Server:
 			await self.load_builtin_modules()
 			await self.load_user_modules()
 
-			self.scheduler.parse_tasks({**self.builtin_tasks, **self.external_tasks})
-			self.daemon.parse_tasks({**self.builtin_services, **self.external_services})
+			await self.scheduler.set_tasks(
+				self.parse_tasks(
+					{**self.builtin_tasks, **self.external_tasks},
+					self.scheduler.ctor
+			))
+
+			await self.daemon.set_tasks(
+				self.parse_tasks(
+					{**self.builtin_services, **self.external_services},
+					self.daemon.ctor
+			))
+
 			await self.register_endpoints()
 
 			self.monitor.schedule_execution(self.loop)
@@ -111,10 +121,11 @@ class Server:
 		async def stop():
 			Logger.info("Stopping Pavão...")
 			self.monitor.stop()
-			self.scheduler.stop()
 
+			await self.scheduler.stop()
 			await self.daemon.stop()
 			await self.parametering.shutdown()
+
 			stop_logging()
 
 		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
@@ -256,9 +267,8 @@ class Server:
 				registry.add_endpoint(method, path, endpoint)
 
 			except Exception as e:
-				msg = f"Unable to add endpoint: {e}"
-				Logger.error(traceback.format_exc())
-				Logger.warning(msg)
+				Logger.warning(f"Unable to add endpoint: {e}")
+				#Logger.error(traceback.format_exc())
 				continue
 
 		await self.http_handler.update_registry(registry)
@@ -325,17 +335,41 @@ class Server:
 		asyncio.run_coroutine_threadsafe(self.restart_tasks(), self.loop)
 
 
+	def parse_tasks(self, modules, ctor):
+		tasks = list()
+
+		for file_path, spec in modules.items():
+
+			try:
+				task_data = ctor(file_path, spec)
+				tasks.append(task_data)
+
+			except KeyError as e:
+				msg = f"Incomplete spec in '{file_path}': missing field {e}"
+				Logger.warning(msg)
+				continue
+
+			except Exception as e:
+				msg = f"Invalid task at '{file_path}': {e}"
+				Logger.warning(msg)
+				continue
+
+		return tasks
+
+
 	async def restart_tasks(self):
-		self.scheduler.stop()
-		self.scheduler.parse_tasks({
-			**self.builtin_tasks,
-			**self.external_tasks}
+		await self.scheduler.set_tasks(
+			self.parse_tasks(
+				{ **self.builtin_tasks, **self.external_tasks },
+				self.scheduler.ctor
+			)
 		)
 
-		await self.daemon.stop()
-		self.daemon.parse_tasks({
-			**self.builtin_services,
-			**self.external_services}
+		await self.daemon.set_tasks(
+			self.parse_tasks(
+				{ **self.builtin_services, **self.external_services },
+				self.daemon.ctor
+			)
 		)
 
 	#-------------------------------------------------------------------------------

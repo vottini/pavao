@@ -42,12 +42,13 @@ class Daemon(TaskManager):
 
 
 	async def stop(self):
-		for task in self.loaded_tasks:
-			if task.execution is not None:
-				task.execution.cancel()
-				await task.execution
+		if self.executor is not None:
+			for task in self.loaded_tasks:
+				if task.execution is not None:
+					task.execution.cancel()
+					await task.execution
 
-		self.executor.cancel()
-		await self.executor
-		self.executor = None
+			self.executor.cancel()
+			await self.executor
+			self.executor = None
 
