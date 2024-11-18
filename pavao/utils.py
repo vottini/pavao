@@ -13,6 +13,7 @@ def deduce_parameters(fnc):
 	start_index = 1 if bound_method else 0
 	return variables[start_index:n_params]
 
+#-------------------------------------------------------------------------------
 
 def adapter(fnc, possibly_asynchronous=True):
 	fnc_params = deduce_parameters(fnc)
@@ -37,7 +38,6 @@ def adapter(fnc, possibly_asynchronous=True):
 
 	return wrapped_call
 
-#-------------------------------------------------------------------------------
 
 def async_adapter(fnc):
 	asynchronous = inspect.iscoroutinefunction(fnc)

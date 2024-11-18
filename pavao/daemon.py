@@ -10,6 +10,14 @@ class Daemon(TaskManager):
 		TaskManager.__init__(self, loop, broadcaster)
 
 
+	def get_base_context(self):
+
+		return {
+			'broadcasting',
+			'on_finish'
+		}
+
+
 	def start_task(self, task):
 		finish_callbacks = list()
 		def add_finish_callback(callback):

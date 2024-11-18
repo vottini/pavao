@@ -270,7 +270,7 @@ class ParameterFactory:
 				return parameter
 
 
-	def change_base_parameters(self, base_parameters):
+	def change_base(self, base_parameters):
 		result = ParameterFactory(base_parameters)
 
 		result.suppliers = self.suppliers

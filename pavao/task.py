@@ -71,18 +71,18 @@ class Task:
 
 
 	def __init__(self, source, specs):
-		processor = specs['processor']
-		if not inspect.isasyncgenfunction(processor):
-			raise TaskException("Not an async generator")
+		self.processor = specs['processor']
+		if not inspect.isasyncgenfunction(self.processor):
+			raise TaskException("'processor' is not an async generator")
+
+		self.function = adapter(self.processor,
+			possibly_asynchronous=False)
 
 		self.source = source
 		self.package = specs.get('package')
 		self.name = specs['name']
 
 		self.enabled = True
-		self.function = adapter(processor,
-			possibly_asynchronous=False)
-
 		self.ident = Task.generate_ident()
 		self.execution = None
 
@@ -117,7 +117,8 @@ class Task:
 
 	#----------------------------------------------------------------------------
 
-	def create_future(self, broadcaster, args, on_output, on_finish):
+	def create_future(self, broadcaster, context,
+		on_output, on_finish):
 
 		async def process_output(output):
 			await on_output(self, output)
@@ -134,7 +135,7 @@ class Task:
 			)
 
 			try:
-				async for output in self.function(args):
+				async for output in self.function(context):
 					if output is not None:
 						await process_output(output)
 						await broadcaster.write_message(
@@ -177,10 +178,14 @@ class Task:
 		return True
 
 
-	def run(self, loop, broadcaster, args, on_output, on_finish=None):
-		self.cancel_if_executing()
+	def run(self, loop, broadcaster, context,
+		on_output, on_finish=None):
 
-		task_future = self.create_future(broadcaster,	args, on_output, on_finish)
+		self.cancel_if_executing()
+		task_future = self.create_future(
+			broadcaster, context,
+			on_output, on_finish)
+
 		self.execution = loop.create_task(task_future())
 
 #-------------------------------------------------------------------------------
@@ -199,6 +204,9 @@ class TaskManager:
 
 	async def execute_tasks(self): ...
 	async def stop(self): ...
+
+	def get_base_context(self):
+		return set()
 
 	#--------------------------------------------------------
 

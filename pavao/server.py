@@ -103,13 +103,13 @@ class Server:
 			await self.scheduler.set_tasks(
 				self.parse_tasks(
 					{**self.builtin_tasks, **self.external_tasks},
-					self.scheduler.ctor
+					self.scheduler
 			))
 
 			await self.daemon.set_tasks(
 				self.parse_tasks(
 					{**self.builtin_services, **self.external_services},
-					self.daemon.ctor
+					self.daemon
 			))
 
 			await self.register_endpoints()
@@ -335,13 +335,36 @@ class Server:
 		asyncio.run_coroutine_threadsafe(self.restart_tasks(), self.loop)
 
 
-	def parse_tasks(self, modules, ctor):
+	def parse_tasks(self, modules, manager):
 		tasks = list()
 
 		for file_path, spec in modules.items():
+			task_parametering = self.parametering.change_base(
+				manager.get_base_context())
 
 			try:
-				task_data = ctor(file_path, spec)
+				task_data = manager.ctor(file_path, spec)
+				unknown_dep = task_parametering.unknown_deps(
+					task_data.processor)
+
+				try:
+					if unknown_dep is not None:
+						msg = f"missing parameter '{unknown_dep}'"
+						raise ParameterException(msg)
+
+					wrappers = task_parametering.create_wrappers(
+						task_data.processor)
+
+				except ParameterException as e:
+					short_path = os.path.relpath(file_path, self.modules_dir)
+					Logger.warning(f"'{short_path}' disabled: {e}")
+					continue
+
+				pre_processor, post_processor = wrappers
+				full_processing = WrappedFunction(pre_processor,
+					adapter(task_data.processor, False),
+					post_processor)
+
 				tasks.append(task_data)
 
 			except KeyError as e:
@@ -350,8 +373,8 @@ class Server:
 				continue
 
 			except Exception as e:
-				msg = f"Invalid task at '{file_path}': {e}"
-				Logger.warning(msg)
+				short_path = os.path.relpath(file_path, self.modules_dir)
+				Logger.warning(f"Problem with task in file '{short_path}': {e}")
 				continue
 
 		return tasks
@@ -361,14 +384,14 @@ class Server:
 		await self.scheduler.set_tasks(
 			self.parse_tasks(
 				{ **self.builtin_tasks, **self.external_tasks },
-				self.scheduler.ctor
+				self.scheduler
 			)
 		)
 
 		await self.daemon.set_tasks(
 			self.parse_tasks(
 				{ **self.builtin_services, **self.external_services },
-				self.daemon.ctor
+				self.daemon
 			)
 		)
 

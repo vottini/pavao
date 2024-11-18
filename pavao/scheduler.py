@@ -95,6 +95,10 @@ class Scheduler(TaskManager):
 		self.ctor = SchedulableTask
 
 
+	def get_base_context(self):
+		return { 'broadcasting' }
+
+
 	def start_task(self, task):
 		start = datetime.now(timezone.utc)
 
@@ -110,8 +114,11 @@ class Scheduler(TaskManager):
 			'broadcasting': self.broadcaster
 		}
 
-		async def on_output(task, output): task.append_output(output)
-		task.run(self.loop, self.broadcaster, args,
+		async def on_output(task, output):
+			task.append_output(output)
+
+		task.run(self.loop,
+			self.broadcaster, args,
 			on_output, on_finish)
 
 	#--------------------------------------------------------
