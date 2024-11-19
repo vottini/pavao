@@ -139,37 +139,17 @@ class HttpHandler:
 				return
 
 			endpoint, path_variables = found_endpoint
-			#	has_access, validation_outcome = await self.authorizer.validate_access(
-			#		request, endpoint)
 
-			#if not has_access:
-			#	if validation_outcome in (
-			#		AuthError.MISSING_TOKEN,
-			#		AuthError.INVALID_TOKEN,
-			#		AuthError.EXPIRED_AUTH,
-			#		AuthError.BLOCKED_USER
-			#	): status = 401
-
-			#	if validation_outcome is AuthError.NOT_ALLOWED: status = 403
-			#	if validation_outcome is AuthError.DISABLED_ENDPOINT: status = 410
-
-			#	failure_status = validation_outcome
-			#	response.set_status(status)
-			#	await emit(response)
-			#	return
-
-			#auth_data = validation_outcome
-			#broadcasting = self.server.broadcaster
-
-			default_context = {
+			http_context = {
 				'request': request,
 				'response': response,
+				'endpoint': endpoint,
 				'path_variables': path_variables,
 				'broadcasting': self.broadcasting,
 				'receive': receive
 			}
 
-			await endpoint.function(default_context)
+			await endpoint.function(http_context)
 			await emit(response)
 
 		except Exception as e:

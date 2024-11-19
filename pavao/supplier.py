@@ -71,7 +71,7 @@ class ParameterFactory:
 
 				self.parameters[parameter] = methods
 
-			supplied_lst = ",".join(supplied.keys())
+			supplied_lst = ", ".join(supplied.keys())
 			Logger.info(f"Supplier '{name}' ({supplied_lst}) loaded")
 
 		# scan each parameter's dependencies
@@ -158,6 +158,25 @@ class ParameterFactory:
 		produced.add(parameter)
 
 
+	def _collect_deps(self, parameter, generation_order, available_parameters):
+		if parameter in available_parameters:
+			return parameter
+
+		parameter_deps = self.dependencies[parameter]
+		missing_deps = set(parameter_deps) - available_parameters
+
+		if len(missing_deps) == 0:
+			available_parameters.add(parameter)
+			generation_order.append(parameter)
+			return parameter
+
+		for dep in missing_deps:
+			built = self._collect_deps(dep, generation_order, available_parameters)
+			if built is not None: return built
+
+		return None
+
+
 	def create_wrappers(self, fnc):
 		dependencies = deduce_parameters(fnc)
 		generated_dependencies = set(dependencies) - self.base_parameters
@@ -177,19 +196,20 @@ class ParameterFactory:
 		generation_order = list(simple_deps)
 
 		while len(remaining_deps) > 0:
+			built = set()
+
 			for parameter in remaining_deps:
-				parameter_deps = self.dependencies[parameter]
-				missing_deps = set(parameter_deps) - available_parameters
+				collected = self._collect_deps(parameter, generation_order,
+					available_parameters)
 
-				if len(missing_deps) == 0:
-					available_parameters.add(parameter)
-					generation_order.append(parameter)
-					remaining_deps.remove(parameter)
-					break
+				if collected is not None:
+					built.add(collected)
 
-			else:
+			if len(built) == 0:
 				msg = f"Unable to create any of these parameters: {remaining_deps}"
 				raise ParameterException(msg)
+
+			remaining_deps -= built
 
 		if len(generation_order) > 0:
 			destruction_order = reversed(generation_order)

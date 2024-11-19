@@ -2,16 +2,33 @@
 import asyncio
 import pavao
 
+pavao.import_module('authorizer')
+pavao.import_module('common')
+
+
 class AuthFilter(pavao.RequestFilter):
 	async def init(self, loaded_settings):
-		pass
+		common.process_config(loaded_settings)
 
 
 	def enabled(self, endpoint_specs):
+		if not common.enabled: return False
+		if endpoint_specs.get('public') is True: return False
 		return True
 
 
-	async def allow(self, request, response, authorizer):
-		print(authorizer)
-		return True
+	async def allow(self, access_validation, response):
+		has_access, validation_outcome = access_validation
+		if has_access: return True
 
+		if validation_outcome in (
+			authorizer.AuthError.MISSING_TOKEN,
+			authorizer.AuthError.INVALID_TOKEN,
+			authorizer.AuthError.EXPIRED_AUTH,
+			authorizer.AuthError.BLOCKED_USER
+		): status = 401
+
+		if validation_outcome is authorizer.AuthError.NOT_ALLOWED: status = 403
+		if validation_outcome is authorizer.AuthError.DISABLED_ENDPOINT: status = 410
+		response.set_status(status)
+		return False

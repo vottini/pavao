@@ -34,6 +34,7 @@ routing_destructor = operator.itemgetter(
 base_parameters = {
 	'request',
 	'response',
+	'endpoint',
 	'path_variables',
 	'broadcasting',
 	'receive'
@@ -236,35 +237,35 @@ class Server:
 						raise ParameterException(msg)
 
 					wrappers = self.parametering.create_wrappers(processor)
+					pre_processor, post_processor = wrappers
+
+					endpoint_processing = WrappedFunction(pre_processor,
+						async_adapter(adapter(processor)),
+						post_processor)
+
+					filtering = list()
+					pre_filtering = list()
+					post_filtering = list()
+
+					for should_enable, allower in filter_list:
+						if should_enable(specs):
+							preproc, postproc = self.parametering.create_wrappers(allower)
+							filtering.append(async_adapter(adapter(allower)))
+							if preproc is not None: pre_filtering.append(preproc)
+							if postproc is not None: post_filtering.append(postproc)
+
+					post_filtering = reversed(post_filtering)
+					full_processing = create_processing_pipeline(
+						pre_filtering, filtering,
+						endpoint_processing,
+						post_filtering)
+
+					endpoint = EndpointData(full_processing, specs)
+					registry.add_endpoint(method, path, endpoint)
 
 				except ParameterException as e:
 					Logger.warning(f"'{method} {path}' disabled: {e}")
 					continue
-
-				pre_processor, post_processor = wrappers
-				endpoint_processing = WrappedFunction(pre_processor,
-					async_adapter(adapter(processor)),
-					post_processor)
-
-				filtering = list()
-				pre_filtering = list()
-				post_filtering = list()
-
-				for should_enable, allower in filter_list:
-					if should_enable(specs):
-						preproc, postproc = self.parametering.create_wrappers(allower)
-						filtering.append(async_adapter(adapter(allower)))
-						if preproc is not None: pre_filtering.append(preproc)
-						if postproc is not None: post_filtering.append(postproc)
-
-				post_filtering = reversed(post_filtering)
-				full_processing = create_processing_pipeline(
-					pre_filtering, filtering,
-					endpoint_processing,
-					post_filtering)
-
-				endpoint = EndpointData(full_processing, specs)
-				registry.add_endpoint(method, path, endpoint)
 
 			except Exception as e:
 				Logger.warning(f"Unable to add endpoint: {e}")

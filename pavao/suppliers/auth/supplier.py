@@ -2,17 +2,21 @@
 import asyncio
 import pavao
 
-auth_schema = {
-	"enabled": False
-}
-
 pavao.import_module('token')
 pavao.import_module('authorizer')
+pavao.import_module('common')
 
 #-------------------------------------------------------------------------------
 
-async def validate_request(request):
-	return None
+async def validate_access(request, endpoint, authorizer):
+	has_access, validation_outcome = authorizer.validate_access(request, endpoint)
+	return has_access, validation_outcome
+
+
+async def select_data(access_validation):
+	has_access, validation_outcome = access_validation
+	return validation_outcome if has_access else None
+
 
 async def retrieve_authorizer():
 	return authorizer.instance
@@ -20,40 +24,33 @@ async def retrieve_authorizer():
 #-------------------------------------------------------------------------------
 
 class AuthSupplier(pavao.ParameterSupplier):
-	def __init__(self):
-		self.enabled = False
-
-
 	def configure(self, loaded_settings):
-		auth_settings = loaded_settings.get_setting("pavao.auth", auth_schema)
-		if auth_settings is not None and auth_settings['enabled']:
-			pavao.Logger.info("Builtin auth system enabled")
-			self.enabled = True
+		common.process_config(loaded_settings)
 
 
 	async def initialize(self, db_connection):
-		if not self.enabled:
+		if not common.enabled:
 			return
 
 
 	def parameters_supplied(self):
-		if not self.enabled:
+		if not common.enabled:
 			return dict()
 
 		return {
 			'access_validation': [
-				validate_request,
+				validate_access,
 				None
 			],
 
 			'auth_data': [
-				validate_request,
+				select_data,
 				None
 			],
 
 			'authorizer': [
 				retrieve_authorizer,
 				None
-			],
+			]
 		}
 

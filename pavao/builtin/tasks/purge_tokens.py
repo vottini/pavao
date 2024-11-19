@@ -15,15 +15,12 @@ purge_query = """
 
 """
 
-async def proccess(db_pool):
-	async with db_pool.connection() as connection:
-		purged = await connection.fetchval(purge_query)
-		yield f"{purged} refresh token(s) purged"
+async def proccess(db_connection):
+	purged = await connection.fetchval(purge_query)
+	yield f"{purged} refresh token(s) purged"
 
 
-def pavao_task(db_connection):
-	if db_connection is None:
-		return
+def pavao_task():
 
 	return {
 		'package': "Pavão",
