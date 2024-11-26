@@ -8,9 +8,9 @@ pavao.import_module('common')
 
 #-------------------------------------------------------------------------------
 
-async def validate_access(request, endpoint, authorizer):
-	has_access, validation_outcome = authorizer.validate_access(request, endpoint)
-	return has_access, validation_outcome
+async def validate_access(request, endpoint_specs, authorizer):
+	return await authorizer.validate_access(request,
+		endpoint_specs)
 
 
 async def select_data(access_validation):
@@ -29,8 +29,9 @@ class AuthSupplier(pavao.ParameterSupplier):
 
 
 	async def initialize(self, db_connection):
-		if not common.enabled:
-			return
+		if not common.enabled: return
+		await authorizer.instance.setup(
+			db_connection)
 
 
 	def parameters_supplied(self):

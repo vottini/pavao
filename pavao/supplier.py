@@ -212,7 +212,8 @@ class ParameterFactory:
 			remaining_deps -= built
 
 		if len(generation_order) > 0:
-			destruction_order = reversed(generation_order)
+			reversed_generation = reversed(generation_order)
+			destruction_order = tuple(reversed_generation)
 
 			async def creation(context):
 				for parameter in generation_order:

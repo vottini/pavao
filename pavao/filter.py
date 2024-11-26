@@ -19,7 +19,12 @@ class RequestFilter:
 #-------------------------------------------------------------------------------
 
 def create_specs(filter_instance):
-	return (filter_instance.enabled, filter_instance.allow)
+
+	return (
+		filter_instance.__class__.__name__,
+		filter_instance.enabled,
+		filter_instance.allow
+	)
 
 
 class FilterCollection:
@@ -44,7 +49,8 @@ class FilterCollection:
 			missing_dep = parameter_factory.unknown_deps(instance.allow)
 
 			if missing_dep is not None:
-				Logger.info(f"Filter '{name}' found but has missing parameter '{missing_dep}'")
+				msg = f"Filter '{name}' found but has missing parameter '{missing_dep}'"
+				Logger.info(msg)
 				continue
 
 			collected_filters[name] = instance

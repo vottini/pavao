@@ -75,12 +75,11 @@ class WrappedFunction:
 
 	async def __call__(self, context):
 		if self.preprocessor is None:
-			await self.processor(context)
-			return
+			return await self.processor(context)
 
 		try:
 			await self.preprocessor(context)
-			await self.processor(context)
+			return await self.processor(context)
 
 		finally:
 			if self.postprocessor is not None:

@@ -5,6 +5,7 @@ import uvloop
 import traceback
 import operator
 
+from .exception import PavaoException
 from .config import load_settings
 from .logger import Logger, start_logging, stop_logging
 from .utils import adapter, async_adapter, remove_prefix, WrappedFunction
@@ -34,7 +35,7 @@ routing_destructor = operator.itemgetter(
 base_parameters = {
 	'request',
 	'response',
-	'endpoint',
+	'endpoint_specs',
 	'path_variables',
 	'broadcasting',
 	'receive'
@@ -217,14 +218,33 @@ class Server:
 	#-------------------------------------------------------------------------------
 
 	async def register_endpoints(self):
-		filter_list = self.filter_collection.list_filters()
-		registry = Registry()
+		all_filters = self.filter_collection.list_filters()
+		enabler_parametering = self.parametering.change_base(
+			{'endpoint_specs'}
+		)
+
+		filter_list = list()
+		for classname, enabler, allower in all_filters:
+
+			try:
+				pre_enabler, post_enabler = enabler_parametering.create_wrappers(enabler)
+				wrapped_enabler = WrappedFunction(pre_enabler,
+					async_adapter(adapter(enabler)),
+					post_enabler)
+
+				filter_list.append((wrapped_enabler, allower))
+
+			except ParameterException as e:
+				Logger.error(f"Unable to use filter {classname}: {e}")
+				Logger.error(traceback.format_exc())
+				raise e
 
 		all_specs = [
 			*self.builtin_endpoints.values(),
 			*self.external_endpoints.values()
 		]
 
+		registry = Registry()
 		for specs in all_specs:
 
 			try:
@@ -247,8 +267,11 @@ class Server:
 					pre_filtering = list()
 					post_filtering = list()
 
-					for should_enable, allower in filter_list:
-						if should_enable(specs):
+					for wrapped_enabler, allower in filter_list:
+						context = { 'endpoint_specs': specs }
+						should_enable = await wrapped_enabler(context)
+
+						if should_enable:
 							preproc, postproc = self.parametering.create_wrappers(allower)
 							filtering.append(async_adapter(adapter(allower)))
 							if preproc is not None: pre_filtering.append(preproc)
@@ -269,7 +292,7 @@ class Server:
 
 			except Exception as e:
 				Logger.warning(f"Unable to add endpoint: {e}")
-				#Logger.error(traceback.format_exc())
+				Logger.error(traceback.format_exc())
 				continue
 
 		await self.http_handler.update_registry(registry)

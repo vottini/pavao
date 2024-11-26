@@ -1,22 +1,22 @@
 
 import re
 import asyncio
+import pavao
 
-from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
+from dataclasses import dataclass
+from pavao import LazyLocalizer
 
-from pavao import import_module, include, LazyLocalizer
-import_module('token')
+list_roles_accesses = pavao.include("./queries/list_roles_accesses.sql")
+list_functionality_roles = pavao.include("./queries/list_functionality_roles.sql")
+assert_functionality_exists = pavao.include("./queries/assert_functionality_exists.sql")
+set_active_functionalities = pavao.include("./queries/set_active_functionalities.sql")
+list_disabled_functionalities = pavao.include("./queries/list_disabled_functionalities.sql")
+enable_functionality = pavao.include("./queries/enable_functionality.sql")
+retrieve_functionality = pavao.include("./queries/retrieve_functionality.sql")
 
-list_roles_accesses = include("./queries/list_roles_accesses.sql")
-list_functionality_roles = include("./queries/list_functionality_roles.sql")
-assert_functionality_exists = include("./queries/assert_functionality_exists.sql")
-set_active_functionalities = include("./queries/set_active_functionalities.sql")
-list_disabled_functionalities = include("./queries/list_disabled_functionalities.sql")
-enable_functionality = include("./queries/enable_functionality.sql")
-retrieve_functionality = include("./queries/retrieve_functionality.sql")
-
+pavao.import_module('token')
 _bearer_pattern = re.compile(r"^Bearer (\S+)$")
 
 class AuthError:
@@ -60,7 +60,7 @@ class Authorizer:
 		self.blacklisted = dict()
 
 
-	async def setup(self, db_connection, funcs):
+	async def setup(self, db_connection):
 		self.disabled = set(await db_connection.fetch(list_disabled_functionalities))
 		accesses = await db_connection.fetch(list_roles_accesses)
 
@@ -69,27 +69,29 @@ class Authorizer:
 			func_set.add((package, functionality))
 			self.roles_access[role_id] = func_set
 
-		verified_ids = [
-			await db_connection.fetchval(
-				assert_functionality_exists,
-				get_identity(package),
-				get_identity(functionality)
-			)
-
-			for package, functionality in funcs
-		]
-
-		await db_connection.execute(
-			set_active_functionalities,
-			verified_ids)
-
-		self.functionalities = dict()
-		for package, functionality in funcs:
-			ident = (get_identity(package), get_identity(functionality))
-			self.functionalities[ident] = functionality
-			self.packages[ident[0]] = package
-
 	#--------------------------------------------------------------------------
+
+	async def register_functionality(self, endpoint_specs, db_connection):
+		functionality = endpoint_specs.get("functionality")
+		if functionality is None:
+			return
+
+		package = endpoint_specs.get("package")
+		await db_connection.fetchval(assert_functionality_exists,
+			get_identity(package), get_identity(functionality))
+
+		#await db_connection.execute(
+		#	set_active_functionalities,
+		#	verified_ids)
+
+		ident = (
+			get_identity(package),
+			get_identity(functionality)
+		)
+
+		self.functionalities[ident] = functionality
+		self.packages[ident[0]] = package
+
 
 	def blacklist(self, auth_data):
 		key = (auth_data.account_id, auth_data.token)
@@ -180,17 +182,17 @@ class Authorizer:
 		return False, AuthError.INVALID_TOKEN
 
 
-	async def validate_access(self, request, endpoint):
+	async def validate_access(self, request, endpoint_specs):
+		functionality = endpoint_specs.get('functionality')
 
 		complete_functionality = (
-			get_identity(endpoint.package),
-			get_identity(endpoint.functionality)
+			get_identity(endpoint_specs.get('package')),
+			get_identity(functionality)
 		)
 
 		if complete_functionality in self.disabled:
 			return False, AuthError.DISABLED_ENDPOINT
 
-		if endpoint.public: return True, None
 		validated, outcome = self.grep_token_claims(request)
 		if not validated: return False, outcome
 
@@ -204,7 +206,7 @@ class Authorizer:
 		if (subject, token_id) in self.blacklisted:
 			return False, AuthError.BLOCKED_USER
 
-		if endpoint.functionality is not None:
+		if functionality is not None:
 			for role in parse_roles(token_claims):
 				accesses = self.roles_access.get(role)
 				if accesses is not None and complete_functionality in accesses:

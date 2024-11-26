@@ -143,7 +143,7 @@ class HttpHandler:
 			http_context = {
 				'request': request,
 				'response': response,
-				'endpoint': endpoint,
+				'endpoint_specs': endpoint.all_specs,
 				'path_variables': path_variables,
 				'broadcasting': self.broadcasting,
 				'receive': receive
