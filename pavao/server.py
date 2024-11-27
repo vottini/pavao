@@ -9,7 +9,8 @@ from .exception import PavaoException
 from .config import load_settings
 from .logger import Logger, start_logging, stop_logging
 from .utils import adapter, async_adapter, remove_prefix, WrappedFunction
-from .loader import load_file, load_dir, retrieve_dependees, load_module
+from .loader import load_component, load_components_dir
+from .loader import retrieve_dependees, load_module, load_folder
 from .refresher import PathMonitor
 from .endpoint import EndpointData
 from .registry import Registry
@@ -70,7 +71,9 @@ def create_processing_pipeline(
 #-------------------------------------------------------------------------------
 
 class Server:
-	def __init__(self, config_file, is_default_file, modules_dir):
+	def __init__(self,
+		config_file, is_default_file,
+		foundation_dir, modules_dir):
 
 		self.loaded_settings = None
 		self.modules_dir = os.path.abspath(modules_dir)
@@ -79,38 +82,35 @@ class Server:
 
 		self.broadcaster = Broadcaster()
 		self.parametering = ParameterFactory(base_parameters)
-		self.filter_collection = FilterCollection()
+		self.filtering = FilterCollection()
 
-		self.builtin_services = dict()
-		self.builtin_endpoints = dict()
-		self.builtin_tasks = dict()
-
-		self.external_services = dict()
-		self.external_endpoints = dict()
-		self.external_tasks = dict()
+		self.services = dict()
+		self.endpoints = dict()
+		self.tasks = dict()
 
 		async def init():
 			Logger.info("Starting up Pavão...")
 			self.loaded_settings = load_settings(config_file, is_default_file)
 			start_logging(self.loaded_settings)
 
+			self.load_builtin_foundation()
+			self.load_user_foundation(foundation_dir)
+
 			await self.http_handler.init(self.loaded_settings)
 			await self.parametering.init(self.loaded_settings)
-			await self.filter_collection.init(self.loaded_settings,
+			await self.filtering.init(self.loaded_settings,
 				self.parametering)
 
-			await self.load_builtin_modules()
 			await self.load_user_modules()
-
 			await self.scheduler.set_tasks(
 				self.parse_tasks(
-					{**self.builtin_tasks, **self.external_tasks},
+					self.tasks,
 					self.scheduler
 			))
 
 			await self.daemon.set_tasks(
 				self.parse_tasks(
-					{**self.builtin_services, **self.external_services},
+					self.services,
 					self.daemon
 			))
 
@@ -191,34 +191,33 @@ class Server:
 
 	#-------------------------------------------------------------------------------
 
-	async def load_builtin_modules(self):
-		Logger.info("Loading builtin modules...")
+	def load_builtin_foundation(self):
+		Logger.info("Loading builtin foundation...")
+		basepath = os.path.dirname(os.path.realpath(__file__))
+		base_foundation_path = os.path.join(basepath, "builtin", "foundation")
+		load_folder(base_foundation_path, False)
 
-		script_path = os.path.dirname(os.path.realpath(__file__))
-		builtins_path = os.path.join(script_path, "builtin")
-		script_files = load_dir(builtins_path, False)
 
-		await self.load_modules(
-			self.builtin_endpoints,
-			self.builtin_tasks,
-			self.builtin_services,
-			*script_files)
+	def load_user_foundation(self, foundation_dir):
+		if foundation_dir is not None:
+			Logger.info("Loading user foundation...")
+			load_folder(foundation_dir, True)
 
 
 	async def load_user_modules(self):
 		Logger.info(f"Scanning '{self.modules_dir}'")
-		script_files = load_dir(self.modules_dir, True)
+		script_files = load_components_dir(self.modules_dir, True)
 
 		await self.load_modules(
-			self.external_endpoints,
-			self.external_tasks,
-			self.external_services,
+			self.endpoints,
+			self.tasks,
+			self.services,
 			*script_files)
 
 	#-------------------------------------------------------------------------------
 
 	async def register_endpoints(self):
-		all_filters = self.filter_collection.list_filters()
+		all_filters = self.filtering.list_filters()
 		enabler_parametering = self.parametering.change_base(
 			{'endpoint_specs'}
 		)
@@ -239,13 +238,8 @@ class Server:
 				Logger.error(traceback.format_exc())
 				raise e
 
-		all_specs = [
-			*self.builtin_endpoints.values(),
-			*self.external_endpoints.values()
-		]
-
 		registry = Registry()
-		for specs in all_specs:
+		for specs in self.endpoints.values():
 
 			try:
 				method, path, processor = routing_destructor(specs)
@@ -318,15 +312,15 @@ class Server:
 			to_load |= dependees
 
 		endpoints_and_tasks = [
-			self.external_endpoints,
-			self.external_tasks
+			self.endpoints,
+			self.tasks
 		]
 
 		for file_path in to_unload:
-			if file_path in self.external_services:
+			if file_path in self.services:
 				self.daemon.stop_module(file_path)
 
-				self.external_services.pop(file_path)
+				self.services.pop(file_path)
 				specific_path = remove_prefix(file_path, self.modules_dir)
 				Logger.info(f"Unloaded service from {specific_path}")
 				continue
@@ -344,14 +338,14 @@ class Server:
 
 			collected = list()
 			for file_path in to_load:
-				if (specifier := load_file(file_path, self.modules_dir, True)) is not None:
+				if (specifier := load_component(file_path, self.modules_dir, True)) is not None:
 					collected.append((file_path, specifier))
 
 			if len(collected) > 0:
 				await self.load_modules(
-					self.external_endpoints,
-					self.external_tasks,
-					self.external_services,
+					self.endpoints,
+					self.tasks,
+					self.services,
 					*collected)
 
 		asyncio.run_coroutine_threadsafe(process_loading(), self.loop)
@@ -360,7 +354,7 @@ class Server:
 
 
 	def parse_tasks(self, modules, manager):
-		tasks = list()
+		parsed_tasks = list()
 
 		for file_path, spec in modules.items():
 			task_parametering = self.parametering.change_base(
@@ -389,7 +383,7 @@ class Server:
 					adapter(task_data.processor, False),
 					post_processor)
 
-				tasks.append(task_data)
+				parsed_tasks.append(task_data)
 
 			except KeyError as e:
 				msg = f"Incomplete spec in '{file_path}': missing field {e}"
@@ -401,20 +395,20 @@ class Server:
 				Logger.warning(f"Problem with task in file '{short_path}': {e}")
 				continue
 
-		return tasks
+		return parsed_tasks
 
 
 	async def restart_tasks(self):
 		await self.scheduler.set_tasks(
 			self.parse_tasks(
-				{ **self.builtin_tasks, **self.external_tasks },
+				self.tasks,
 				self.scheduler
 			)
 		)
 
 		await self.daemon.set_tasks(
 			self.parse_tasks(
-				{ **self.builtin_services, **self.external_services },
+				self.services,
 				self.daemon
 			)
 		)

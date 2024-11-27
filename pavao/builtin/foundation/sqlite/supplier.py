@@ -7,6 +7,7 @@ import pavao
 
 config_schema = {
 	"filename": "pavao.db",
+	"persistent": True,
 	"enabled": True
 }
 
@@ -27,7 +28,7 @@ aiosqlite.register_converter('bool', lambda val: val.decode() == 'true')
 
 #-------------------------------------------------------------------------------
 
-pavao.from_module('settings').import_item('PersistedSettings')
+pavao.from_module('persisted_settings').import_item('PersistedSettings')
 async def create_stored_settings(sqlite_cursor):
 	return PersistedSettings(sqlite_cursor)
 

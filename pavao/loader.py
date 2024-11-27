@@ -79,10 +79,8 @@ def load_script(full_path, common_path, verbose):
 
 
 def load_folder(dir_path, verbose=True):
-	files = _find_python_scripts(dir_path)
-	for file_path in files:
-		full_path = os.path.join(dir_path, file_path)
-		load_script(full_path, dir_path, verbose)
+	for file_path in _find_python_scripts(dir_path):
+		load_script(file_path, dir_path, verbose)
 
 #-------------------------------------------------------------------------------
 
@@ -92,7 +90,7 @@ loadable_methods = [
 	('TASK', 'pavao_task', 'task')
 ]
 
-def load_file(full_path, common_path, verbose):
+def load_component(full_path, common_path, verbose):
 	abs_path = os.path.abspath(full_path)
 	module_path = remove_prefix(full_path, common_path)
 	clear_dependencies(abs_path)
@@ -118,7 +116,7 @@ def load_file(full_path, common_path, verbose):
 		return None
 
 
-def load_dir(dir_path, verbose):
+def load_components_dir(dir_path, verbose):
 	files = _find_python_scripts(dir_path)
 	if not dir_path in sys.path:
 		sys.path.insert(0, dir_path)
@@ -126,7 +124,7 @@ def load_dir(dir_path, verbose):
 	loaded = list()
 	for file_path in files:
 		full_path = os.path.join(dir_path, file_path)
-		specifier = load_file(full_path, dir_path, verbose)
+		specifier = load_component(full_path, dir_path, verbose)
 
 		if specifier is not None:
 			loaded.append((full_path, specifier))
@@ -234,8 +232,8 @@ def from_module(relative_path):
 
 __all__ = [
 	"retrieve_dependees",
-	"load_file",
-	"load_dir",
+	"load_component",
+	"load_components_dir",
 	"load_folder",
 	"path_to",
 	"include",

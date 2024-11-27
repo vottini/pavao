@@ -8,7 +8,6 @@ class ParameterException(PavaoException):
 
 from .logger import Logger
 from .utils import deduce_parameters, async_adapter, adapter
-from .loader import load_folder
 
 #------------------------------------------------------------------------------
 
@@ -40,15 +39,7 @@ class ParameterFactory:
 		self.dependencies = dict()
 
 
-	def _load_builtin_suppliers(self, verbose):
-		Logger.info("Loading builtin suppliers...")
-		basepath = os.path.dirname(os.path.realpath(__file__))
-		suppliers_path = os.path.join(basepath, "suppliers")
-		load_folder(suppliers_path, verbose)
-
-
 	async def init(self, loaded_settings, verbose=False):
-		self._load_builtin_suppliers(verbose)
 
 		# find and configure suppliers,
 		# capture parameters and check for
