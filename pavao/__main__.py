@@ -25,10 +25,6 @@ cli_parser.add_argument("--foundation",
 
 action_group = cli_parser.add_mutually_exclusive_group(required=True)
 
-#action_group.add_argument("--init-db",
-#	help="initializes the database using the given language",
-#	action="store", metavar="LANGUAGE", type=str)
-#
 #action_group.add_argument("--create-admin",
 #	help="creates an admin account prompting the user for information",
 #	action="store_true")
@@ -45,23 +41,6 @@ args = cli_parser.parse_args()
 
 #-------------------------------------------------------------------------------
 
-#if (localization := args.init_db) is not None:
-#	available_localizations = setup_database.list_localizations()
-#
-#	if not localization in available_localizations:
-#		print(f"Error: '{localization}' is not an available localization.\n")
-#
-#		print("List of installed localizations:")
-#		for code, localization in available_localizations.items():
-#			print(f"- {code} -> {localization}")
-#
-#		exit(1)
-#
-#	settings = load_settings(args.config_file)
-#	asyncio.run(setup_database.execute(settings, localization))
-#
-##-------------------------------------------------------------------------------
-#
 #import readline
 #from getpass import getpass
 #

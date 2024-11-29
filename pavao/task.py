@@ -117,8 +117,7 @@ class Task:
 
 	#----------------------------------------------------------------------------
 
-	def create_future(self, broadcaster, context,
-		on_output, on_finish):
+	def create_future(self, broadcaster, context, on_output, on_finish):
 
 		async def process_output(output):
 			await on_output(self, output)
@@ -178,10 +177,9 @@ class Task:
 		return True
 
 
-	def run(self, loop, broadcaster, context,
-		on_output, on_finish=None):
-
+	def run(self, loop, broadcaster, context, on_output, on_finish=None):
 		self.cancel_if_executing()
+
 		task_future = self.create_future(
 			broadcaster, context,
 			on_output, on_finish)

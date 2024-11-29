@@ -49,15 +49,37 @@ def async_adapter(fnc):
 
 #-------------------------------------------------------------------------------
 
+silent_generator_template = """
+
+@functools.wraps(fnc)
+async def wrapped({ALL_PARAMS}):
+	all_args = {{ {CONTEXT} }}
+
+	selected_args = list()
+	for param_name in {FNC_PARAMS}:
+		selected_args.append(all_args[param_name])
+
+	await fnc(*selected_args)
+	yield None
+
+"""
+
 def silent_generator(fnc):
+	fnc_params = deduce_parameters(fnc)
+	code = silent_generator_template.format(
+		ALL_PARAMS=",".join(fnc_params),
+		CONTEXT=",".join(map(lambda x : f"'{x}': {x}", fnc_params)),
+		FNC_PARAMS=str(fnc_params)
+	)
 
-	@functools.wraps(fnc)
-	async def wrapped(*args):
-		await fnc(*args)
-		yield None
+	namespace = globals().copy()
+	scope = locals().copy()
 
-	return wrapped
+	namespace.update({'fnc': fnc})
+	exec(code, namespace, scope)
+	return scope['wrapped']
 
+#-------------------------------------------------------------------------------
 
 def remove_prefix(text, prefix):
 	if text.startswith(prefix):
