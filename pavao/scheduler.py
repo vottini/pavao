@@ -1,7 +1,7 @@
 
 import asyncio
 from croniter import croniter
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from .task import TaskException, TaskProblem, Task, TaskManager
 
 class SchedulableTask(Task):
@@ -58,25 +58,6 @@ class SchedulableTask(Task):
 
 #-------------------------------------------------------------------------------
 
-insert_task_run = """
-
-	INSERT INTO pavao.task_execution (
-		task,
-		success,
-		execution_start,
-		execution_end
-	)
-
-	VALUES (
-		$1,
-		$2,
-		$3,
-		$4
-	);
-
-"""
-
-
 async def wait_whole_minute():
 	start = datetime.now()
 	wait = (59-start.second) + (1000000-start.microsecond)/1e6
@@ -100,25 +81,16 @@ class Scheduler(TaskManager):
 
 
 	def start_task(self, task):
-		start = datetime.now(timezone.utc)
-
-		async def on_finish(task_ident, success):
-			end = datetime.now(timezone.utc)
+		async def on_output(task, output): task.append_output(output)
+		async def on_finish(task_ident, run_ident, success):
 			task.clear_output()
 
-			#async with self.db_pool.connection() as connection:
-			#	await connection.execute(insert_task_run,
-			#		task_ident, success, start, end)
-
-		args = {
+		context = {
 			'broadcasting': self.broadcaster
 		}
 
-		async def on_output(task, output):
-			task.append_output(output)
-
 		task.run(self.loop,
-			self.broadcaster, args,
+			self.broadcaster, self.internal_db, context,
 			on_output, on_finish)
 
 	#--------------------------------------------------------

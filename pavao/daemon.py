@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime
 from datetime import timedelta
 
-from .utils import adapter
+from .utils import async_adapter
 from .task import Task, TaskManager
 from .logger import Logger
 
@@ -11,9 +11,9 @@ class Daemon(TaskManager):
 	def __init__(self, loop, broadcaster):
 		TaskManager.__init__(self, loop, broadcaster)
 
-		self.restating = None
-		self.running_tasks = set()
-		self.finished_tasks = dict()
+		self.restarter = None
+		self.enabled_services = set()
+		self.finished_services = dict()
 		self.active = False
 
 
@@ -30,25 +30,25 @@ class Daemon(TaskManager):
 		def add_finish_callback(callback):
 			finish_callbacks.append(callback)
 
-		args = {
+		context = {
 			'broadcasting': self.broadcaster,
 			'on_finish': add_finish_callback
 		}
 
-		async def on_finish(ident, success):
+		async def on_output(task, output): pass
+		async def on_finish(task_ident, run_ident, success):
 			for cb in finish_callbacks:
-				adapted_cb = adapter(cb)
-				await adapted_cb(dict())
+				adapted_cb = async_adapter(cb)
+				await adapted_cb()
 
-			self.finished_tasks[task.source] = datetime.now()
+			self.finished_services[task.source] = datetime.now()
 
 			if self.active:
-				verbose = "success" if success else "error"
-				Logger.info(f"Service from '{task.source}' finished with "
-					+ verbose)
+				Logger.info(f"Service from '{task.source}' terminated "
+					+ ("cleanly" if success else "with error"))
 
-		async def on_output(task, output): pass
-		task.run(self.loop, self.broadcaster, args,
+		task.run(self.loop,
+			self.broadcaster, self.internal_db, context,
 			on_output, on_finish)
 
 
@@ -58,11 +58,11 @@ class Daemon(TaskManager):
 		for task in self.loaded_tasks:
 			if task.enabled:
 				Logger.info(f"Starting service from '{task.source}'")
-				self.running_tasks.add(task.source)
+				self.enabled_services.add(task.source)
 				self.start_task(task)
 
-		if len(self.running_tasks) > 0:
-			self.restarting = self.loop.create_task(
+		if len(self.enabled_services) > 0:
+			self.restarter = self.loop.create_task(
 				self.restart_services())
 
 
@@ -73,8 +73,8 @@ class Daemon(TaskManager):
 			now = datetime.now()
 			retained = dict()
 
-			for source, termination in self.finished_tasks.items():
-				if source in self.running_tasks:
+			for source, termination in self.finished_services.items():
+				if source in self.enabled_services:
 					if (now - termination) > timedelta(seconds=5):
 						Logger.info(f"Restarting service from '{source}'")
 						task = self.task_from_source(source)
@@ -83,30 +83,30 @@ class Daemon(TaskManager):
 					else:
 						retained[source] = termination
 
-			self.finished_tasks = retained
+			self.finished_services = retained
 			await asyncio.sleep(5)
 
 	#------------------------------------------------------------
 
 	def stop_module(self, source):
 		if (found := self.task_from_source(source)) is not None:
-			self.running_tasks.remove(source)
+			self.enabled_services.remove(source)
 			found.cancel_if_executing()
 
 
 	def start_module(self, source):
-		if not source in self.running_tasks:
+		if not source in self.enabled_services:
 			if (found := self.task_from_source(source)) is not None:
-				self.running_tasks.add(source)
+				self.enabled_services.add(source)
 				self.start_task(found)
 
 
 	async def stop(self):
 		self.active = False
 
-		if self.restating is not None:
-			self.restating.cancel()
-			self.restating = None
+		if self.restarter is not None:
+			self.restarter.cancel()
+			self.restarter = None
 
 		if self.executor is not None:
 			for task in self.loaded_tasks:
@@ -118,6 +118,6 @@ class Daemon(TaskManager):
 			await self.executor
 			self.executor = None
 
-		self.running_tasks = set()
-		self.finished_tasks = dict()
+		self.enabled_services = set()
+		self.finished_services = dict()
 

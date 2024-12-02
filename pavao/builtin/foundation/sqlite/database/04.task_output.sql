@@ -1,7 +1,8 @@
 
 CREATE TABLE IF NOT EXISTS task_output (
   id                 INTEGER PRIMARY KEY,
-  task               INTEGER REFERENCES task (id) NOT NULL,
+  execution          INTEGER REFERENCES task_execution (id) NOT NULL,
+  error              BOOL,
   instant            TIMESTAMP,
   content            TEXT
 );

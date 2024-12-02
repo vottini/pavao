@@ -1,7 +1,9 @@
 
 import asyncio
 import inspect
-from datetime import datetime, timezone
+
+from datetime import datetime
+from datetime import timezone
 
 from .logger import Logger
 from .utils import adapter
@@ -41,10 +43,39 @@ retrieve_task = """
 
 """
 
+insert_task_run = """
+
+	INSERT INTO task_execution (task, execution_start)
+		VALUES (:task, :start)
+		RETURNING id;
+
+"""
+
+mark_execution_finish = """
+
+	UPDATE task_execution SET
+		execution_end = :end,
+		success = :success
+
+	WHERE id = :execution;
+
+"""
+
 insert_task_output = """
 
-	INSERT INTO task_output (task, instant, content)
-		VALUES ($1, $2, $3);
+	INSERT INTO task_output (
+		execution,
+		instant,
+		error,
+		content
+	)
+
+	VALUES (
+		:execution,
+		:instant,
+		:error,
+		:content
+	);
 
 """
 
@@ -94,7 +125,8 @@ class Task:
 
 		await cursor.execute(insert_if_inexistent, args)
 		query = await	cursor.execute(retrieve_task, args)
-		self.ident, self.enabled = await query.fetchone()
+		self.ident, enabled = await query.fetchone()
+		if enabled: await self.enable()
 
 	#----------------------------------------------------------------------------
 
@@ -116,26 +148,45 @@ class Task:
 
 	#----------------------------------------------------------------------------
 
-	def create_future(self, broadcaster, context, on_output, on_finish):
-
-		async def process_output(output):
-			await on_output(self, output)
-
-			#if db_pool.configured:
-			#	async with db_pool.connection() as connection:
-			#		await connection.execute(insert_task_output, self.ident,
-			#			datetime.now(timezone.utc), str(output))
+	def create_future(self,
+		broadcaster, internal_db, context,
+		on_output, on_finish):
 
 		async def async_task():
+			start = datetime.now(timezone.utc)
 			await broadcaster.write_message(
 				f"taskState:{self.ident}",
 				"STARTED"
 			)
 
+			async with internal_db.cursor() as cursor:
+				await cursor.execute(insert_task_run, {
+					'task': self.ident,
+					'start': start
+				})
+
+				inserted_row = await cursor.fetchone()
+				run_ident = inserted_row[0]
+				await internal_db.commit()
+
+			async def process_output(output, error):
+				instant = datetime.now(timezone.utc)
+				await on_output(self, output)
+
+				async with internal_db.cursor() as cursor:
+					await cursor.execute(insert_task_output, {
+						'execution': run_ident,
+						'instant': instant,
+						'error': error,
+						'content': str(output)
+					})
+
+				await internal_db.commit()
+
 			try:
 				async for output in self.function(context):
 					if output is not None:
-						await process_output(output)
+						await process_output(output, False)
 						await broadcaster.write_message(
 							f"taskState:{self.ident}",
 							f'OUTPUT:{output}'
@@ -145,15 +196,17 @@ class Task:
 
 			except asyncio.CancelledError:
 				output = "Cancelled during execution"
-				await process_output(output)
+				await process_output(output, True)
 				success = False
 
 			except Exception as exception:
 				output = str(exception)
-				await process_output(output)
+				await process_output(output, True)
 				success = False
 
 			finally:
+				end = datetime.now(timezone.utc)
+
 				self.execution = None
 				await broadcaster.write_message(
 					f"taskState:{self.ident}",
@@ -162,7 +215,17 @@ class Task:
 
 				if on_finish is not None:
 					await on_finish(self.ident,
+						run_ident,
 						success)
+
+				async with internal_db.cursor() as cursor:
+					await cursor.execute(mark_execution_finish, {
+						'execution': run_ident,
+						'success': success,
+						'end': end
+					})
+
+				await internal_db.commit()
 
 		return async_task
 
@@ -176,11 +239,13 @@ class Task:
 		return True
 
 
-	def run(self, loop, broadcaster, context, on_output, on_finish=None):
-		self.cancel_if_executing()
+	def run(self, loop,
+		broadcaster, internal_db, context,
+		on_output, on_finish=None):
 
+		self.cancel_if_executing()
 		task_future = self.create_future(
-			broadcaster, context,
+			broadcaster, internal_db, context,
 			on_output, on_finish)
 
 		self.execution = loop.create_task(task_future())
