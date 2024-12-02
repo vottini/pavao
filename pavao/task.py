@@ -19,35 +19,32 @@ class TaskProblem:
 
 #-------------------------------------------------------------------------------
 
-assert_task_exists = """
+insert_if_inexistent = """
 
-	WITH
-
-	existing AS (
-		SELECT id, enabled FROM pavao.task
-		WHERE package = $1 AND "name" = $2
-	),
-
-	created AS (
-		INSERT INTO pavao.task (package, name, enabled)
-			SELECT $1, $2, TRUE
-				WHERE NOT EXISTS (
-					SELECT 1 FROM pavao.task
-					WHERE package = $1 AND "name" = $2
+	INSERT INTO task (package, name, enabled)
+		SELECT :package, :name, TRUE
+			WHERE NOT EXISTS (
+				SELECT 1 FROM task
+					WHERE
+						package = :package AND
+						"name" = :name
 				)
 
-		RETURNING id, enabled
-	)
+"""
 
-	SELECT id, enabled FROM existing UNION ALL
-	SELECT id, enabled FROM created;
+retrieve_task = """
+
+	SELECT id, enabled FROM task
+		WHERE
+			package = :package AND
+			"name" = :name
 
 """
 
 insert_task_output = """
 
-	INSERT INTO pavao.task_output (task, instant, content)
-	VALUES ($1, $2, $3);
+	INSERT INTO task_output (task, instant, content)
+		VALUES ($1, $2, $3);
 
 """
 
@@ -88,14 +85,16 @@ class Task:
 
 	#----------------------------------------------------------------------------
 
-	async def register_self(self, connection):
-		result = await connection.fetchrow(assert_task_exists,
-			get_identity(self.package),
-			get_identity(self.name))
+	async def register_self(self, cursor):
 
-		self.ident = result['id']
-		if not result['enabled']:
-			await self.disable()
+		args = {
+			'package': get_identity(self.package),
+			'name': get_identity(self.name)
+		}
+
+		await cursor.execute(insert_if_inexistent, args)
+		query = await	cursor.execute(retrieve_task, args)
+		self.ident, self.enabled = await query.fetchone()
 
 	#----------------------------------------------------------------------------
 
@@ -194,6 +193,7 @@ class TaskManager:
 		self.loop = loop
 
 		self.executor = None
+		self.internal_db = None
 		self.loaded_tasks = list()
 		self.ctor = Task
 
@@ -208,24 +208,21 @@ class TaskManager:
 
 	#--------------------------------------------------------
 
-	async def set_tasks(self, tasks):
+	async def set_tasks(self, tasks, internal_db):
 		await self.stop()
 
+		self.internal_db = internal_db
 		self.loaded_tasks = tasks
 
 		async def execution():
-			await self.register_tasks()
+			async with internal_db.cursor() as cursor:
+				for task in self.loaded_tasks:
+					await task.register_self(cursor)
+
+			await internal_db.commit()
 			await self.execute_tasks()
 
 		self.executor = self.loop.create_task(execution())
-
-
-	async def register_tasks(self):
-		#if self.db_pool.configured:
-		#	async with self.db_pool.connection() as connection:
-		#		for task in self.loaded_tasks:
-		#			await task.register_self(connection)
-		pass
 
 	#----------------------------------------------------------------------------
 
@@ -257,4 +254,4 @@ class TaskManager:
 				return task_data
 
 		return None
-#
+

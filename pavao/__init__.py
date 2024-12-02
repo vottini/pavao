@@ -5,7 +5,7 @@ from .utils import adapter, silent_generator
 from .filter import RequestFilter
 from .supplier import ParameterSupplier
 from .i18n import Internationalization, ModuleLocalizer, LazyLocalizer
-from .mapper import Case, translate_case, assemble_dicts
+from .mapper import Case, translate_case, assemble_dicts, convert_to_object
 from .json import accepts_json, generates_json, error_blueprint, has_optional_field
 from .sse import generates_sse
 from .parameters import accepts_parameters

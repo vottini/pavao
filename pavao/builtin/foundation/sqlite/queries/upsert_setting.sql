@@ -1,7 +1,7 @@
 
 INSERT INTO
   settings (name, type, value)
-  VALUES ($1, $2, $3)
+  VALUES (:name, :type, :value)
 
   ON CONFLICT (name) DO UPDATE
     SET type = excluded.type,

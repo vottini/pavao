@@ -6,9 +6,10 @@ import aiosqlite
 import pavao
 
 config_schema = {
-	"filename": "pavao.db",
-	"persistent": True,
-	"enabled": True
+	"enabled": True,
+	"persist": True,
+	"autocommit": False,
+	"filename": "pavao.db"
 }
 
 queries_dir = pavao.path_to('database')
@@ -29,25 +30,24 @@ aiosqlite.register_converter('bool', lambda val: val.decode() == 'true')
 #-------------------------------------------------------------------------------
 
 pavao.from_module('persisted_settings').import_item('PersistedSettings')
-async def create_stored_settings(sqlite_cursor):
-	return PersistedSettings(sqlite_cursor)
+async def create_stored_settings(internal_db):
+	return PersistedSettings(internal_db)
 
 
 class SqliteSupplier(pavao.ParameterSupplier):
 	def __init__(self):
-		self.db_name = None
 		self.connection = None
-		self.enabled = True
+		self.specs = None
 
 
 	def parameters_supplied(self):
-		if not self.enabled:
+		if not self.specs.enabled:
 			return dict()
 
 		return {
-			'sqlite_cursor': [
-				self.create_cursor,
-				self.close_cursor
+			'internal_db': [
+				self.retrive_connection,
+				None
 			],
 
 			'stored_settings': [
@@ -62,31 +62,37 @@ class SqliteSupplier(pavao.ParameterSupplier):
 			"pavao.database.sqlite",
 			config_schema)
 
-		self.db_name = db_settings['filename']
-		self.enabled = db_settings['enabled']
+		self.specs = pavao.convert_to_object(db_settings)
 
 
 	async def initialize(self):
-		if not self.enabled:
+		if not self.specs.enabled:
 			return
 
 		try:
-			self.connection = await aiosqlite.connect(self.db_name)
+			if not self.specs.persist:
+				pavao.Logger.info("Pavao internal database set as not persistent")
+				db_name = ':memory:'
+
+			else: db_name = self.specs.filename
+			self.connection = await aiosqlite.connect(db_name,
+				autocommit=self.specs.autocommit)
+
 			pavao.Logger.info("Pavao internal database connected")
 
 			async with self.connection.cursor() as cursor:
 				for query in db_creation:
 					with open(os.path.join(queries_dir, query)) as fd:
-						await cursor.execute(fd.read())
+						await cursor.executescript(fd.read())
 
 		except Exception as e:
 			pavao.Logger.error("Error while setting up internal database: " + str(e))
-			raise pavao.PavaoException("Unable to connect to internal Pavao database")
+			raise pavao.PavaoException("Unable to setup internal Pavao database")
 
 	#------------------------------------------------------------
 
-	async def create_cursor(self): return await self.connection.cursor()
-	async def close_cursor(self, conn): await conn.close()
+	async def retrive_connection(self):
+		return self.connection
 
 	#------------------------------------------------------------
 

@@ -102,19 +102,8 @@ class Server:
 				self.parametering)
 
 			await self.load_user_modules()
-			await self.scheduler.set_tasks(
-				self.parse_tasks(
-					self.tasks,
-					self.scheduler
-			))
-
-			await self.daemon.set_tasks(
-				self.parse_tasks(
-					self.services,
-					self.daemon
-			))
-
 			await self.register_endpoints()
+			await self.restart_tasks()
 
 			self.monitor.schedule_execution(self.loop)
 			Logger.info("Pavão started!")
@@ -399,26 +388,25 @@ class Server:
 
 
 	async def restart_tasks(self):
+		internal_db = await self.parametering.produce('internal_db')
+
 		await self.scheduler.set_tasks(
-			self.parse_tasks(
-				self.tasks,
-				self.scheduler
-			)
-		)
+			self.parse_tasks(self.tasks, self.scheduler),
+			internal_db)
 
 		await self.daemon.set_tasks(
-			self.parse_tasks(
-				self.services,
-				self.daemon
-			)
-		)
+			self.parse_tasks(self.services, self.daemon),
+			internal_db)
 
 	#-------------------------------------------------------------------------------
 
 	def deactivate(self):
 		self.http_handler.deactivate()
-		Logger.info("Closing connections...")
-		async def announcing(): await self.broadcaster.announce_shutdown()
+
+		async def announcing():
+			Logger.info("Closing broadcast open sinks...")
+			await self.broadcaster.announce_shutdown()
+
 		self.loop.create_task(announcing())
 
 	#-------------------------------------------------------------------------------

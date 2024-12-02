@@ -106,9 +106,9 @@ class Scheduler(TaskManager):
 			end = datetime.now(timezone.utc)
 			task.clear_output()
 
-			async with self.db_pool.connection() as connection:
-				await connection.execute(insert_task_run,
-					task_ident, success, start, end)
+			#async with self.db_pool.connection() as connection:
+			#	await connection.execute(insert_task_run,
+			#		task_ident, success, start, end)
 
 		args = {
 			'broadcasting': self.broadcaster
@@ -164,8 +164,8 @@ class Scheduler(TaskManager):
 
 	async def execute_tasks(self):
 
-		# this exists solely to avoid all tasks that
-		# were scheduled to run before a computer
+		# skippable_lateness exists solely to avoid all
+		# tasks that were scheduled to run before a computer
 		# has beed suspended to be executed at once
 		# when the machine powers up again
 

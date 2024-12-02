@@ -10,14 +10,15 @@ upsert_setting = pavao.include("queries/upsert_setting.sql")
 list_pattern = re.compile(r"\[([^\]]+)\]")
 
 class PersistedSettings:
-	def __init__(self, sqlite_cursor):
-		self.sqlite_cursor = sqlite_cursor
+	def __init__(self, internal_db):
+		self.internal_db = internal_db
 
 
-	async def get(self, name):
-		row = await self.sqlite_cursor.fetchrow(get_setting, name)
-		if row is None:
-			return None
+	async def get(self, setting):
+		async with self.internal_db.execute(get_setting, [setting]) as cursor:
+			row = await cursor.fetchone()
+			if row is None:
+				return None
 
 		typ, value = row
 		list_search = list_pattern.search(value)
@@ -30,7 +31,7 @@ class PersistedSettings:
 		return ctor(value)
 
 
-	async def set(self, name, value):
+	async def set(self, setting, value):
 		value_type = type(value).__name__
 		original_value = value
 
@@ -39,7 +40,10 @@ class PersistedSettings:
 			str_values = map(str, value)
 			value = f"[{'::'.join(str_values)}]"
 
-		await self.sqlite_cursor.execute(upsert_setting,
-			name, value_type, str(value))
-
+		async with self.internal_db.cursor() as cursor:
+			await cursor.execute(upsert_setting, {
+				'name': setting,
+				'type': value_type,
+				'value': str(value)
+			})
 

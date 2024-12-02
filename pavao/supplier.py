@@ -99,8 +99,9 @@ class ParameterFactory:
 					msg = f"Unknown parameter '{parameter}' to initialize '{class_name}'"
 					raise ParameterException(msg)
 
-		next_round = dict()
 		while len(init_dependencies) > 0:
+			next_round = dict()
+
 			for supplier, deps in init_dependencies.items():
 				unsatisfied = tuple(dep for dep in deps if dep not in initialized)
 

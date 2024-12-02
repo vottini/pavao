@@ -1,5 +1,4 @@
 
-SELECT type, value
-  FROM settings
-  WHERE name = $1;
+SELECT type, value FROM settings
+  WHERE "name" = ?;
 

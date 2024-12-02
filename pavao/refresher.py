@@ -32,6 +32,7 @@ class Modifications:
 			self.deletions,
 			self.updates)
 
+
 	def add_deletion(self, deleted):
 		if deleted in self.deletions:
 			return self
@@ -51,6 +52,7 @@ class Modifications:
 			newer_deletions,
 			self.updates)
 
+
 	def add_update(self, updated):
 		if updated in self.updates or updated in self.creations:
 			return self
@@ -61,6 +63,7 @@ class Modifications:
 			self.creations,
 			newer_deletions,
 			newer_updates)
+
 
 	def __hash__(self):
 		return hash(self.deletions) ^ hash(self.updates)
@@ -96,20 +99,24 @@ class PathMonitor(FileSystemEventHandler):
 	async def _add_to_queue(self, event):
 		await self.queue.put(event)
 
+
 	def handle(self, event):
 		if not event.is_directory:
 			asyncio.run_coroutine_threadsafe(
 				self._add_to_queue(event),
 				self.loop)
 
+
 	def on_created(self, event): self.handle(event)
 	def on_deleted(self, event): self.handle(event)
 	def on_modified(self, event): self.handle(event)
+
 
 	def on_moved(self, event):
 		if not event.is_directory:
 			self.handle(SimulatedEvent('deleted', event.src_path))
 			self.handle(SimulatedEvent('created', event.dest_path))
+
 
 	async def _monitor(self):
 
@@ -135,6 +142,7 @@ class PathMonitor(FileSystemEventHandler):
 
 		except asyncio.CancelledError as e:
 			pass
+
 
 	async def _collect(self):
 
