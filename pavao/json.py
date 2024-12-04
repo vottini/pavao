@@ -2,11 +2,11 @@
 import asyncio
 import functools
 from datetime import datetime, timezone
+import umapper
 import jsonbp
 
 from .logger import Logger
 from .exception import PavaoException
-from .mapper import convert_to_object
 from . import predicates
 
 error_contents = '''
@@ -93,8 +93,13 @@ async def wrapped({ALL_PARAMS}):
 			'timestamp': datetime.now(timezone.utc)
 		}}
 
-	parsed_json = convert_to_object(outcome)
-	all_args = {{ 'parsed_json': parsed_json, {CONTEXT} }}
+	outcome = umapper.translate_case(outcome, umapper.Case.SNAKE)
+	parsed_json = umapper.convert_to_object(outcome)
+
+	all_args = {{
+		'parsed_json': parsed_json,
+		{CONTEXT}
+	}}
 
 	selected_args = list()
 	for param_name in {FNC_PARAMS}:

@@ -7,11 +7,11 @@ pavao
 =====
 
 **pavao** (from "Pavão", portuguese for *peacock*) is an Python ASGI framework
-based on a modular architecture, where each module/endpoint is placed in its own file
+based on a modular architecture, where each endpoint (module) is placed in its own file
 and loaded at runtime. The endpoint's servicing function can accept a set of possible
-parameters, and have them automatically injected when that endpoint is accessed. Alongside
-HTTP endpoints, pavao also offers support for tasks (scheduled routines) and services
-(always on routines) modules.
+parameters (which can be extended by user code) and have them automatically injected when
+that endpoint is accessed. Alongside HTTP endpoints, pavao also offers support for
+tasks (scheduled routines) and services (always on routines) modules.
 
 As an example, here's a simple "/hello" endpoint that returns a "World" string:
 
@@ -26,9 +26,7 @@ directory:
 
   $ python -m pavao --execute modules
 
-Finally, for a more complex module example, here's **pavao**'s "/logout"
-endpoint, part of its buitin authentication/authorization system, which can
-be enabled through specific settings:
+Finally, for a more complex module example, here's **pavao-auth**'s "/logout" endpoint:
 
 .. literalinclude:: codes/logout.py
   :language: python
@@ -40,9 +38,10 @@ the endpoint's path, HTTP method and servicing function.
 Besides its modular architecture, **pavao** bundles the following features:
 
 - Typed URL path variables and URL parameters
-- Optional token based authentication and authorization system
 - Schema based YAML configuration with support for environment variables
-- Support for response internationalization
+- Lazy instantiation of user defined module parameters, allowing pre and post-processing
+- Endpoint access filtering with parameter injection support
+- Facilities for response internationalization
 - Asynchronous inter-module communication bus
 - Hot-reloading of modules on change
 - Typed JSON parsing and serialization
@@ -54,8 +53,9 @@ Besides its modular architecture, **pavao** bundles the following features:
 
    sections/declaration
    sections/running
-   sections/authentication
    sections/parameters
+   sections/suppliers
+   sections/filtering
    sections/json
    sections/broadcasting
    sections/sse

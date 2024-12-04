@@ -3,6 +3,7 @@ import os
 import asyncio
 import datetime
 import aiosqlite
+import umapper
 import pavao
 
 config_schema = {
@@ -62,7 +63,7 @@ class SqliteSupplier(pavao.ParameterSupplier):
 			"pavao.database.sqlite",
 			config_schema)
 
-		self.specs = pavao.convert_to_object(db_settings)
+		self.specs = umapper.convert_to_object(db_settings)
 
 
 	async def initialize(self):
@@ -80,8 +81,8 @@ class SqliteSupplier(pavao.ParameterSupplier):
 
 			pavao.Logger.info("Pavao internal database connected")
 
-			async with self.connection.cursor() as cursor:
-				for query in db_creation:
+			for query in db_creation:
+				async with self.connection.cursor() as cursor:
 					with open(os.path.join(queries_dir, query)) as fd:
 						await cursor.executescript(fd.read())
 
