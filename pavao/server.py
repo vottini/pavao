@@ -34,6 +34,7 @@ routing_destructor = operator.itemgetter(
 )
 
 base_parameters = {
+	'server',
 	'request',
 	'response',
 	'endpoint_specs',
@@ -120,7 +121,7 @@ class Server:
 			stop_logging()
 
 		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
-		self.http_handler = http.HttpHandler(self.broadcaster)
+		self.http_handler = http.HttpHandler(self, self.broadcaster)
 
 		self.loop = uvloop.new_event_loop()
 		self.scheduler = Scheduler(self.loop, self.broadcaster)

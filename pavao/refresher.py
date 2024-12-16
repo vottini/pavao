@@ -6,6 +6,7 @@ import os
 
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from .logger import Logger
 
 class Modifications:
 	def __init__(self, creations=None, deletions=None, updates=None):
@@ -170,7 +171,8 @@ class PathMonitor(FileSystemEventHandler):
 			pass
 
 		except Exception as e:
-			print("#####", e)
+			msg = f"Error while collecting file changes: {e}"
+			Logger.warn(msg)
 
 
 	def schedule_execution(self, loop):
@@ -179,7 +181,7 @@ class PathMonitor(FileSystemEventHandler):
 
 		self.monitoring = self.loop.create_task(self._monitor())
 		self.condensing = self.loop.create_task(self._collect())
-		self.observer.schedule(self, self.path, recursive=True)
+		self.observer.schedule(self, self.path, recursive=True) #, follow_symlink=True)
 		self.observer.start()
 
 

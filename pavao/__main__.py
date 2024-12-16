@@ -6,9 +6,15 @@ import pavao
 
 from .config import load_settings
 
+config_detail = (
+	"If 'config_file' doesn't exist, pavao will "
+	"still try to run using default values"
+)
+
 cli_parser = argparse.ArgumentParser(
 	prog="python -m pavao",
-	description="Pavão utility tool")
+	description="Pavão execution interface",
+	epilog=config_detail)
 
 default_config = "application.yml"
 cli_parser.add_argument("--config-file",
@@ -21,17 +27,16 @@ cli_parser.add_argument("--foundation",
 	action="store", metavar="DIR", required=False, type=str,
 	default=None)
 
-action_group = cli_parser.add_mutually_exclusive_group(required=True)
-
-action_group.add_argument("--execute",
-	help="runs the asgi webserver serving the pavao endpoints found at DIR ",
-	action="store", metavar="DIR", type=str)
+cli_parser.add_argument("DIR",
+	help=f"directory of modules to load",
+	action="store", type=str,
+	default=None)
 
 args = cli_parser.parse_args()
 
 #-------------------------------------------------------------------------------
 
-if (modules_dir := args.execute) is not None:
+if (modules_dir := args.DIR) is not None:
 	is_default_config = args.config_file == default_config
 	foundation_dir = args.foundation
 

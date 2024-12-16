@@ -3,6 +3,7 @@ import os
 import asyncio
 import datetime
 import aiosqlite
+import sqlite3
 import umapper
 import pavao
 
@@ -10,7 +11,8 @@ config_schema = {
 	"enabled": True,
 	"persist": True,
 	"autocommit": False,
-	"filename": "pavao.db"
+	"filename": "pavao.db",
+	"trace": False
 }
 
 queries_dir = pavao.path_to('database')
@@ -20,13 +22,13 @@ db_creation.sort()
 #-------------------------------------------------------------------------------
 
 def convert_datetime(val):
-	decoded = val.decode()
-	return datetime.datetime.fromisoformat(decoded)
+	return datetime.datetime.fromisoformat(
+		val.decode())
 
 aiosqlite.register_adapter(datetime.datetime, lambda val: val.isoformat())
-aiosqlite.register_adapter(bool, lambda val: 'true' if val else 'false')
+aiosqlite.register_adapter(bool, lambda val: '1' if val else '0')
 aiosqlite.register_converter('timestamp', convert_datetime)
-aiosqlite.register_converter('bool', lambda val: val.decode() == 'true')
+aiosqlite.register_converter('bool', lambda val: val.decode() == '1')
 
 #-------------------------------------------------------------------------------
 
@@ -77,7 +79,12 @@ class SqliteSupplier(pavao.ParameterSupplier):
 
 			else: db_name = self.specs.filename
 			self.connection = await aiosqlite.connect(db_name,
+				detect_types=sqlite3.PARSE_DECLTYPES,
 				autocommit=self.specs.autocommit)
+
+			if self.specs.trace:
+				sqlite3.enable_callback_tracebacks(True)
+				await self.connection.set_trace_callback(print)
 
 			pavao.Logger.info("Pavao internal database connected")
 

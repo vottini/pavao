@@ -27,7 +27,14 @@ _valid_content_types = (
 )
 
 
-def _load_blueprint(string, file, root=None):
+def _load_blueprint(
+	string,
+	file,
+	root=None,
+	array_root=False,
+	min_length=0,
+	max_length=1024):
+
 	arguments = (string, file)
 	if all(value is None for value in arguments):
 		msg = "Either 'string' or 'file' parameters must be specified"
@@ -43,7 +50,7 @@ def _load_blueprint(string, file, root=None):
 
 	return (
 		loaded if root is None
-		else loaded.choose_root(root)
+		else loaded.choose_root(root, array_root, min_length, max_length)
 	)
 
 
@@ -114,12 +121,18 @@ async def wrapped({ALL_PARAMS}):
 def accepts_json(
 	string_blueprint=None,
 	file_blueprint=None,
-	with_root=None):
+	with_root=None,
+	array_root=False,
+	min_length=0,
+	max_length=1024):
 
 	blueprint = _load_blueprint(
 		string_blueprint,
 		file_blueprint,
-		with_root)
+		with_root,
+		array_root,
+		min_length,
+		max_length)
 
 	def wrapper(fnc):
 		fnc_nargs = fnc.__code__.co_argcount
@@ -204,7 +217,10 @@ def generates_json(
 	dispatchers=None,
 	string_blueprint=None,
 	file_blueprint=None,
-	with_root=None):
+	with_root=None,
+	array_root=False,
+	min_length=0,
+	max_length=1024):
 
 	processed_dispatchers = list()
 	if dispatchers is not None:
@@ -249,7 +265,14 @@ def generates_json(
 			raise PavaoException(msg)
 
 	else:
-		blueprint = _load_blueprint(string_blueprint, file_blueprint, with_root)
+		blueprint = _load_blueprint(
+			string_blueprint,
+			file_blueprint,
+			with_root,
+			array_root,
+			min_length,
+			max_length)
+
 		processed_dispatchers.append((predicates.status_non_error, blueprint))
 		processed_dispatchers.append((predicates.status_error, error_blueprint))
 

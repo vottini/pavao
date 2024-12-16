@@ -116,17 +116,20 @@ class Task:
 
 	#----------------------------------------------------------------------------
 
-	async def register_self(self, cursor):
+	async def register_self(self, internal_db):
 
 		args = {
 			'package': get_identity(self.package),
 			'name': get_identity(self.name)
 		}
 
-		await cursor.execute(insert_if_inexistent, args)
-		query = await	cursor.execute(retrieve_task, args)
-		self.ident, enabled = await query.fetchone()
-		if enabled: await self.enable()
+		async with internal_db.cursor() as cursor:
+			await cursor.execute(insert_if_inexistent, args)
+			retrieved = await cursor.execute(retrieve_task, args)
+			self.ident, enabled = await retrieved.fetchone()
+
+		method = self.enable if enabled else self.disable
+		await method()
 
 	#----------------------------------------------------------------------------
 
@@ -280,9 +283,8 @@ class TaskManager:
 		self.loaded_tasks = tasks
 
 		async def execution():
-			async with internal_db.cursor() as cursor:
-				for task in self.loaded_tasks:
-					await task.register_self(cursor)
+			for task in self.loaded_tasks:
+				await task.register_self(internal_db)
 
 			await internal_db.commit()
 			await self.execute_tasks()

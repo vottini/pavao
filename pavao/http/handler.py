@@ -32,7 +32,8 @@ _cors_allow_origin = 'access-control-allow-origin'
 _cors_allow_headers = 'access-control-allow-headers'
 
 class HttpHandler:
-	def __init__(self, broadcasting):
+	def __init__(self, server, broadcasting):
+		self.server = server
 		self.broadcasting = broadcasting
 		self.registry = Registry()
 		self.active = True
@@ -53,7 +54,8 @@ class HttpHandler:
 	#------------------------------------------------------------
 
 	async def init(self, loaded_settings):
-		http_settings = loaded_settings.get_setting("pavao.http",
+		http_settings = loaded_settings.get_setting(
+			"pavao.http",
 			_http_schema)
 
 		if http_settings is not None:
@@ -141,6 +143,7 @@ class HttpHandler:
 			endpoint, path_variables = found_endpoint
 
 			http_context = {
+				'server': self.server,
 				'request': request,
 				'response': response,
 				'endpoint_specs': endpoint.all_specs,
