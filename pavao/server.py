@@ -4,6 +4,7 @@ import asyncio
 import uvloop
 import traceback
 import operator
+import jsonbp
 
 from .exception import PavaoException
 from .config import load_settings
@@ -73,8 +74,10 @@ def create_processing_pipeline(
 
 class Server:
 	def __init__(self,
-		config_file, is_default_file,
-		foundation_dir, modules_dir):
+		config_file,
+		is_default_file,
+		foundation_dir,
+		modules_dir):
 
 		self.loaded_settings = None
 		self.modules_dir = os.path.abspath(modules_dir)
@@ -286,6 +289,7 @@ class Server:
 	def update_modules(self, creations, deletions, updates):
 		to_unload = set(filter(python_source, (*deletions, *updates)))
 		to_load = set(filter(python_source, (*updates, *creations)))
+		jsonbp.invalidate_cache()
 		print("!!! update_modules")
 
 		updated_dependencies = set()
@@ -368,11 +372,7 @@ class Server:
 					Logger.warning(f"'{short_path}' disabled: {e}")
 					continue
 
-				pre_processor, post_processor = wrappers
-				full_processing = WrappedFunction(pre_processor,
-					adapter(task_data.processor, False),
-					post_processor)
-
+				task_data.pre_processing, task_data.post_processing = wrappers
 				parsed_tasks.append(task_data)
 
 			except KeyError as e:

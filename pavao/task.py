@@ -103,8 +103,10 @@ class Task:
 		if not inspect.isasyncgenfunction(self.processor):
 			raise TaskException("'processor' is not an async generator")
 
+		self.pre_processing = None
+		self.post_processing = None
 		self.function = adapter(self.processor,
-			possibly_asynchronous=False)
+			await_if_async=False)
 
 		self.source = source
 		self.package = specs.get('package')
@@ -128,8 +130,8 @@ class Task:
 			retrieved = await cursor.execute(retrieve_task, args)
 			self.ident, enabled = await retrieved.fetchone()
 
-		method = self.enable if enabled else self.disable
-		await method()
+		setup = self.enable if enabled else self.disable
+		await setup()
 
 	#----------------------------------------------------------------------------
 
@@ -187,6 +189,9 @@ class Task:
 				await internal_db.commit()
 
 			try:
+				if self.pre_processing is not None:
+					await self.pre_processing(context)
+
 				async for output in self.function(context):
 					if output is not None:
 						await process_output(output, False)
@@ -209,6 +214,8 @@ class Task:
 
 			finally:
 				end = datetime.now(timezone.utc)
+				if self.post_processing is not None:
+					await self.post_processing(context)
 
 				self.execution = None
 				await broadcaster.write_message(

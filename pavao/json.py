@@ -12,9 +12,9 @@ from . import predicates
 error_contents = '''
 
 	root {
-		error: string,
-		description: string,
-		timestamp: instant
+		error: String,
+		description: String,
+		timestamp: Instant
 	}
 
 '''

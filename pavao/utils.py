@@ -9,39 +9,31 @@ import os
 def deduce_parameters(fnc):
 	n_params = fnc.__code__.co_argcount
 	variables = fnc.__code__.co_varnames
-	bound_method = hasattr(fnc, '__self__')
-	start_index = 1 if bound_method else 0
+	is_bound = hasattr(fnc, '__self__')
+	start_index = 1 if is_bound else 0
 	return variables[start_index:n_params]
 
 #-------------------------------------------------------------------------------
 
-def adapter(fnc, possibly_asynchronous=True):
+def adapter(fnc, await_if_async=True):
+	asynchronous = inspect.iscoroutinefunction(fnc)
 	fnc_params = deduce_parameters(fnc)
 
-	utilized_params = list()
-	for param_name in fnc_params:
-		utilized_params.append(param_name)
-
-	asynchronous = False
-	if possibly_asynchronous:
-		asynchronous = inspect.iscoroutinefunction(fnc)
-
-	if asynchronous:
+	if await_if_async and asynchronous:
 		async def wrapped_call(variables):
-			selected_args = [ variables[param] for param in utilized_params ]
+			selected_args = [ variables[param] for param in fnc_params ]
 			return await fnc(*selected_args)
 
 	else:
 		def wrapped_call(variables):
-			selected_args = [ variables[param] for param in utilized_params ]
+			selected_args = [ variables[param] for param in fnc_params ]
 			return fnc(*selected_args)
 
 	return wrapped_call
 
 
 def async_adapter(fnc):
-	asynchronous = inspect.iscoroutinefunction(fnc)
-	if asynchronous:
+	if inspect.iscoroutinefunction(fnc):
 		return fnc
 
 	async def adaptation(*args): return fnc(*args)

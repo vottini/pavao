@@ -22,9 +22,9 @@ dependencies = [
 	"six==1.16.0",
 	"typing_extensions==4.12.2",
 	"uvicorn==0.30.6",
-	"uvloop==0.20.0",
+	"uvloop==0.21.0",
 	"watchdog==4.0.2",
-	"jsonbp==1.1.1"
+	"jsonbp==1.2.0"
 ]
 readme = { file = "README.md", content-type = "text/markdown" }
 keywords = ["framework", "asgi", "api"]
