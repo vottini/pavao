@@ -186,7 +186,7 @@ def _retrieve_or_load_module(abs_path):
 	return load_module(abs_path)
 
 
-def import_module(module_name):
+def import_module(module_name, with_name=None):
 	if os.path.sep in module_name:
 		raise Exception("Invalid module name")
 
@@ -200,6 +200,7 @@ def import_module(module_name):
 	add_dependency(abs_path, requester)
 
 	previous_frame = inspect.stack()[1].frame
+	module_name = module_name if with_name is None else with_name
 	previous_frame.f_globals[module_name] = module
 
 
@@ -208,8 +209,9 @@ class ImportedModule:
 		self.module = module
 		self.scope = scope
 
-	def import_item(self, item):
-		self.scope[item] = getattr(self.module, item)
+	def import_item(self, item, with_name=None):
+		item_name = item if with_name is None else with_name
+		self.scope[item_name] = getattr(self.module, item)
 		return self
 
 

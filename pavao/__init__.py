@@ -12,6 +12,7 @@ from .parameters import accepts_parameters
 from .loader import path_to, include, import_module, from_module
 from .broadcasting import END_OF_STREAM
 from .scheduler import TaskProblem
+from .jwt import JwtSupplier
 from .server import Server
 
 from umapper import register_mapping_class
