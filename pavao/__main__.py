@@ -6,10 +6,7 @@ import pavao
 
 from .config import load_settings
 
-config_detail = (
-	"If 'config_file' doesn't exist, pavao will "
-	"still try to run using default values"
-)
+config_detail = "If 'config_file' doesn't exist, pavao will still try to run using default values"
 
 cli_parser = argparse.ArgumentParser(
 	prog="python -m pavao",
@@ -22,27 +19,35 @@ cli_parser.add_argument("--config-file",
 	action="store", metavar="FILE", required=False, type=str,
 	default=default_config)
 
+default_port = 8000
+cli_parser.add_argument("--port",
+	help=f"port where the service will answer requests. Defaults to {default_port}",
+	action="store", metavar="PORT", required=False, type=int,
+	default=default_port)
+
 cli_parser.add_argument("--foundation",
 	help=f"directory to load suppliers and filters from",
 	action="store", metavar="DIR", required=False, type=str,
 	default=None)
 
-cli_parser.add_argument("DIR",
+cli_parser.add_argument("modules",
 	help=f"directory of modules to load",
-	action="store", type=str,
+	action="store", metavar="MODULES_DIR", type=str,
 	default=None)
 
 args = cli_parser.parse_args()
 
 #-------------------------------------------------------------------------------
 
-if (modules_dir := args.DIR) is not None:
+if (modules_dir := args.modules) is not None:
 	is_default_config = args.config_file == default_config
 	foundation_dir = args.foundation
 
 	server = pavao.Server(
-		args.config_file, is_default_config,
-		foundation_dir, modules_dir)
+		args.config_file,
+		is_default_config,
+		foundation_dir,
+		modules_dir)
 
 	# monkey patch sigterm handler in uvicorn
 	# https://stackoverflow.com/a/59887076
@@ -57,6 +62,7 @@ if (modules_dir := args.DIR) is not None:
 
 	asgi_config = uvicorn.Config(
 		host="0.0.0.0",
+        port=args.port,
 		app=server.get_app(),
 		loop=server.loop)
 

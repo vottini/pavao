@@ -9,6 +9,7 @@ pytz==2024.2
 PyYAML==6.0.2
 six==1.16.0
 typing_extensions==4.12.2
+umapper==0.1.4
 uvicorn==0.30.6
 uvloop==0.20.0
 watchdog==4.0.2
