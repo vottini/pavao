@@ -25,7 +25,7 @@ dependencies = [
 	"uvloop==0.21.0",
 	"watchdog==4.0.2",
 	"jsonbp==1.2.1",
-	"mapper==0.1.4"
+	"umapper==0.1.4"
 ]
 readme = { file = "README.md", content-type = "text/markdown" }
 keywords = ["framework", "asgi", "api"]
