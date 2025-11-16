@@ -44,7 +44,7 @@ class HttpHandler:
 			'accept-language',
 			'content-language',
 			'content-type',
-			'authorization',
+			'authorization'
 		])
 
 
@@ -82,8 +82,8 @@ class HttpHandler:
 	async def handle(self, scope, receive, send):
 
 		try:
-			request = Request(scope)
 			response = Response(send)
+			request = Request(scope)
 
 			if not self.active:
 				response.set_status(401)
