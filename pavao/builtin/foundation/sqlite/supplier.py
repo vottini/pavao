@@ -10,7 +10,6 @@ import pavao
 config_schema = {
 	"enabled": True,
 	"persist": True,
-	"autocommit": False,
 	"filename": "pavao.db",
 	"trace": False
 }
@@ -79,8 +78,7 @@ class SqliteSupplier(pavao.ParameterSupplier):
 
 			else: db_name = self.specs.filename
 			self.connection = await aiosqlite.connect(db_name,
-				detect_types=sqlite3.PARSE_DECLTYPES,
-				autocommit=self.specs.autocommit)
+				detect_types=sqlite3.PARSE_DECLTYPES)
 
 			if self.specs.trace:
 				sqlite3.enable_callback_tracebacks(True)
