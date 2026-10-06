@@ -5,6 +5,11 @@ sys.path.append('..')
 import pytest
 import pavao
 
+@pytest.fixture(autouse=True)
+def db_env(monkeypatch):
+	monkeypatch.setenv("DB_NAME", "testdb")
+	monkeypatch.setenv("DB_ROLE", "testuser")
+
 
 def testBadFiles():
 
