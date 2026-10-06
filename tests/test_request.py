@@ -142,9 +142,147 @@ def testParseParams():
 
 #-------------------------------------------------------------------------------
 
+def testCookieParsing():
+
+	base_scope = {
+		'server': ('127.0.0.1', 8000),
+		'client': ('127.0.0.1', 46648),
+		'method': 'GET',
+		'path': '/cookies',
+		'query_string': b'',
+	}
+
+	# single cookie
+	scope = {**base_scope, 'headers': [(b'cookie', b'session=abc123')]}
+	request = pavao.http.Request(scope)
+	assert request.cookies['session'] == 'abc123'
+
+	# multiple cookies separated by semicolons
+	scope = {**base_scope, 'headers': [(b'cookie', b'a=1; b=2; c=3')]}
+	request = pavao.http.Request(scope)
+	assert request.cookies['a'] == '1'
+	assert request.cookies['b'] == '2'
+	assert request.cookies['c'] == '3'
+
+	# cookie with no value (valueless cookie)
+	scope = {**base_scope, 'headers': [(b'cookie', b'flag=')]}
+	request = pavao.http.Request(scope)
+	assert 'flag' in request.cookies
+
+	# malformed cookie pair (no '=') is silently skipped, valid ones still parsed
+	scope = {**base_scope, 'headers': [(b'cookie', b'malformed; good=yes')]}
+	request = pavao.http.Request(scope)
+	assert 'good' in request.cookies
+	assert 'malformed' not in request.cookies
+
+	# set-cookie must NOT be split on comma (RFC 7230 exception)
+	set_cookie_value = 'id=abc; Path=/; Expires=Thu, 01 Jan 2099 00:00:00 GMT'
+	scope = {**base_scope, 'headers': [(b'set-cookie', set_cookie_value.encode())]}
+	request = pavao.http.Request(scope)
+	assert request.headers['set-cookie'] == set_cookie_value
+
+#-------------------------------------------------------------------------------
+
+def testLocalePriority():
+
+	base_scope = {
+		'server': ('127.0.0.1', 8000),
+		'client': ('127.0.0.1', 46648),
+		'method': 'GET',
+		'path': '/locale',
+		'query_string': b'',
+	}
+
+	def make_request(accept_language):
+		headers = [(b'accept-language', accept_language.encode())] if accept_language else []
+		return pavao.http.Request({**base_scope, 'headers': headers})
+
+	# no header → empty list
+	request = pavao.http.Request({**base_scope, 'headers': []})
+	assert request.parse_locale_priority() == []
+
+	# wildcard only → empty list
+	assert make_request('*').parse_locale_priority() == []
+
+	# single value → list with one entry (not a bare string)
+	result = make_request('pt_BR').parse_locale_priority()
+	assert isinstance(result, list)
+	assert result == ['pt_BR']
+
+	# dash normalised to underscore
+	result = make_request('zh-CN').parse_locale_priority()
+	assert result == ['zh_CN']
+
+	# multiple values sorted by quality
+	result = make_request('en-US,zh-CN;q=0.9,ja;q=0.8').parse_locale_priority()
+	assert result == ['en_US', 'zh_CN', 'ja']
+
+	# explicit lower quality comes last
+	result = make_request('fr;q=0.5,de;q=0.9').parse_locale_priority()
+	assert result == ['de', 'fr']
+
+	# wildcard mixed in is ignored, rest is preserved
+	result = make_request('en-GB,*;q=0.5').parse_locale_priority()
+	assert 'en_GB' in result
+	assert '*' not in result
+
+	# space after semicolon is legal (RFC 7231) and must be parsed correctly
+	result = make_request('en-US, zh-CN; q=0.9').parse_locale_priority()
+	assert result == ['en_US', 'zh_CN']
+
+	# q=1.0 and q=1.000 are valid per RFC 7231
+	result = make_request('en;q=1.0,fr;q=0.5').parse_locale_priority()
+	assert result == ['en', 'fr']
+
+#-------------------------------------------------------------------------------
+
+def testSecurityQueryParams():
+
+	base_scope = {
+		'server': ('127.0.0.1', 8000),
+		'client': ('127.0.0.1', 46648),
+		'method': 'GET',
+		'path': '/security',
+		'headers': [],
+	}
+
+	# null byte injection via percent-encoding must be rejected
+	null_byte_payloads = (
+		b'file=%00etc%2Fpasswd',    # null byte in value
+		b'%00key=value',            # null byte in key
+		b'a=1&b=%00',              # null byte in second param
+		b'x=normal%00injected',    # null byte mid-value
+	)
+
+	for payload in null_byte_payloads:
+		with pytest.raises(pavao.http.RequestException):
+			pavao.http.Request({**base_scope, 'query_string': payload})
+
+	# parameter pollution must be rejected
+	duplicate_payloads = (
+		b'role=user&role=admin',
+		b'a=1&b=2&a=3',
+		b'x=first&x=second',
+	)
+
+	for payload in duplicate_payloads:
+		with pytest.raises(pavao.http.RequestException):
+			pavao.http.Request({**base_scope, 'query_string': payload})
+
+	# empty key must be rejected
+	with pytest.raises(pavao.http.RequestException):
+		pavao.http.Request({**base_scope, 'query_string': b'=value'})
+
+	# legitimate requests must still pass
+	pavao.http.Request({**base_scope, 'query_string': b'a=1&b=2&c=3'})
+
+#-------------------------------------------------------------------------------
+
 if __name__ == "__main__":
 	testBadUtf8()
 	testMultipleHeaders()
 	testInternationalHeaders()
 	testParseParams()
+	testCookieParsing()
+	testLocalePriority()
 

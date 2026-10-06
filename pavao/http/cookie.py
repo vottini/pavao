@@ -1,6 +1,6 @@
 
 import string
-from datetime import datetime
+from datetime import datetime, timezone
 
 # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie
 # https://stackoverflow.com/questions/1969232/what-are-allowed-characters-in-cookies
@@ -65,10 +65,14 @@ class Cookie:
 		return self
 
 	def set_expires(self, date):
+		if date.tzinfo is None:
+			raise CookieException("Naive datetime passed to set_expires; use a timezone-aware datetime")
 		self.expires = date.strftime('%a, %d %b %Y %H:%M:%S GMT')
 		return self
 
 	def set_maxAge(self, seconds):
+		if not isinstance(seconds, int) or seconds < 0:
+			raise CookieException("maxAge must be a non-negative integer")
 		self.maxAge = seconds
 		return self
 
@@ -79,6 +83,9 @@ class Cookie:
 	def set_sameSite(self, value):
 		if not value in _same_site_options:
 			raise CookieException("Not a valid SameSite value")
+
+		if value == SameSite.NONE:
+			self.secure = True
 
 		value = _same_site_options[value]
 		self.sameSite = value
@@ -106,7 +113,7 @@ class Cookie:
 			else result)
 
 	def append_maxAge(self, result):
-		return (result + '; Max-Age=' + self.maxAge
+		return (result + '; Max-Age=' + str(self.maxAge)
 			if self.maxAge is not None
 			else result)
 
@@ -133,7 +140,7 @@ class Cookie:
 	#---------------------------------------------------------------------------
 
 	def set_to_be_removed(self):
-		epoch = datetime.utcfromtimestamp(0)
+		epoch = datetime.fromtimestamp(0, tz=timezone.utc)
 		return self.set_expires(epoch)
 
 	#---------------------------------------------------------------------------

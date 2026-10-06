@@ -43,7 +43,7 @@ class Response:
 
 
 	def set_plain_text(self, text):
-		self.set_content('text/plain', text.encode())
+		return self.set_content('text/plain; charset=utf-8', text.encode())
 
 #-------------------------------------------------------------------------------
 

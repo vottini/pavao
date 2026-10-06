@@ -38,14 +38,14 @@ class Modifications:
 		if deleted in self.deletions:
 			return self
 
-		if deleted in self.creations or deleted in self.updates:
+		if deleted in self.creations:
 			newer_creations = tuple(ctd for ctd in self.creations if ctd != deleted)
-			newer_updates = tuple(upd for upd in self.updates if upd != deleted)
+			return Modifications(newer_creations, self.deletions, self.updates)
 
-			return Modifications(
-				newer_creations,
-				self.deletions,
-				newer_updates)
+		if deleted in self.updates:
+			newer_updates = tuple(upd for upd in self.updates if upd != deleted)
+			newer_deletions = (*self.deletions, deleted)
+			return Modifications(self.creations, newer_deletions, newer_updates)
 
 		newer_deletions = (*self.deletions, deleted)
 		return Modifications(
@@ -67,7 +67,7 @@ class Modifications:
 
 
 	def __hash__(self):
-		return hash(self.deletions) ^ hash(self.updates)
+		return hash(self.creations) ^ hash(self.deletions) ^ hash(self.updates)
 
 #-------------------------------------------------------------------------------
 
@@ -102,7 +102,7 @@ class PathMonitor(FileSystemEventHandler):
 
 
 	def handle(self, event):
-		if not event.is_directory:
+		if not event.is_directory and not event.src_path.endswith('.pyc'):
 			asyncio.run_coroutine_threadsafe(
 				self._add_to_queue(event),
 				self.loop)

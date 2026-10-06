@@ -6,18 +6,28 @@ import traceback
 from ..logger import Logger
 from ..registry import Registry
 
-from .request import Request
+from .request import Request, RequestException
 from .response import Response, emit
 
 _http_schema = {
 	"CORS": {
 		"origins": [str],
-		"headers": [str]
+		"headers": [str],
+		"credentials": bool,
+		"max_age": int,
 	}
 }
 
+_cors_default_max_age = 600
+
 _enlist_value = lambda value : value if isinstance(value, list) else [value]
 _all_methods = ["GET", "POST", "PUT", "PATCH", "DELETE"]
+
+def _find_available_methods(registry, path):
+	available = [m for m in _all_methods if registry.find_endpoint(m, path) is not None]
+	if 'GET' in available:
+		available.append('HEAD')
+	return available
 
 # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
 # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers
@@ -30,6 +40,8 @@ _cors_allow_methods = 'access-control-allow-methods'
 _cors_allow_credentials = 'access-control-allow-credentials'
 _cors_allow_origin = 'access-control-allow-origin'
 _cors_allow_headers = 'access-control-allow-headers'
+_cors_max_age = 'access-control-max-age'
+_vary = 'vary'
 
 class HttpHandler:
 	def __init__(self, server, broadcasting):
@@ -39,6 +51,8 @@ class HttpHandler:
 		self.active = True
 
 		self.cors_origins = list()
+		self.cors_credentials = False
+		self.cors_max_age = _cors_default_max_age
 		self.cors_headers = set([
 			'accept',
 			'accept-language',
@@ -60,8 +74,10 @@ class HttpHandler:
 
 		if http_settings is not None:
 			cors_settings = http_settings.get('CORS', dict())
-			self.cors_headers.update(cors_settings.get('headers', list()))
+			self.cors_headers.update(h.lower() for h in cors_settings.get('headers', list()))
 			self.cors_origins = cors_settings.get('origins', list())
+			self.cors_credentials = cors_settings.get('credentials', False)
+			self.cors_max_age = cors_settings.get('max_age', _cors_default_max_age)
 
 
 	async def update_registry(self, registry):
@@ -86,26 +102,30 @@ class HttpHandler:
 			request = Request(scope)
 
 			if not self.active:
-				response.set_status(401)
+				response.set_status(503)
 				await emit(response)
 				return
 
 			if (sent_origin := request.headers.get('origin')) is not None:
+				if self.cors_origins:
+					response.add_header(_vary, 'Origin')
+
 				for allowed_cors_origin in self.cors_origins:
 					if sent_origin == allowed_cors_origin:
 						response.add_header(_cors_allow_origin, sent_origin)
-						response.add_header(_cors_allow_credentials, 'true')
+						if self.cors_credentials:
+							response.add_header(_cors_allow_credentials, 'true')
 						break
 
 			if request.method == "OPTIONS":
-				requested_methods = request.headers.get(_cors_req_methods)
-				requested_methods = _enlist_value(requested_methods or _all_methods)
-				found_methods = list()
+				requested_method = request.headers.get(_cors_req_methods)
 
-				for method in requested_methods:
-					found_endpoint = self.registry.find_endpoint(method, request.path)
-					if found_endpoint is not None:
-						found_methods.append(method)
+				if requested_method is not None:
+					check = _enlist_value(requested_method)
+					found_methods = [m for m in check
+						if self.registry.find_endpoint(m, request.path) is not None]
+				else:
+					found_methods = _find_available_methods(self.registry, request.path)
 
 				if 0 == len(found_methods):
 					response.set_status(404)
@@ -114,6 +134,7 @@ class HttpHandler:
 
 				joined_methods = ", ".join(found_methods)
 				response.add_header(_cors_allow_methods, joined_methods)
+				response.add_header(_cors_max_age, str(self.cors_max_age))
 
 				requested_headers = request.headers.get(_cors_req_headers)
 				requested_headers = _enlist_value(requested_headers or list())
@@ -131,12 +152,16 @@ class HttpHandler:
 				await emit(response)
 				return
 
-			found_endpoint = self.registry.find_endpoint(
-				request.method,
-				request.path)
+			effective_method = 'GET' if request.method == 'HEAD' else request.method
+			found_endpoint = self.registry.find_endpoint(effective_method, request.path)
 
 			if found_endpoint is None:
-				response.set_status(404)
+				available = _find_available_methods(self.registry, request.path)
+				if available:
+					response.add_header('allow', ', '.join(available))
+					response.set_status(405)
+				else:
+					response.set_status(404)
 				await emit(response)
 				return
 
@@ -153,6 +178,13 @@ class HttpHandler:
 			}
 
 			await endpoint.function(http_context)
+			if request.method == 'HEAD':
+				response.content = b""
+			await emit(response)
+
+		except RequestException as e:
+			Logger.error(f"Malformed request: {e}")
+			response.set_status(400)
 			await emit(response)
 
 		except Exception as e:

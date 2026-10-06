@@ -9,7 +9,7 @@ class RequestException(PavaoException):
 _cookie = "cookie"
 _set_cookie = "set-cookie"
 _cookie_pattern = re.compile(r"([^=]+)=(\S*)")
-_quality_matcher = re.compile(r'^q=(1|0.[0-9]{1,3})$')
+_quality_matcher = re.compile(r'^q=(1(?:\.0{1,3})?|0\.[0-9]{1,3})$')
 _any_language = '*'
 
 _utf8_decode = lambda content : content.decode('utf-8')
@@ -45,15 +45,9 @@ class Request:
 
 					for cookie_pair in cookie_pairs:
 						found_values = _cookie_pattern.search(cookie_pair)
-						if found_values is None:
-							continue
-
-						try:
-							name, value = found_values.groups()
-							self.cookies[name] = value
-
-						except Exception:
-							continue
+						if found_values is None: continue
+						name, value = found_values.groups()
+						self.cookies[name] = value
 
 					continue
 
@@ -88,12 +82,24 @@ class Request:
 			try:
 				saned_qs = query_string.decode().replace('+',' ')
 				unquoted_params = urllib.parse.unquote(saned_qs, errors='strict')
+
+				if '\x00' in unquoted_params:
+					raise RequestException("Null byte in query string")
+
 				params_pairs = unquoted_params.split("&")
 
 				for pair in params_pairs:
 					param_tokens = pair.split('=', 1)
+					param_key = param_tokens[0]
 					param_value = param_tokens[1] if len(param_tokens) > 1 else True
-					self.params[param_tokens[0]] = param_value
+
+					if not param_key:
+						raise RequestException("Empty query parameter key")
+
+					if param_key in self.params:
+						raise RequestException(f"Duplicate query parameter: '{param_key}'")
+
+					self.params[param_key] = param_value
 
 			except (UnicodeError, UnicodeDecodeError) as e:
 				msg = f"Error decoding params: '{e}'"
@@ -130,7 +136,7 @@ class Request:
 			parts = accepted_languages.split(';', maxsplit=1)
 			languageId = parts[0].strip().replace('-','_')
 
-			return (languageId
+			return ([languageId]
 				if languageId != _any_language
 				else list())
 
@@ -143,7 +149,7 @@ class Request:
 
 			quality = 1.0
 			if len(parts) > 1:
-				quality_part = parts[1]
+				quality_part = parts[1].strip()
 				found = _quality_matcher.match(quality_part)
 
 				if found is not None:
