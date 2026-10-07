@@ -1,10 +1,11 @@
 
 import asyncio
 
-END_OF_STREAM = "__END_OF_STREAM__"
+SHUTDOWN_TOPIC = "PAVAO.SHUTDOWN"
 
 class Sink:
 	def __init__(self, topic):
+		# maxsize=0 means unbounded; set a positive value to apply backpressure
 		self.queue = asyncio.Queue()
 		self.topic = topic
 
@@ -21,8 +22,8 @@ class Broadcaster:
 	def open_sink(self, topic):
 		sink = Sink(topic)
 		topic_sinks = self.topics.get(topic, list())
-		self.topics[topic] = topic_sinks
 		topic_sinks.append(sink)
+		self.topics[topic] = topic_sinks
 		return sink
 
 
@@ -48,13 +49,11 @@ class Broadcaster:
 
 
 	async def announce_shutdown(self):
-		await self.write_message(
-			"PAVAO.SHUTDOWN",
-			END_OF_STREAM)
+		await self.write_message(SHUTDOWN_TOPIC, None)
 
 
 __all__ = [
-	END_OF_STREAM,
-	Broadcaster
+	"SHUTDOWN_TOPIC",
+	"Broadcaster",
 ]
 

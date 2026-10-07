@@ -10,7 +10,7 @@ from .json import accepts_json, generates_json, error_blueprint, has_optional_fi
 from .sse import generates_sse
 from .parameters import accepts_parameters
 from .loader import path_to, include, import_module, from_module
-from .broadcasting import END_OF_STREAM
+from .broadcasting import SHUTDOWN_TOPIC
 from .scheduler import TaskProblem
 from .jwt import JwtSupplier
 from .server import Server

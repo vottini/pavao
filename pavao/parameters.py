@@ -6,9 +6,8 @@ from .exception import PavaoException
 from .i18n import Internationalization
 
 from .loader import path_to
-internationalization = Internationalization(
-	path_to('messages')
-)
+
+internationalization = Internationalization(path_to('messages'))
 
 accepts_parameters_output = { "parameters" }
 accepts_parameters_params = { "request", "response" }
@@ -40,7 +39,8 @@ async def wrapped({ALL_PARAMS}):
 			)
 
 		except Exception as e:
-			localizer = internationalization.create_localizer(request)
+			accepted_languages = request.parse_locale_priority()
+			localizer = internationalization.create_localizer(accepted_languages)
 			localizer.assign_response_error(response, "PARAMS_INVALID")
 			response.set_status(400)
 			return
@@ -68,7 +68,7 @@ def accepts_parameters(parameter_dict):
 
 			if len(value) != 1 or not isinstance(value[0], type):
 				raise PavaoException(
-					"list especification needs to have exactly " +
+					"list specification needs to have exactly " +
 					"one element and it needs to be a type"
 				)
 
@@ -98,8 +98,7 @@ def accepts_parameters(parameter_dict):
 		fnc_params = fnc_lvars[0:fnc_nargs]
 
 		all_params = (
-			set(fnc_params)
-			^ accepts_parameters_output
+			(set(fnc_params) - accepts_parameters_output)
 			| accepts_parameters_params
 		)
 
@@ -128,4 +127,3 @@ def accepts_parameters(parameter_dict):
 __all__ = [
 	"accepts_parameters"
 ]
-
