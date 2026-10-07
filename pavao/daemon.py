@@ -1,6 +1,6 @@
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from datetime import timedelta
 
 from .utils import async_adapter
@@ -41,7 +41,7 @@ class Daemon(TaskManager):
 				adapted_cb = async_adapter(cb)
 				await adapted_cb()
 
-			self.finished_services[task.source] = datetime.now()
+			self.finished_services[task.source] = datetime.now(timezone.utc)
 
 			if self.active:
 				Logger.info(f"Service from '{task.source}' terminated "
@@ -70,7 +70,7 @@ class Daemon(TaskManager):
 		await asyncio.sleep(5)
 
 		while self.active:
-			now = datetime.now()
+			now = datetime.now(timezone.utc)
 			retained = dict()
 
 			for source, termination in self.finished_services.items():
@@ -110,9 +110,10 @@ class Daemon(TaskManager):
 
 		if self.executor is not None:
 			for task in self.loaded_tasks:
-				if task.execution is not None:
-					task.execution.cancel()
-					await task.execution
+				execution = task.execution
+				if execution is not None:
+					execution.cancel()
+					await execution
 
 			self.executor.cancel()
 			await self.executor

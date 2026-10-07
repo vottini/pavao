@@ -15,11 +15,11 @@ def deduce_parameters(fnc):
 
 #-------------------------------------------------------------------------------
 
-def adapter(fnc, await_if_async=True):
+def adapter(fnc, wrap_as_coroutine=True):
 	asynchronous = inspect.iscoroutinefunction(fnc)
 	fnc_params = deduce_parameters(fnc)
 
-	if await_if_async and asynchronous:
+	if wrap_as_coroutine and asynchronous:
 		async def wrapped_call(variables):
 			selected_args = [ variables[param] for param in fnc_params ]
 			return await fnc(*selected_args)

@@ -5,6 +5,7 @@ import inspect
 
 from .http.response import emit_headers
 from .http.response import emit_body
+from .broadcasting import SHUTDOWN_TOPIC
 
 _EVENT_SEPARATOR = "\n".encode()
 def do_nothing(): ...
@@ -23,7 +24,7 @@ class ServerEvent:
 			newlined_content.encode(),
 			more_body)
 
-	async def certify_headers_sent(self):
+	async def _certify_headers_sent(self):
 		await emit_headers(self.response)
 		self.headers_sent = True
 
@@ -47,11 +48,11 @@ class ServerEvent:
 				self.response.add_header(field, value)
 
 		self.response.set_status(status)
-		await self.certify_headers_sent()
+		await self._certify_headers_sent()
 
 
 	async def event(self, event_type, data=None):
-		await self.certify_headers_sent()
+		await self._certify_headers_sent()
 
 		if data is None:
 			await self.emit_fragment(f"event: {event_type}")
@@ -64,7 +65,7 @@ class ServerEvent:
 
 
 	async def message(self, data):
-		await self.certify_headers_sent()
+		await self._certify_headers_sent()
 		await self.emit_fragment(f"data: {data}")
 		await self.end_event()
 
@@ -98,15 +99,17 @@ async def wrapped({ALL_PARAMS}):
 			message = await receive()
 
 		if not emit_instance.orderly_shutdown:
-			fnc = emit_instance.disconnection_callback
-			is_awaitable = inspect.iscoroutinefunction(fnc)
-			await fnc() if is_awaitable else fnc()
+			callback = emit_instance.disconnection_callback
+			is_awaitable = inspect.iscoroutinefunction(callback)
+			await callback() if is_awaitable else callback()
 
 	async def monitor_shutdown():
-		shutdown_sink = broadcasting.open_sink("PAVAO.SHUTDOWN")
-		await shutdown_sink.get_message()
-		await emit_instance.event("serverShutdown")
-		broadcasting.close_sink(shutdown_sink)
+		shutdown_sink = broadcasting.open_sink(SHUTDOWN_TOPIC)
+		try:
+			await shutdown_sink.get_message()
+			await emit_instance.event("serverShutdown")
+		finally:
+			broadcasting.close_sink(shutdown_sink)
 
 	tasks = [
 		asyncio.create_task(run_endpoint()),
@@ -141,8 +144,7 @@ def generates_sse(
 		fnc_params = fnc_lvars[0:fnc_nargs]
 
 		all_params = (
-			set(fnc_params)
-			^ generates_sse_output
+			(set(fnc_params) - generates_sse_output)
 			| generates_sse_params
 		)
 

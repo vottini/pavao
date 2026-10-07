@@ -1,6 +1,7 @@
 
 import asyncio
 import inspect
+from abc import ABC, abstractmethod
 
 from datetime import datetime
 from datetime import timezone
@@ -106,7 +107,7 @@ class Task:
 		self.pre_processing = None
 		self.post_processing = None
 		self.function = adapter(self.processor,
-			await_if_async=False)
+			wrap_as_coroutine=False)
 
 		self.source = source
 		self.package = specs.get('package')
@@ -130,6 +131,7 @@ class Task:
 			retrieved = await cursor.execute(retrieve_task, args)
 			self.ident, enabled = await retrieved.fetchone()
 
+		await internal_db.commit()
 		setup = self.enable if enabled else self.disable
 		await setup()
 
@@ -172,7 +174,8 @@ class Task:
 
 				inserted_row = await cursor.fetchone()
 				run_ident = inserted_row[0]
-				await internal_db.commit()
+
+			await internal_db.commit()
 
 			async def process_output(output, error):
 				instant = datetime.now(timezone.utc)
@@ -217,7 +220,8 @@ class Task:
 				if self.post_processing is not None:
 					await self.post_processing(context)
 
-				self.execution = None
+				if self.execution is asyncio.current_task():
+					self.execution = None
 				await broadcaster.write_message(
 					f"taskState:{self.ident}",
 					"FINISHED"
@@ -245,7 +249,6 @@ class Task:
 			return False
 
 		self.execution.cancel()
-		self.execution = None
 		return True
 
 
@@ -262,7 +265,7 @@ class Task:
 
 #-------------------------------------------------------------------------------
 
-class TaskManager:
+class TaskManager(ABC):
 	def __init__(self, loop, broadcaster):
 		self.broadcaster = broadcaster
 		self.loop = loop
@@ -275,8 +278,13 @@ class TaskManager:
 
 	#--------------------------------------------------------
 
-	async def execute_tasks(self): ...
-	async def stop(self): ...
+	@abstractmethod
+	async def execute_tasks(self):
+		...
+
+	@abstractmethod
+	async def stop(self):
+		...
 
 	def get_base_context(self):
 		return set()

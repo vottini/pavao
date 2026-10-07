@@ -1,5 +1,6 @@
 #!/bin/bash
 
-coverage run -m pytest -v
-coverage report --omit="test_*.py" --show-missing
+cd "$(dirname "$0")/.."
+coverage run -m pytest tests/ -v
+coverage report --show-missing
 

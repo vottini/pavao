@@ -7,6 +7,8 @@ import pytest
 import pavao
 from pavao.config import ConfigException, load_settings, unflatten, process_config
 
+_CONFIGS_DIR = os.path.join(os.path.dirname(__file__), "configs")
+
 @pytest.fixture(autouse=True)
 def db_env(monkeypatch):
 	monkeypatch.setenv("DB_NAME", "testdb")
@@ -63,9 +65,9 @@ def testLoadBadYamlRaises(tmp_path):
 		load_settings(str(f))
 
 def testBadFiles():
-	for bad_file in ["configs/non_existent_file.yml", "configs/bad_file.yml"]:
+	for bad_file in ["non_existent_file.yml", "bad_file.yml"]:
 		with pytest.raises(pavao.config.ConfigException):
-			pavao.config.load_settings(bad_file)
+			pavao.config.load_settings(os.path.join(_CONFIGS_DIR, bad_file))
 
 #-------------------------------------------------------------------------------
 # get_setting: navigation
@@ -209,34 +211,34 @@ positionSchema = {"latitude": float, "longitude": float, "accuracy": 10.0}
 def testMissing():
 	for file in ["missing_type.yml", "missing_dict.yml"]:
 		with pytest.raises(pavao.config.ConfigException):
-			settings = pavao.config.load_settings("configs/" + file)
+			settings = pavao.config.load_settings(os.path.join(_CONFIGS_DIR, file))
 			settings.get_setting("pavao.database", databaseSchema)
 
 def testArrays():
-	settings = pavao.config.load_settings("configs/array_incompat.yml")
+	settings = pavao.config.load_settings(os.path.join(_CONFIGS_DIR, "array_incompat.yml"))
 	for test in [("localization", localizationSchema), ("giants", giantsSchema)]:
 		with pytest.raises(pavao.config.ConfigException):
 			settings.get_setting(*test)
 
-	settings = pavao.config.load_settings("configs/correct.yml")
+	settings = pavao.config.load_settings(os.path.join(_CONFIGS_DIR, "correct.yml"))
 	for bad_schema in [[str, int], [(str, int)]]:
 		with pytest.raises(pavao.config.ConfigException):
 			settings.get_setting("giants", bad_schema)
 
 def testVariables():
-	settings = pavao.config.load_settings("configs/missing_var.yml")
+	settings = pavao.config.load_settings(os.path.join(_CONFIGS_DIR, "missing_var.yml"))
 	for test in [("pavao.database", databaseSchema), ("position", positionSchema)]:
 		with pytest.raises(pavao.config.ConfigException):
 			settings.get_setting(*test)
 
 def testTypes():
-	settings = pavao.config.load_settings("configs/bad_types.yml")
+	settings = pavao.config.load_settings(os.path.join(_CONFIGS_DIR, "bad_types.yml"))
 	for test in [("position1", positionSchema), ("position2", positionSchema)]:
 		with pytest.raises(pavao.config.ConfigException):
 			settings.get_setting(*test)
 
 def testCorrect():
-	settings = pavao.config.load_settings("configs/correct.yml")
+	settings = pavao.config.load_settings(os.path.join(_CONFIGS_DIR, "correct.yml"))
 	for test in [
 		("pavao.database", databaseSchema),
 		("pavao.database.user", str),
