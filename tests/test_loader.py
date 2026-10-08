@@ -5,6 +5,7 @@ sys.path.append('..')
 import os
 import time
 import pytest
+import pavao.loader as _loader_mod
 from pavao.loader import (
 	LoaderException,
 	_find_python_scripts,
@@ -13,10 +14,15 @@ from pavao.loader import (
 	retrieve_dependees,
 	clear_dependencies,
 	load_script,
+	load_folder,
 	load_component,
 	load_components_dir,
 	load_module,
 	_retrieve_or_load_module,
+	include,
+	import_module,
+	from_module,
+	ImportedModule,
 )
 
 #-------------------------------------------------------------------------------
@@ -249,6 +255,119 @@ def testImportItemChaining(tmp_path):
 	scope = {}
 	ImportedModule(module, scope).import_item("a").import_item("b")
 	assert scope["a"] == 1 and scope["b"] == 2
+
+#-------------------------------------------------------------------------------
+# load_folder
+
+def testLoadFolderLoadsAllScripts(tmp_path):
+	(tmp_path / "a.py").write_text("val_a = 1")
+	(tmp_path / "b.py").write_text("val_b = 2")
+	load_folder(str(tmp_path), verbose=False)  # must not raise
+
+def testLoadFolderSkipsBrokenFiles(tmp_path):
+	(tmp_path / "bad.py").write_text("def broken(: pass")
+	load_folder(str(tmp_path), verbose=False)  # must not raise
+
+#-------------------------------------------------------------------------------
+# load_component verbose path
+
+def testLoadComponentVerboseLogsAndReturns(tmp_path):
+	f = tmp_path / "ep.py"
+	f.write_text("def pavao_endpoint(): return 'ok'")
+	result = load_component(str(f), str(tmp_path), verbose=True)
+	assert result is not None
+	tag, fn = result
+	assert tag == "ENDPOINT"
+
+#-------------------------------------------------------------------------------
+# include
+
+@pytest.fixture
+def patched_caller(tmp_path, monkeypatch):
+	monkeypatch.setattr(_loader_mod, 'get_caller_path',
+		lambda: (str(tmp_path), 'caller.py'))
+	return tmp_path
+
+def testIncludeReturnsFileContents(patched_caller):
+	(patched_caller / "tmpl.html").write_text("<h1>hi</h1>")
+	assert include("tmpl.html") == "<h1>hi</h1>"
+
+def testIncludeRegistersDependency(patched_caller):
+	f = patched_caller / "tmpl.html"
+	f.write_text("content")
+	include("tmpl.html")
+	requester = str(patched_caller / "caller.py")
+	assert requester in retrieve_dependees(str(f))
+
+def testIncludeMissingFileRaisesLoaderException(patched_caller):
+	with pytest.raises(LoaderException):
+		include("nonexistent.html")
+
+#-------------------------------------------------------------------------------
+# import_module
+
+def testImportModuleRaisesOnPathSeparator():
+	with pytest.raises(LoaderException):
+		import_module("some/path")
+
+def testImportModuleInjectsIntoCallerGlobals(patched_caller):
+	(patched_caller / "mymod.py").write_text("value = 123")
+	import_module("mymod")
+	try:
+		assert globals()["mymod"].value == 123
+	finally:
+		globals().pop("mymod", None)
+
+def testImportModuleWithRenameUsesGivenName(patched_caller):
+	(patched_caller / "mymod.py").write_text("value = 456")
+	import_module("mymod", with_name="_renamed_mod")
+	try:
+		assert globals()["_renamed_mod"].value == 456
+	finally:
+		globals().pop("_renamed_mod", None)
+
+def testImportModuleRegistersDependency(patched_caller):
+	f = patched_caller / "mymod.py"
+	f.write_text("x = 1")
+	import_module("mymod")
+	globals().pop("mymod", None)
+	requester = str(patched_caller / "caller.py")
+	assert requester in retrieve_dependees(str(f))
+
+#-------------------------------------------------------------------------------
+# from_module
+
+def testFromModuleReturnsImportedModule(patched_caller):
+	(patched_caller / "mymod.py").write_text("value = 789")
+	result = from_module("mymod")
+	assert isinstance(result, ImportedModule)
+	assert result.module.value == 789
+
+def testFromModuleAddsExtensionIfMissing(patched_caller):
+	(patched_caller / "mymod.py").write_text("value = 1")
+	result = from_module("mymod")
+	assert result.module.value == 1
+
+def testFromModuleAcceptsExplicitExtension(patched_caller):
+	(patched_caller / "mymod.py").write_text("value = 2")
+	result = from_module("mymod.py")
+	assert result.module.value == 2
+
+def testFromModuleScopeIsCallerGlobals(patched_caller):
+	(patched_caller / "mymod.py").write_text("val = 99")
+	result = from_module("mymod")
+	result.import_item("val", with_name="_from_mod_val")
+	try:
+		assert globals()["_from_mod_val"] == 99
+	finally:
+		globals().pop("_from_mod_val", None)
+
+def testFromModuleRegistersDependency(patched_caller):
+	f = patched_caller / "mymod.py"
+	f.write_text("x = 1")
+	from_module("mymod")
+	requester = str(patched_caller / "caller.py")
+	assert requester in retrieve_dependees(str(f))
 
 #-------------------------------------------------------------------------------
 

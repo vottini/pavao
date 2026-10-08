@@ -79,6 +79,10 @@ class Server:
 		foundation_dir,
 		modules_dir):
 
+		self.config_file = config_file
+		self.is_default_file = is_default_file
+		self.foundation_dir = foundation_dir
+
 		self.loaded_settings = None
 		self.modules_dir = os.path.abspath(modules_dir)
 		self.monitor = PathMonitor(self.modules_dir,
@@ -92,43 +96,55 @@ class Server:
 		self.endpoints = dict()
 		self.tasks = dict()
 
-		async def init():
-			Logger.info("Starting up Pavão...")
-			self.loaded_settings = load_settings(config_file, is_default_file)
-			start_logging(self.loaded_settings)
+		self._reload_lock = None
+		self._parsed_tasks = dict()
+		self._parsed_services = dict()
+		self._filter_list = None
 
-			self.load_builtin_foundation()
-			self.load_user_foundation(foundation_dir)
-
-			await self.http_handler.init(self.loaded_settings)
-			await self.parametering.init(self.loaded_settings)
-			await self.filtering.init(self.loaded_settings,
-				self.parametering)
-
-			await self.load_user_modules()
-			await self.register_endpoints()
-			await self.restart_tasks()
-
-			self.monitor.schedule_execution(self.loop)
-			Logger.info("Pavão started!")
-			return True
-
-		async def stop():
-			Logger.info("Stopping Pavão...")
-			self.monitor.stop()
-
-			await self.scheduler.stop()
-			await self.daemon.stop()
-			await self.parametering.shutdown()
-
-			stop_logging()
-
-		self.lifespan_handler = lifespan.LifespanHandler(init, stop)
+		self.lifespan_handler = lifespan.LifespanHandler(
+			self._startup, self._shutdown)
 		self.http_handler = http.HttpHandler(self, self.broadcaster)
 
 		self.loop = uvloop.new_event_loop()
 		self.scheduler = Scheduler(self.loop, self.broadcaster)
 		self.daemon = Daemon(self.loop, self.broadcaster)
+
+	#-------------------------------------------------------------------------------
+
+	async def _startup(self):
+		Logger.info("Starting up Pavão...")
+		self.loaded_settings = load_settings(self.config_file, self.is_default_file)
+		start_logging(self.loaded_settings)
+
+		self.load_builtin_foundation()
+		self.load_user_foundation(self.foundation_dir)
+
+		await self.http_handler.init(self.loaded_settings)
+		await self.parametering.init(self.loaded_settings)
+		await self.filtering.init(self.loaded_settings,
+			self.parametering)
+
+		self._reload_lock = asyncio.Lock()
+		await self._build_filter_list()
+
+		await self.load_user_modules()
+		await self.register_endpoints()
+		await self.restart_tasks()
+
+		self.monitor.schedule_execution(self.loop)
+		Logger.info("Pavão started!")
+		return True
+
+
+	async def _shutdown(self):
+		Logger.info("Stopping Pavão...")
+		self.monitor.stop()
+
+		await self.scheduler.stop()
+		await self.daemon.stop()
+		await self.parametering.shutdown()
+
+		stop_logging()
 
 	#-------------------------------------------------------------------------------
 
@@ -157,6 +173,11 @@ class Server:
 				if specs is None:
 					continue
 
+				if not isinstance(specs, dict):
+					short_path = os.path.relpath(file_path, self.modules_dir)
+					Logger.warning(f"'{short_path}' register function must return a dict or None")
+					continue
+
 				destination = destinations[kind]
 				destination[file_path] = specs
 
@@ -178,6 +199,7 @@ class Server:
 				continue
 
 			finally:
+				context.pop('loaded_settings', None)
 				for parameter, value in context.items():
 					await self.parametering.destroy(parameter,
 						value)
@@ -209,14 +231,13 @@ class Server:
 
 	#-------------------------------------------------------------------------------
 
-	async def register_endpoints(self):
-		all_filters = self.filtering.list_filters()
+	async def _build_filter_list(self):
 		enabler_parametering = self.parametering.change_base(
 			{'endpoint_specs'}
 		)
 
 		filter_list = list()
-		for classname, enabler, allower in all_filters:
+		for classname, enabler, allower in self.filtering.list_filters():
 
 			try:
 				pre_enabler, post_enabler = enabler_parametering.create_wrappers(enabler)
@@ -231,8 +252,12 @@ class Server:
 				Logger.error(traceback.format_exc())
 				raise e
 
+		self._filter_list = filter_list
+
+
+	async def register_endpoints(self):
 		registry = Registry()
-		for specs in self.endpoints.values():
+		for file_path, specs in self.endpoints.items():
 
 			try:
 				method, path, processor = routing_destructor(specs)
@@ -254,7 +279,7 @@ class Server:
 					pre_filtering = list()
 					post_filtering = list()
 
-					for wrapped_enabler, allower in filter_list:
+					for wrapped_enabler, allower in self._filter_list:
 						context = { 'endpoint_specs': specs }
 						should_enable = await wrapped_enabler(context)
 
@@ -278,7 +303,8 @@ class Server:
 					continue
 
 			except Exception as e:
-				Logger.warning(f"Unable to add endpoint: {e}")
+				short_path = os.path.relpath(file_path, self.modules_dir)
+				Logger.warning(f"Unable to add endpoint from '{short_path}': {e}")
 				Logger.error(traceback.format_exc())
 				continue
 
@@ -290,7 +316,6 @@ class Server:
 		to_unload = set(filter(python_source, (*deletions, *updates)))
 		to_load = set(filter(python_source, (*updates, *creations)))
 		jsonbp.invalidate_cache()
-		print("!!! update_modules")
 
 		updated_dependencies = set()
 		for script in filter(python_source, updates):
@@ -305,54 +330,64 @@ class Server:
 			to_unload |= dependees
 			to_load |= dependees
 
-		endpoints_and_tasks = [
-			self.endpoints,
-			self.tasks
-		]
+		async def process_updates():
+			async with self._reload_lock:
+				endpoints_and_tasks = [self.endpoints, self.tasks]
 
-		for file_path in to_unload:
-			if file_path in self.services:
-				self.daemon.stop_module(file_path)
+				for file_path in to_unload:
+					if file_path in self.services:
+						self.daemon.stop_module(file_path)
+						self.services.pop(file_path)
+						self._parsed_services.pop(file_path, None)
+						specific_path = remove_prefix(file_path, self.modules_dir)
+						Logger.info(f"Unloaded service from {specific_path}")
+						continue
 
-				self.services.pop(file_path)
-				specific_path = remove_prefix(file_path, self.modules_dir)
-				Logger.info(f"Unloaded service from {specific_path}")
-				continue
+					for origin in endpoints_and_tasks:
+						if file_path in origin:
+							origin.pop(file_path)
+							self._parsed_tasks.pop(file_path, None)
+							specific_path = remove_prefix(file_path, self.modules_dir)
+							Logger.info(f"Unloaded endpoint from {specific_path}")
+							break
 
-			for origin in endpoints_and_tasks:
-				if file_path in origin:
-					origin.pop(file_path)
-					specific_path = remove_prefix(file_path, self.modules_dir)
-					Logger.info(f"Unloaded endpoint from {specific_path}")
-					continue
+				for dependency in updated_dependencies:
+					load_module(dependency)
 
-		async def process_loading():
-			for dependency in updated_dependencies:
-				load_module(dependency)
+				collected = list()
+				for file_path in to_load:
+					if (specifier := load_component(file_path, self.modules_dir, True)) is not None:
+						collected.append((file_path, specifier))
 
-			collected = list()
-			for file_path in to_load:
-				if (specifier := load_component(file_path, self.modules_dir, True)) is not None:
-					collected.append((file_path, specifier))
+				if len(collected) > 0:
+					await self.load_modules(
+						self.endpoints,
+						self.tasks,
+						self.services,
+						*collected)
 
-			if len(collected) > 0:
-				await self.load_modules(
-					self.endpoints,
-					self.tasks,
-					self.services,
-					*collected)
+				await self.register_endpoints()
+				await self.restart_tasks()
 
-		asyncio.run_coroutine_threadsafe(process_loading(), self.loop)
-		asyncio.run_coroutine_threadsafe(self.register_endpoints(), self.loop)
-		asyncio.run_coroutine_threadsafe(self.restart_tasks(), self.loop)
+		def log_failure(future):
+			if not future.cancelled() and future.exception():
+				Logger.error(f"Hot-reload failed: {future.exception()}")
+				Logger.error(traceback.format_exc())
+
+		future = asyncio.run_coroutine_threadsafe(process_updates(), self.loop)
+		future.add_done_callback(log_failure)
 
 
-	def parse_tasks(self, modules, manager):
+	def parse_tasks(self, modules, manager, cache):
 		parsed_tasks = list()
+		task_parametering = self.parametering.change_base(
+			manager.get_base_context())
 
 		for file_path, spec in modules.items():
-			task_parametering = self.parametering.change_base(
-				manager.get_base_context())
+
+			if file_path in cache:
+				parsed_tasks.append(cache[file_path])
+				continue
 
 			try:
 				task_data = manager.ctor(file_path, spec)
@@ -373,6 +408,7 @@ class Server:
 					continue
 
 				task_data.pre_processing, task_data.post_processing = wrappers
+				cache[file_path] = task_data
 				parsed_tasks.append(task_data)
 
 			except KeyError as e:
@@ -391,13 +427,17 @@ class Server:
 	async def restart_tasks(self):
 		internal_db = await self.parametering.produce('internal_db')
 
-		await self.scheduler.set_tasks(
-			self.parse_tasks(self.tasks, self.scheduler),
-			internal_db)
+		try:
+			await self.scheduler.set_tasks(
+				self.parse_tasks(self.tasks, self.scheduler, self._parsed_tasks),
+				internal_db)
 
-		await self.daemon.set_tasks(
-			self.parse_tasks(self.services, self.daemon),
-			internal_db)
+			await self.daemon.set_tasks(
+				self.parse_tasks(self.services, self.daemon, self._parsed_services),
+				internal_db)
+
+		finally:
+			await self.parametering.destroy('internal_db', internal_db)
 
 	#-------------------------------------------------------------------------------
 
@@ -426,4 +466,3 @@ class Server:
 					break
 
 		return app
-

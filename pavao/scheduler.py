@@ -65,6 +65,8 @@ async def wait_whole_minute():
 
 	end = datetime.now()
 	waited = end - start
+	# if the machine was suspended, sleep may return far later than expected;
+	# recurse once to re-align to the next whole-minute boundary
 	if waited > timedelta(minutes=2):
 		await wait_whole_minute()
 
@@ -81,7 +83,7 @@ class Scheduler(TaskManager):
 
 
 	def start_task(self, task):
-		async def on_output(task, output): task.append_output(output)
+		async def on_output(running_task, output): running_task.append_output(output)
 		async def on_finish(task_ident, run_ident, success):
 			task.clear_output()
 
@@ -157,7 +159,8 @@ class Scheduler(TaskManager):
 						task.step_schedule()
 
 					if task.next_execution <= now:
-						self.start_task(task)
+						if task.execution is None:
+							self.start_task(task)
 						task.step_schedule()
 
 					await self.broadcaster.write_message(
@@ -169,6 +172,19 @@ class Scheduler(TaskManager):
 
 	async def stop(self):
 		if self.executor is not None:
+			for task in self.loaded_tasks:
+				execution = task.execution
+				if execution is not None:
+					execution.cancel()
+					try:
+						await execution
+					except asyncio.CancelledError:
+						pass
+
 			self.executor.cancel()
+			try:
+				await self.executor
+			except asyncio.CancelledError:
+				pass
 			self.executor = None
 
