@@ -1,7 +1,4 @@
 
-import os
-import asyncio
-
 from .exception import PavaoException
 class ParameterException(PavaoException):
 	pass
@@ -85,13 +82,10 @@ class ParameterFactory:
 		# and finally setup each supplier,
 		# producing all of its initialize dependencies
 
-		init_order = list()
-		init_dependencies = dict()
-		initialized = set()
-
+		init_deps = {}
 		for supplier in self.suppliers:
 			dependencies = deduce_parameters(supplier.initialize)
-			init_dependencies[supplier] = dependencies
+			init_deps[supplier] = dependencies
 
 			for parameter in dependencies:
 				if not parameter in self.parameters:
@@ -99,22 +93,39 @@ class ParameterFactory:
 					msg = f"Unknown parameter '{parameter}' to initialize '{class_name}'"
 					raise ParameterException(msg)
 
-		while len(init_dependencies) > 0:
-			next_round = dict()
+		param_to_supplier = {
+			param: supplier
+			for supplier in self.suppliers
+			for param in supplier.parameters_supplied()
+		}
 
-			for supplier, deps in init_dependencies.items():
-				unsatisfied = tuple(dep for dep in deps if dep not in initialized)
+		supplier_prereqs = {
+			supplier: {
+				param_to_supplier[dep]
+				for dep in init_deps[supplier]
+				if dep in param_to_supplier
+			}
+			for supplier in self.suppliers
+		}
 
-				if len(unsatisfied) > 0:
-					next_round[supplier] = deps
-					continue
+		in_path, visited, init_order = set(), set(), []
 
-				init_order.append(supplier)
-				supplied = supplier.parameters_supplied()
-				initialized |= set(supplied.keys())
+		def visit_supplier(supplier):
+			if supplier in in_path:
+				names = [s.__class__.__name__ for s in in_path]
+				raise ParameterException(
+					f"Circular initialization dependency among suppliers: {names}")
+			if supplier in visited:
+				return
+			in_path.add(supplier)
+			for prereq in supplier_prereqs[supplier]:
+				visit_supplier(prereq)
+			in_path.discard(supplier)
+			visited.add(supplier)
+			init_order.append(supplier)
 
-			init_dependencies = next_round
-			next_round = dict()
+		for supplier in self.suppliers:
+			visit_supplier(supplier)
 
 		for supplier in init_order:
 			initializer = supplier.initialize
@@ -150,58 +161,28 @@ class ParameterFactory:
 		produced.add(parameter)
 
 
-	def _collect_deps(self, parameter, generation_order, available_parameters):
-		if parameter in available_parameters:
-			return parameter
-
-		parameter_deps = self.dependencies[parameter]
-		missing_deps = set(parameter_deps) - available_parameters
-
-		if len(missing_deps) == 0:
-			available_parameters.add(parameter)
-			generation_order.append(parameter)
-			return parameter
-
-		for dep in missing_deps:
-			built = self._collect_deps(dep, generation_order, available_parameters)
-			if built is not None: return built
-
-		return None
-
-
 	def create_wrappers(self, fnc):
 		dependencies = deduce_parameters(fnc)
 		generated_dependencies = set(dependencies) - self.base_parameters
-		simple_deps = set()
 
 		for dep in generated_dependencies:
 			if not dep in self.dependencies:
 				msg = f"Parameter '{dep}' is neither baseline nor supplied"
 				raise ParameterException(msg)
 
-			build_deps = self.dependencies[dep]
-			if len(build_deps) == 0:
-				simple_deps.add(dep)
+		generation_order = []
+		visited = set(self.base_parameters)
 
-		available_parameters = self.base_parameters | simple_deps
-		remaining_deps = generated_dependencies - simple_deps
-		generation_order = list(simple_deps)
+		def visit(param):
+			if param in visited:
+				return
+			visited.add(param)
+			for dep in self.dependencies[param]:
+				visit(dep)
+			generation_order.append(param)
 
-		while len(remaining_deps) > 0:
-			built = set()
-
-			for parameter in remaining_deps:
-				collected = self._collect_deps(parameter, generation_order,
-					available_parameters)
-
-				if collected is not None:
-					built.add(collected)
-
-			if len(built) == 0:
-				msg = f"Unable to create any of these parameters: {remaining_deps}"
-				raise ParameterException(msg)
-
-			remaining_deps -= built
+		for dep in generated_dependencies:
+			visit(dep)
 
 		if len(generation_order) > 0:
 			reversed_generation = reversed(generation_order)

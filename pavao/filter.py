@@ -12,7 +12,7 @@ class RequestFilter:
 		super().__init_subclass__(**kwargs)
 		RequestFilter.implementations.append(cls)
 
-	def init(self, loaded_settings): pass
+	async def init(self, loaded_settings): pass
 	def enabled(self, endpoint_specs): return False
 	def allow(self): return True
 
@@ -38,13 +38,12 @@ class FilterCollection:
 		loaded_settings,
 		parameter_factory):
 
-		found_filters = [
-			(cls.__name__, cls())
-			for cls in RequestFilter.implementations
-		]
+		self.ordered_config = loaded_settings.get_setting('pavao.filters.order', [])
 
 		collected_filters = dict()
-		for name, instance in found_filters:
+		for cls in RequestFilter.implementations:
+			name = cls.__name__
+			instance = cls()
 			await instance.init(loaded_settings)
 			missing_dep = parameter_factory.unknown_deps(instance.allow)
 
@@ -56,15 +55,14 @@ class FilterCollection:
 			collected_filters[name] = instance
 			Logger.info(f"Filter '{name}' loaded")
 
-		for cls in self.ordered_config:
-			if cls in collected_filters:
-				instance = collected_filters.pop(cls)
-				filter_specs = create_specs(instance)
-				self.ordered_instances.append(instance)
+		for name in self.ordered_config:
+			if name in collected_filters:
+				self.ordered_instances.append(
+					create_specs(collected_filters.pop(name)))
 
 		self.unordered = [
-			create_specs(remaining_filter)
-			for remaining_filter in collected_filters.values()
+			create_specs(instance)
+			for instance in collected_filters.values()
 		]
 
 
