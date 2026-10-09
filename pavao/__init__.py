@@ -6,7 +6,7 @@ from .config import ConfigException, load_settings
 from .filter import RequestFilter
 from .supplier import ParameterSupplier
 from .i18n import Internationalization, ModuleLocalizer, LazyLocalizer
-from .json import accepts_json, generates_json, error_blueprint, has_optional_field
+from .json import accepts_json, generates_json, error_blueprint, field_present
 from .sse import generates_sse
 from .parameters import accepts_parameters
 from .loader import path_to, include, import_module, from_module

@@ -1,4 +1,5 @@
 
+import os
 import asyncio
 import functools
 from datetime import datetime, timezone
@@ -7,22 +8,17 @@ import jsonbp
 
 from .logger import Logger
 from .exception import PavaoException
+from .i18n import ModuleLocalizer
+from .utils import error_contents, error_blueprint
 from . import predicates
 
-error_contents = '''
-
-	root {
-		error: String,
-		description: String,
-		timestamp: Instant
-	}
-
-'''
-
-error_blueprint = jsonbp.load_string(error_contents)
+_messages_dir = os.path.join(os.path.dirname(__file__), 'messages')
+_localizer = ModuleLocalizer('json', _messages_dir)
+_bad_content_type = _localizer.map('BAD_CONTENT_TYPE')
+_bad_request_body = _localizer.map('BAD_REQUEST_BODY')
 
 _valid_content_types = (
-	'application/json; charset=utf-8'
+	'application/json; charset=utf-8',
 	'application/json'
 )
 
@@ -41,7 +37,7 @@ def _load_blueprint(
 		raise PavaoException(msg)
 
 	if all(value is not None for value in arguments):
-		msg = "Both 'string' and 'file' parameters were specified, using 'string'"
+		msg = "Both 'string' and 'file' parameters were specified; 'string' takes precedence — remove it to use 'file'"
 		Logger.warning(msg)
 
 	loaded = (
@@ -64,41 +60,35 @@ async def wrapped({ALL_PARAMS}):
 	content_type = request.headers.get('content-type')
 	if content_type is None or content_type not in _valid_content_types:
 		response.set_status(400)
-
-		return {{
-			'error': "BAD_REQUEST",
-			'description': 'Bad content type',
-			'timestamp': datetime.now(timezone.utc)
-		}}
+		locale_priority = request.parse_locale_priority()
+		payload = {{'error': "BAD_REQUEST", 'description': _bad_content_type.localize(locale_priority), 'timestamp': datetime.now(timezone.utc)}}
+		response.set_content('application/json', error_blueprint.serialize(payload).encode())
+		return
 
 	received = await receive()
-	payload = received['body']
+	body = received['body']
 	while received['more_body']:
 		received = await receive()
-		payload += received['body']
+		body += received['body']
 
 	try:
-		json_content = payload.decode()
+		json_content = body.decode()
 		success, outcome = blueprint.deserialize(json_content)
 
 	except Exception as e:
 		Logger.warning(str(e))
 		response.set_status(400)
-
-		return {{
-			'error': "BAD_REQUEST",
-			'description': 'Unable to decode content',
-			'timestamp': datetime.now(timezone.utc)
-		}}
+		locale_priority = request.parse_locale_priority()
+		payload = {{'error': "BAD_REQUEST", 'description': _bad_request_body.localize(locale_priority), 'timestamp': datetime.now(timezone.utc)}}
+		response.set_content('application/json', error_blueprint.serialize(payload).encode())
+		return
 
 	if not success:
 		response.set_status(400)
-
-		return {{
-			'error': "BAD_REQUEST",
-			'description': str(outcome),
-			'timestamp': datetime.now(timezone.utc)
-		}}
+		locale_priority = request.parse_locale_priority()
+		payload = {{'error': "BAD_REQUEST", 'description': outcome.localize(locale_priority), 'timestamp': datetime.now(timezone.utc)}}
+		response.set_content('application/json', error_blueprint.serialize(payload).encode())
+		return
 
 	outcome = umapper.translate_case(outcome, umapper.Case.SNAKE)
 	parsed_json = umapper.convert_to_object(outcome)
@@ -140,8 +130,7 @@ def accepts_json(
 		fnc_params = fnc_lvars[0:fnc_nargs]
 
 		all_params = (
-			set(fnc_params)
-			^ accept_json_output
+			(set(fnc_params) - accept_json_output)
 			| accept_json_params
 		)
 
@@ -244,7 +233,7 @@ def generates_json(
 
 				if 'statuses' in rule:
 					statuses = rule['statuses']
-					predicate = lambda status: status in statuses
+					predicate = lambda status, s=statuses: status in s
 					processed_dispatchers.append((predicate, blueprint))
 					_warn_unused(rule, 'statuses', ['status'])
 					_trial_predicate(predicate)
@@ -256,11 +245,11 @@ def generates_json(
 					msg = "Either 'predicate', 'statuses' or 'status' must be specified"
 					raise PavaoException(msg)
 
-				predicate = lambda status : rule_status == status
+				predicate = lambda status, rs=rule_status: rs == status
 				processed_dispatchers.append((predicate, blueprint))
 				_trial_predicate(predicate)
 
-		except KeyError:
+		except (KeyError, TypeError):
 			msg = f"'dispatchers' must be an iterable, received {type(dispatchers)}"
 			raise PavaoException(msg)
 
@@ -306,7 +295,7 @@ def generates_json(
 	return wrapper
 
 
-def has_optional_field(converted_dict, fieldName):
+def field_present(converted_dict, fieldName):
 	return hasattr(converted_dict, fieldName)
 
 #-------------------------------------------------------------------------------
@@ -316,6 +305,6 @@ __all__ = [
 	"generates_json",
 	"error_contents",
 	"error_blueprint",
-	"has_optional_field"
+	"field_present"
 ]
 

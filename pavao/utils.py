@@ -3,6 +3,19 @@ import asyncio
 import functools
 import inspect
 import os
+import jsonbp
+
+error_contents = '''
+
+	root {
+		error: String,
+		description: String,
+		timestamp: Instant
+	}
+
+'''
+
+error_blueprint = jsonbp.load_string(error_contents)
 
 #-------------------------------------------------------------------------------
 
@@ -107,6 +120,8 @@ __all__ = [
 	"async_adapter",
 	"silent_generator",
 	"remove_prefix",
-	"WrappedFunction"
+	"WrappedFunction",
+	"error_contents",
+	"error_blueprint"
 ]
 

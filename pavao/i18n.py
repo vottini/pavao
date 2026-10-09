@@ -1,10 +1,11 @@
 
 import os
+import glob
 import configparser
 from datetime import datetime, timezone
 
-from .json import error_blueprint
 from .logger import Logger
+from .utils import error_blueprint
 
 _dummy_header = "messages"
 
@@ -17,6 +18,11 @@ def section_injector(file_descriptor):
 	yield from file_descriptor
 
 
+def _clean(msg):
+	return msg.strip('"')
+
+#-------------------------------------------------------------------------------
+
 class Localizer:
 	def __init__(self, sources):
 		self.sources = sources
@@ -28,8 +34,7 @@ class Localizer:
 			msg = source.get(sanedId)
 
 			if msg is not None:
-				sanedMsg = msg.strip('"')
-				return sanedMsg
+				return _clean(msg)
 
 		Logger.warning(f"Message id '{messageId}' not found")
 		return "<Unknown>"
@@ -53,22 +58,18 @@ class Localizer:
 
 class Internationalization:
 	def __init__(self, i18n_dir, fallback_language='en_US'):
-		dir_files = os.listdir(i18n_dir)
-
-		files = [
-			(filename, os.path.join(i18n_dir, filename))
-				for filename in dir_files
-					if os.path.isfile(os.path.join(i18n_dir, filename))
-					and filename.endswith(".ini")
-		]
+		ini_files = glob.glob(os.path.join(i18n_dir, '*.ini'))
 
 		self.fallback = dict()
 		self.languages = dict()
 
-		for filename, fullpath in files:
+		for fullpath in ini_files:
+			filename = os.path.basename(fullpath)
 			language = filename.split('.')[0]
 			config = configparser.ConfigParser()
-			config.read_file(section_injector(open(fullpath)))
+
+			with open(fullpath) as f:
+				config.read_file(section_injector(f))
 
 			messages = dict()
 			for message in config.options(_dummy_header):
@@ -83,29 +84,19 @@ class Internationalization:
 		sanedId = messageId.lower()
 
 		if languageId in self.languages:
-			source = self.languages[languageId]
-			msg = source.get(sanedId)
-
+			msg = self.languages[languageId].get(sanedId)
 			if msg is not None:
-				sanedMsg = msg.strip('"')
-				return sanedMsg
-
-		# look for closest match if
-		# no exact language was found
+				return _clean(msg)
 
 		for existing_language in self.languages.keys():
-			if languageId.startswith(existing_language):
-				source = self.languages[existing_language]
-				msg = source.get(sanedId)
-
+			if existing_language.startswith(languageId):
+				msg = self.languages[existing_language].get(sanedId)
 				if msg is not None:
-					sanedMsg = msg.strip('"')
-					return sanedMsg
+					return _clean(msg)
 
 		msg = self.fallback.get(sanedId)
 		if msg is not None:
-			sanedMsg = msg.strip('"')
-			return sanedMsg
+			return _clean(msg)
 
 		Logger.warning(f"Message id '{messageId}' not found")
 		return "<Unknown>"
@@ -113,15 +104,16 @@ class Internationalization:
 
 	def create_localizer(self, localization_priority):
 		if len(localization_priority) == 0:
-			sources = [ self.fallback ]
-			return Localizer(sources)
+			return Localizer([self.fallback])
 
 		sources = list()
 		for languageId in localization_priority:
 			if languageId in self.languages:
 				sources.append(self.languages[languageId])
 
-		sources.append(self.fallback)
+		if self.fallback not in sources:
+			sources.append(self.fallback)
+
 		return Localizer(sources)
 
 #-------------------------------------------------------------------------------
@@ -160,4 +152,3 @@ __all__ = [
 	"ModuleLocalizer",
 	"LazyLocalizer"
 ]
-
