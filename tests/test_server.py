@@ -125,12 +125,8 @@ def _make_real_server():
 		 patch('pavao.server.Broadcaster'), \
 		 patch('pavao.server.ParameterFactory'), \
 		 patch('pavao.server.FilterCollection'), \
-		 patch('pavao.server.Scheduler'), \
-		 patch('pavao.server.Daemon'), \
-		 patch('pavao.server.uvloop') as mock_uvloop, \
 		 patch('pavao.server.lifespan') as mock_lifespan, \
 		 patch('pavao.server.http'):
-		mock_uvloop.new_event_loop.return_value = MagicMock()
 		server = Server.__new__(Server)
 		Server.__init__(server, 'config.yml', False, None, '/fake_modules')
 
@@ -152,7 +148,9 @@ async def testServerStartupStartsAllComponents():
 
 	with patch('pavao.server.load_settings', return_value=MagicMock()), \
 		 patch('pavao.server.start_logging'), \
-		 patch('pavao.server.load_folder'):
+		 patch('pavao.server.load_folder'), \
+		 patch('pavao.server.Scheduler'), \
+		 patch('pavao.server.Daemon'):
 		result = await init_fn()
 
 	assert result is True
@@ -177,7 +175,9 @@ async def testServerStartupInitializesReloadLock():
 
 	with patch('pavao.server.load_settings', return_value=MagicMock()), \
 		 patch('pavao.server.start_logging'), \
-		 patch('pavao.server.load_folder'):
+		 patch('pavao.server.load_folder'), \
+		 patch('pavao.server.Scheduler'), \
+		 patch('pavao.server.Daemon'):
 		await init_fn()
 
 	assert isinstance(server._reload_lock, asyncio.Lock)
@@ -187,7 +187,9 @@ async def testServerStartupInitializesReloadLock():
 async def testServerShutdownStopsAllComponents():
 	server, _, stop_fn = _make_real_server()
 
+	server.scheduler = MagicMock()
 	server.scheduler.stop = AsyncMock()
+	server.daemon = MagicMock()
 	server.daemon.stop = AsyncMock()
 	server.parametering.shutdown = AsyncMock()
 

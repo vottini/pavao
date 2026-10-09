@@ -1,7 +1,6 @@
 
 import os
 import asyncio
-import uvloop
 import traceback
 import operator
 import jsonbp
@@ -101,17 +100,20 @@ class Server:
 		self._parsed_services = dict()
 		self._filter_list = None
 
-		self.lifespan_handler = lifespan.LifespanHandler(
-			self._startup, self._shutdown)
+		self.lifespan_handler = lifespan.LifespanHandler(self._startup, self._shutdown)
 		self.http_handler = http.HttpHandler(self, self.broadcaster)
 
-		self.loop = uvloop.new_event_loop()
-		self.scheduler = Scheduler(self.loop, self.broadcaster)
-		self.daemon = Daemon(self.loop, self.broadcaster)
+		self.loop = None
+		self.scheduler = None
+		self.daemon = None
 
 	#-------------------------------------------------------------------------------
 
 	async def _startup(self):
+		self.loop = asyncio.get_running_loop()
+		self.scheduler = Scheduler(self.loop, self.broadcaster)
+		self.daemon = Daemon(self.loop, self.broadcaster)
+
 		Logger.info("Starting up Pavão...")
 		self.loaded_settings = load_settings(self.config_file, self.is_default_file)
 		start_logging(self.loaded_settings)

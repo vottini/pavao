@@ -71,6 +71,13 @@ async def wrapped({ALL_PARAMS}):
 
 def silent_generator(fnc):
 	fnc_params = deduce_parameters(fnc)
+
+	# exec is intentional: the DI system discovers injectable parameters by
+	# reading co_varnames directly off the function object. A standard closure
+	# or functools.wraps wrapper would expose the wrapper's own signature, not
+	# the original function's parameters. exec generates a function whose
+	# co_varnames exactly match fnc_params, preserving DI introspection through
+	# arbitrarily deep decorator chains.
 	code = silent_generator_template.format(
 		ALL_PARAMS=",".join(fnc_params),
 		CONTEXT=",".join(map(lambda x : f"'{x}': {x}", fnc_params)),

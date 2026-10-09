@@ -102,6 +102,12 @@ def accepts_parameters(parameter_dict):
 			| accepts_parameters_params
 		)
 
+		# exec is intentional: the DI system discovers injectable parameters by
+		# reading co_varnames directly off the function object. A standard closure
+		# or functools.wraps wrapper would expose the wrapper's own signature, not
+		# the composed set needed after decoration. exec generates a function whose
+		# co_varnames exactly match all_params, so DI introspection sees the right
+		# parameters through arbitrarily deep decorator chains.
 		code = accepts_parameters_template.format(
 			ALL_PARAMS=",".join(all_params),
 			CONTEXT=",".join(map(lambda x : f"'{x}': {x}", all_params)),

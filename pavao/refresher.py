@@ -66,6 +66,13 @@ class Modifications:
 			newer_updates)
 
 
+	def __eq__(self, other):
+		if not isinstance(other, Modifications):
+			return NotImplemented
+		return (self.creations == other.creations and
+			self.deletions == other.deletions and
+			self.updates == other.updates)
+
 	def __hash__(self):
 		return hash(self.creations) ^ hash(self.deletions) ^ hash(self.updates)
 
@@ -86,8 +93,8 @@ class PathMonitor(FileSystemEventHandler):
 		self.callback = callback
 		self.path = path
 
-		self.queue = asyncio.Queue()
-		self.changes = asyncio.Event()
+		self.queue = None
+		self.changes = None
 		self.observer = Observer()
 
 		self.running = False
@@ -141,7 +148,7 @@ class PathMonitor(FileSystemEventHandler):
 				self.changes.set()
 				self.queue.task_done()
 
-		except asyncio.CancelledError as e:
+		except asyncio.CancelledError:
 			pass
 
 
@@ -149,35 +156,41 @@ class PathMonitor(FileSystemEventHandler):
 
 		try:
 			while True:
-				await self.changes.wait()
-				previous_hash = hash(self.modifications)
-				await asyncio.sleep(1)
-
-				while True:
-					current_hash = hash(self.modifications)
-					if current_hash == previous_hash: break
-					previous_hash = current_hash
+				try:
+					await self.changes.wait()
+					previous_hash = hash(self.modifications)
 					await asyncio.sleep(1)
 
-				self.callback(
-					self.modifications.creations,
-					self.modifications.deletions,
-					self.modifications.updates)
+					while True:
+						current_hash = hash(self.modifications)
+						if current_hash == previous_hash: break
+						previous_hash = current_hash
+						await asyncio.sleep(1)
 
-				self.modifications = Modifications()
-				self.changes.clear()
+					self.callback(
+						self.modifications.creations,
+						self.modifications.deletions,
+						self.modifications.updates)
 
-		except asyncio.CancelledError as e:
+					self.modifications = Modifications()
+					self.changes.clear()
+
+				except asyncio.CancelledError:
+					raise
+
+				except Exception as e:
+					msg = f"Error while collecting file changes: {e}"
+					Logger.warning(msg)
+
+		except asyncio.CancelledError:
 			pass
-
-		except Exception as e:
-			msg = f"Error while collecting file changes: {e}"
-			Logger.warn(msg)
 
 
 	def schedule_execution(self, loop):
 		self.running = True
 		self.loop = loop
+		self.queue = asyncio.Queue()
+		self.changes = asyncio.Event()
 
 		self.monitoring = self.loop.create_task(self._monitor())
 		self.condensing = self.loop.create_task(self._collect())
