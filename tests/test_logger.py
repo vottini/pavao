@@ -10,14 +10,16 @@ from pavao.logger import Logger, start_logging, stop_logging
 #-------------------------------------------------------------------------------
 
 class MockSettings:
-	def __init__(self, level="INFO", output=None):
+	def __init__(self, level="INFO", output=None, persist=True):
 		self._level = level
 		self._output = output
+		self._persist = persist
 
 	def get_setting(self, key, schema):
 		return {
 			"level": self._level,
 			"output": self._output or schema["output"],
+			"persist": self._persist,
 		}
 
 @pytest.fixture(autouse=True)

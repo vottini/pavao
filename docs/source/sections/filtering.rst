@@ -1,6 +1,0 @@
-
-Endpoint Filtering
-******************
-
-- Filters
-

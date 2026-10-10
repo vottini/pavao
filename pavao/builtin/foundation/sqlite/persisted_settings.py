@@ -5,11 +5,13 @@ import builtins
 import collections
 import pavao
 
+from pavao.persistence import StoredSettings
+
 get_setting = pavao.include("queries/get_setting.sql")
 upsert_setting = pavao.include("queries/upsert_setting.sql")
 list_pattern = re.compile(r"\[([^\]]+)\]")
 
-class PersistedSettings:
+class PersistedSettings(StoredSettings):
 	def __init__(self, internal_db):
 		self.internal_db = internal_db
 

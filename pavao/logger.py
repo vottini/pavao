@@ -10,7 +10,8 @@ from .exception import PavaoException
 
 _logging_schema = {
 	"output": "pavao.log",
-	"level": "INFO"
+	"level": "INFO",
+	"persist": True
 }
 
 _logging_levels = {
@@ -51,10 +52,9 @@ def start_logging(settings):
 		log_level = logging.INFO
 
 	formatter = _Formatter()
-	handlers = [
-		logging.StreamHandler(),
-		logging.FileHandler(log_settings['output']),
-	]
+	handlers = [logging.StreamHandler()]
+	if log_settings['persist']:
+		handlers.append(logging.FileHandler(log_settings['output']))
 	for h in handlers:
 		h.setFormatter(formatter)
 

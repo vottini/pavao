@@ -7,6 +7,8 @@ import sqlite3
 import umapper
 import pavao
 
+from pavao.builtin.foundation.sqlite.task_store import SqliteTaskStore
+
 config_schema = {
 	"enabled": True,
 	"persist": True,
@@ -32,9 +34,6 @@ aiosqlite.register_converter('bool', lambda val: val.decode() == '1')
 #-------------------------------------------------------------------------------
 
 pavao.from_module('persisted_settings').import_item('PersistedSettings')
-async def create_stored_settings(internal_db):
-	return PersistedSettings(internal_db)
-
 
 class SqliteSupplier(pavao.ParameterSupplier):
 	def __init__(self):
@@ -46,16 +45,15 @@ class SqliteSupplier(pavao.ParameterSupplier):
 		if not self.specs.enabled:
 			return dict()
 
-		return {
-			'internal_db': [
-				self.retrive_connection,
-				None
-			],
+		async def provide_task_store():
+			return SqliteTaskStore(self.connection)
 
-			'stored_settings': [
-				create_stored_settings,
-				None
-			]
+		async def provide_stored_settings():
+			return PersistedSettings(self.connection)
+
+		return {
+			'task_store': [provide_task_store, None],
+			'stored_settings': [provide_stored_settings, None]
 		}
 
 
@@ -94,11 +92,6 @@ class SqliteSupplier(pavao.ParameterSupplier):
 		except Exception as e:
 			pavao.Logger.error("Error while setting up internal database: " + str(e))
 			raise pavao.PavaoException("Unable to setup internal Pavao database")
-
-	#------------------------------------------------------------
-
-	async def retrive_connection(self):
-		return self.connection
 
 	#------------------------------------------------------------
 

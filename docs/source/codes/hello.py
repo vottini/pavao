@@ -9,4 +9,3 @@ def pavao_endpoint():
     'path': '/hello',
     'processor': process
   }
-

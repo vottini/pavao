@@ -33,25 +33,22 @@ async def _slow_processor():
 def make_task(processor=_noop_processor, name="test_task", source="task.py"):
 	return Task(source, {'processor': processor, 'name': name})
 
-def make_db():
-	cursor = AsyncMock()
-	cursor.execute = AsyncMock(return_value=cursor)
-	cursor.fetchone = AsyncMock(return_value=(42, True))
-	cursor.__aenter__ = AsyncMock(return_value=cursor)
-	cursor.__aexit__ = AsyncMock(return_value=None)
-	db = AsyncMock()
-	db.cursor = MagicMock(return_value=cursor)
-	db.commit = AsyncMock()
-	return db, cursor
+def make_task_store(task_id=42, enabled=True, run_id=1):
+	ts = AsyncMock()
+	ts.register_task = AsyncMock(return_value=(task_id, enabled))
+	ts.start_execution = AsyncMock(return_value=run_id)
+	ts.record_output = AsyncMock()
+	ts.finish_execution = AsyncMock()
+	return ts
 
 def make_broadcaster():
 	b = AsyncMock()
 	b.write_message = AsyncMock()
 	return b
 
-async def _run_and_await(t, db, b, on_output=None, on_finish=None):
+async def _run_and_await(t, ts, b, on_output=None, on_finish=None):
 	loop = asyncio.get_running_loop()
-	t.run(loop, b, db, {}, on_output or AsyncMock(), on_finish)
+	t.run(loop, b, ts, {}, on_output or AsyncMock(), on_finish)
 	execution = t.execution
 	await execution
 	return execution
@@ -183,70 +180,71 @@ def testCancelIfExecutingDoesNotNullExecution():
 @pytest.mark.asyncio
 async def testRunBroadcastsStarted():
 	t = make_task()
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
-	await _run_and_await(t, db, b)
+	await _run_and_await(t, ts, b)
 	b.write_message.assert_any_call(f"taskState:{t.ident}", "STARTED")
 
 @pytest.mark.asyncio
 async def testRunBroadcastsFinished():
 	t = make_task()
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
-	await _run_and_await(t, db, b)
+	await _run_and_await(t, ts, b)
 	b.write_message.assert_any_call(f"taskState:{t.ident}", "FINISHED")
 
 @pytest.mark.asyncio
 async def testRunCallsOnOutput():
 	t = make_task()
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
 	on_output = AsyncMock()
-	await _run_and_await(t, db, b, on_output=on_output)
+	await _run_and_await(t, ts, b, on_output=on_output)
 	on_output.assert_called_once()
 
 @pytest.mark.asyncio
 async def testRunCallsOnFinishWithSuccess():
 	t = make_task()
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
 	on_finish = AsyncMock()
-	await _run_and_await(t, db, b, on_finish=on_finish)
+	await _run_and_await(t, ts, b, on_finish=on_finish)
 	_, _, success = on_finish.call_args.args
 	assert success is True
 
 @pytest.mark.asyncio
-async def testRunCommitsDb():
+async def testRunRecordsExecution():
 	t = make_task()
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
-	await _run_and_await(t, db, b)
-	assert db.commit.call_count >= 2
+	await _run_and_await(t, ts, b)
+	ts.start_execution.assert_called_once()
+	ts.finish_execution.assert_called_once()
 
 @pytest.mark.asyncio
 async def testRunClearsExecutionAfterFinish():
 	t = make_task()
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
-	await _run_and_await(t, db, b)
+	await _run_and_await(t, ts, b)
 	assert t.execution is None
 
 @pytest.mark.asyncio
 async def testRunMultipleOutputs():
 	t = make_task(processor=_multi_processor)
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
 	on_output = AsyncMock()
-	await _run_and_await(t, db, b, on_output=on_output)
+	await _run_and_await(t, ts, b, on_output=on_output)
 	assert on_output.call_count == 2
 
 @pytest.mark.asyncio
 async def testRunEmptyProcessorNoOutput():
 	t = make_task(processor=_empty_processor)
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
 	on_output = AsyncMock()
-	await _run_and_await(t, db, b, on_output=on_output)
+	await _run_and_await(t, ts, b, on_output=on_output)
 	on_output.assert_not_called()
 
 #-------------------------------------------------------------------------------
@@ -255,30 +253,30 @@ async def testRunEmptyProcessorNoOutput():
 @pytest.mark.asyncio
 async def testRunOnExceptionCallsOnFinishWithFailure():
 	t = make_task(processor=_error_processor)
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
 	on_finish = AsyncMock()
-	await _run_and_await(t, db, b, on_finish=on_finish)
+	await _run_and_await(t, ts, b, on_finish=on_finish)
 	_, _, success = on_finish.call_args.args
 	assert success is False
 
 @pytest.mark.asyncio
 async def testRunOnExceptionLogsOutput():
 	t = make_task(processor=_error_processor)
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
 	on_output = AsyncMock()
-	await _run_and_await(t, db, b, on_output=on_output)
+	await _run_and_await(t, ts, b, on_output=on_output)
 	on_output.assert_called_once()
 
 @pytest.mark.asyncio
 async def testRunOnCancelledCallsOnFinishWithFailure():
 	t = make_task(processor=_slow_processor)
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
 	on_finish = AsyncMock()
 	loop = asyncio.get_running_loop()
-	t.run(loop, b, db, {}, AsyncMock(), on_finish)
+	t.run(loop, b, ts, {}, AsyncMock(), on_finish)
 	execution = t.execution
 	await asyncio.sleep(0)  # let task enter its first await
 	execution.cancel()
@@ -289,11 +287,11 @@ async def testRunOnCancelledCallsOnFinishWithFailure():
 @pytest.mark.asyncio
 async def testRunOnCancelledLogsOutput():
 	t = make_task(processor=_slow_processor)
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
 	on_output = AsyncMock()
 	loop = asyncio.get_running_loop()
-	t.run(loop, b, db, {}, on_output, None)
+	t.run(loop, b, ts, {}, on_output, None)
 	execution = t.execution
 	await asyncio.sleep(0)
 	execution.cancel()
@@ -306,21 +304,21 @@ async def testRunOnCancelledLogsOutput():
 @pytest.mark.asyncio
 async def testRunCallsPreProcessing():
 	t = make_task()
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
 	pre = AsyncMock()
 	t.pre_processing = pre
-	await _run_and_await(t, db, b)
+	await _run_and_await(t, ts, b)
 	pre.assert_called_once()
 
 @pytest.mark.asyncio
 async def testRunCallsPostProcessing():
 	t = make_task()
-	db, cursor = make_db()
+	ts = make_task_store()
 	b = make_broadcaster()
 	post = AsyncMock()
 	t.post_processing = post
-	await _run_and_await(t, db, b)
+	await _run_and_await(t, ts, b)
 	post.assert_called_once()
 
 #-------------------------------------------------------------------------------
@@ -329,34 +327,31 @@ async def testRunCallsPostProcessing():
 @pytest.mark.asyncio
 async def testRegisterSelfUpdatesIdent():
 	t = make_task()
-	db, cursor = make_db()
-	cursor.fetchone = AsyncMock(return_value=(99, True))
-	await t.register_self(db)
+	ts = make_task_store(task_id=99)
+	await t.register_self(ts)
 	assert t.ident == 99
 
 @pytest.mark.asyncio
 async def testRegisterSelfEnablesTask():
 	t = make_task()
-	db, cursor = make_db()
-	cursor.fetchone = AsyncMock(return_value=(1, True))
+	ts = make_task_store(enabled=True)
 	await t.disable()
-	await t.register_self(db)
+	await t.register_self(ts)
 	assert t.enabled is True
 
 @pytest.mark.asyncio
 async def testRegisterSelfDisablesTask():
 	t = make_task()
-	db, cursor = make_db()
-	cursor.fetchone = AsyncMock(return_value=(1, False))
-	await t.register_self(db)
+	ts = make_task_store(enabled=False)
+	await t.register_self(ts)
 	assert t.enabled is False
 
 @pytest.mark.asyncio
-async def testRegisterSelfCommits():
+async def testRegisterSelfCallsRegisterTask():
 	t = make_task()
-	db, cursor = make_db()
-	await t.register_self(db)
-	db.commit.assert_called_once()
+	ts = make_task_store()
+	await t.register_self(ts)
+	ts.register_task.assert_called_once()
 
 #-------------------------------------------------------------------------------
 # TaskManager concrete methods
@@ -414,11 +409,9 @@ def testGetBaseContextReturnsEmptySet(manager):
 async def testSetTasksRegistersEachTask():
 	loop = asyncio.get_running_loop()
 	manager = ConcreteManager(loop, MagicMock())
-	manager.internal_db = AsyncMock()
 	t = make_task()
-	db, cursor = make_db()
-	cursor.fetchone = AsyncMock(return_value=(t.ident, True))
-	await manager.set_tasks([t], db)
+	ts = make_task_store(task_id=t.ident)
+	await manager.set_tasks([t], ts)
 	await asyncio.sleep(0)
 	assert manager.loaded_tasks == [t]
 
@@ -432,11 +425,9 @@ async def testSetTasksCallsExecuteTasks():
 		async def stop(self): pass
 
 	manager = TrackingManager(loop, MagicMock())
-	manager.internal_db = AsyncMock()
 	t = make_task()
-	db, cursor = make_db()
-	cursor.fetchone = AsyncMock(return_value=(t.ident, True))
-	await manager.set_tasks([t], db)
+	ts = make_task_store(task_id=t.ident)
+	await manager.set_tasks([t], ts)
 	await asyncio.sleep(0)
 	assert execute_called == [True]
 
@@ -450,9 +441,7 @@ async def testSetTasksCallsStopFirst():
 		async def stop(self): stop_called.append(True)
 
 	manager = TrackingManager(loop, MagicMock())
-	manager.internal_db = AsyncMock()
-	db, _ = make_db()
-	await manager.set_tasks([], db)
+	await manager.set_tasks([], make_task_store())
 	assert stop_called == [True]
 
 #-------------------------------------------------------------------------------

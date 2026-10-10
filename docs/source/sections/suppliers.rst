@@ -1,6 +1,0 @@
-
-Parameter Injection
-********************
-
-- Suppliers
-

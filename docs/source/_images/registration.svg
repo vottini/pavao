@@ -1,0 +1,456 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 700 660"
+   font-family="Arial, sans-serif"
+   font-size="13"
+   fill="none"
+   version="1.1"
+   id="svg24"
+   sodipodi:docname="registration.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview24"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="1.2272727"
+     inkscape:cx="349.96296"
+     inkscape:cy="330"
+     inkscape:window-width="1912"
+     inkscape:window-height="1006"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg24" />
+  <defs
+     id="defs1">
+    <marker
+       id="arr"
+       markerWidth="8"
+       markerHeight="6"
+       refX="7"
+       refY="3"
+       orient="auto">
+      <polygon
+         points="0 0, 8 3, 0 6"
+         fill="#374151"
+         id="polygon1" />
+    </marker>
+  </defs>
+  <!-- Phase 1 label -->
+  <text
+     x="12"
+     y="20"
+     fill="#6b7280"
+     font-size="11"
+     font-style="italic"
+     id="text1">Phase 1 — Foundation loading</text>
+  <!-- Box 1: Load foundation directory -->
+  <rect
+     x="200"
+     y="28"
+     width="240"
+     height="34"
+     rx="5"
+     fill="#dbeafe"
+     stroke="#3b82f6"
+     stroke-width="1.5"
+     id="rect1" />
+  <text
+     x="320"
+     y="50"
+     text-anchor="middle"
+     fill="#1d4ed8"
+     id="text2">Load foundation directory</text>
+  <line
+     x1="320"
+     y1="62"
+     x2="320"
+     y2="82"
+     stroke="#374151"
+     stroke-width="1.5"
+     marker-end="url(#arr)"
+     id="line2" />
+  <!-- Box 2: configure(settings) -->
+  <rect
+     x="200"
+     y="82"
+     width="240"
+     height="34"
+     rx="5"
+     fill="#dbeafe"
+     stroke="#3b82f6"
+     stroke-width="1.5"
+     id="rect2" />
+  <text
+     x="320"
+     y="104"
+     text-anchor="middle"
+     fill="#1d4ed8"
+     id="text3">configure(settings) per supplier</text>
+  <line
+     x1="320"
+     y1="116"
+     x2="320"
+     y2="136"
+     stroke="#374151"
+     stroke-width="1.5"
+     marker-end="url(#arr)"
+     id="line3" />
+  <!-- Box 3: parameters_supplied() -->
+  <rect
+     x="200"
+     y="136"
+     width="240"
+     height="34"
+     rx="5"
+     fill="#dbeafe"
+     stroke="#3b82f6"
+     stroke-width="1.5"
+     id="rect3" />
+  <text
+     x="320"
+     y="158"
+     text-anchor="middle"
+     fill="#1d4ed8"
+     id="text4">parameters_supplied() collected</text>
+  <line
+     x1="320"
+     y1="170"
+     x2="320"
+     y2="190"
+     stroke="#374151"
+     stroke-width="1.5"
+     marker-end="url(#arr)"
+     id="line4" />
+  <!-- Box 4: initialize() -->
+  <rect
+     x="200"
+     y="190"
+     width="240"
+     height="34"
+     rx="5"
+     fill="#dbeafe"
+     stroke="#3b82f6"
+     stroke-width="1.5"
+     id="rect4" />
+  <text
+     x="320"
+     y="212"
+     text-anchor="middle"
+     fill="#1d4ed8"
+     id="text5">initialize() called (DI-resolved)</text>
+  <!-- Phase divider -->
+  <line
+     x1="30"
+     y1="248"
+     x2="670"
+     y2="248"
+     stroke="#d1d5db"
+     stroke-width="1"
+     stroke-dasharray="6,3"
+     id="line5" />
+  <text
+     x="12"
+     y="268"
+     fill="#6b7280"
+     font-size="11"
+     font-style="italic"
+     id="text6">Phase 2 — Module discovery</text>
+  <!-- Box 5: Scan modules directory -->
+  <rect
+     x="200"
+     y="278"
+     width="240"
+     height="34"
+     rx="5"
+     fill="#d1fae5"
+     stroke="#059669"
+     stroke-width="1.5"
+     id="rect6" />
+  <text
+     x="320"
+     y="300"
+     text-anchor="middle"
+     fill="#065f46"
+     id="text7">Scan modules directory</text>
+  <line
+     x1="320"
+     y1="312"
+     x2="320"
+     y2="332"
+     stroke="#374151"
+     stroke-width="1.5"
+     marker-end="url(#arr)"
+     id="line7" />
+  <!-- Box 6: Execute .py file  (mid y=349) -->
+  <rect
+     x="200"
+     y="332"
+     width="240"
+     height="34"
+     rx="5"
+     fill="#d1fae5"
+     stroke="#059669"
+     stroke-width="1.5"
+     id="rect7" />
+  <text
+     x="320"
+     y="354"
+     text-anchor="middle"
+     fill="#065f46"
+     id="text8">Execute .py file</text>
+  <line
+     x1="320"
+     y1="366"
+     x2="320"
+     y2="384"
+     stroke="#374151"
+     stroke-width="1.5"
+     marker-end="url(#arr)"
+     id="line8" />
+  <!-- Diamond: Descriptor function found? center=(320,407) -->
+  <polygon
+     points="320,382 435,407 320,432 205,407"
+     fill="#fef9c3"
+     stroke="#d97706"
+     stroke-width="1.5"
+     id="polygon8" />
+  <text
+     x="320"
+     y="402"
+     text-anchor="middle"
+     fill="#78350f"
+     font-size="12"
+     id="text9">Descriptor</text>
+  <text
+     x="320"
+     y="418"
+     text-anchor="middle"
+     fill="#78350f"
+     font-size="12"
+     id="text10">function found?</text>
+  <!-- no → left, loop back to Execute .py -->
+  <text
+     x="196"
+     y="403"
+     text-anchor="end"
+     fill="#6b7280"
+     font-size="11"
+     id="text11">no</text>
+  <line
+     x1="205"
+     y1="407"
+     x2="80"
+     y2="407"
+     stroke="#374151"
+     stroke-width="1.5"
+     id="line11" />
+  <line
+     x1="80"
+     y1="407"
+     x2="80"
+     y2="349"
+     stroke="#374151"
+     stroke-width="1.5"
+     id="line12" />
+  <line
+     x1="80"
+     y1="349"
+     x2="200"
+     y2="349"
+     stroke="#374151"
+     stroke-width="1.5"
+     marker-end="url(#arr)"
+     id="line13" />
+  <!-- yes → down -->
+  <text
+     x="327"
+     y="448"
+     fill="#6b7280"
+     font-size="11"
+     id="text13">yes</text>
+  <line
+     x1="320"
+     y1="432"
+     x2="320"
+     y2="452"
+     stroke="#374151"
+     stroke-width="1.5"
+     marker-end="url(#arr)"
+     id="line14" />
+  <!-- Box 7: Resolve descriptor DI -->
+  <rect
+     x="200"
+     y="452"
+     width="240"
+     height="34"
+     rx="5"
+     fill="#d1fae5"
+     stroke="#059669"
+     stroke-width="1.5"
+     id="rect14" />
+  <text
+     x="320"
+     y="474"
+     text-anchor="middle"
+     fill="#065f46"
+     id="text14">Resolve descriptor DI</text>
+  <line
+     x1="320"
+     y1="486"
+     x2="320"
+     y2="506"
+     stroke="#374151"
+     stroke-width="1.5"
+     marker-end="url(#arr)"
+     id="line15" />
+  <!-- Box 8: Call descriptor() -->
+  <rect
+     x="200"
+     y="506"
+     width="240"
+     height="34"
+     rx="5"
+     fill="#d1fae5"
+     stroke="#059669"
+     stroke-width="1.5"
+     id="rect15" />
+  <text
+     x="320"
+     y="528"
+     text-anchor="middle"
+     fill="#065f46"
+     id="text15">Call descriptor()</text>
+  <line
+     x1="320"
+     y1="540"
+     x2="320"
+     y2="558"
+     stroke="#374151"
+     stroke-width="1.5"
+     marker-end="url(#arr)"
+     id="line16" />
+  <!-- Diamond: Returns dict? center=(320,578) -->
+  <polygon
+     points="320,555 420,578 320,601 220,578"
+     fill="#fef9c3"
+     stroke="#d97706"
+     stroke-width="1.5"
+     id="polygon16" />
+  <text
+     x="320"
+     y="582"
+     text-anchor="middle"
+     fill="#78350f"
+     font-size="12"
+     id="text16">Returns dict?</text>
+  <!-- no → left, loop back (separate path x=60) -->
+  <text
+     x="212"
+     y="574"
+     text-anchor="end"
+     fill="#6b7280"
+     font-size="11"
+     id="text17">no</text>
+  <line
+     x1="220"
+     y1="578"
+     x2="60"
+     y2="578"
+     stroke="#374151"
+     stroke-width="1.5"
+     id="line17" />
+  <line
+     x1="60"
+     y1="578"
+     x2="60"
+     y2="349"
+     stroke="#374151"
+     stroke-width="1.5"
+     id="line18" />
+  <line
+     x1="60"
+     y1="349"
+     x2="200"
+     y2="349"
+     stroke="#374151"
+     stroke-width="1.5"
+     marker-end="url(#arr)"
+     id="line19" />
+  <!-- yes → right to Register module -->
+  <text
+     x="424"
+     y="574"
+     fill="#6b7280"
+     font-size="11"
+     id="text19">yes</text>
+  <line
+     x1="420"
+     y1="578"
+     x2="490"
+     y2="578"
+     stroke="#374151"
+     stroke-width="1.5"
+     marker-end="url(#arr)"
+     id="line20" />
+  <!-- Box: Register module -->
+  <rect
+     x="490"
+     y="561"
+     width="170"
+     height="34"
+     rx="5"
+     fill="#ede9fe"
+     stroke="#7c3aed"
+     stroke-width="1.5"
+     id="rect20" />
+  <text
+     x="575"
+     y="583"
+     text-anchor="middle"
+     fill="#4c1d95"
+     id="text20">Register module</text>
+  <!-- Register → loop back right side -->
+  <line
+     x1="575"
+     y1="595"
+     x2="575"
+     y2="630"
+     stroke="#374151"
+     stroke-width="1.5"
+     id="line21" />
+  <line
+     x1="575"
+     y1="628.1145"
+     x2="673.40741"
+     y2="628.1145"
+     stroke="#374151"
+     stroke-width="1.84565"
+     id="line22" />
+  <line
+     x1="673.40741"
+     y1="629.18518"
+     x2="673.40741"
+     y2="348.18518"
+     stroke="#374151"
+     stroke-width="1.5"
+     id="line23" />
+  <line
+     x1="674.22223"
+     y1="349"
+     x2="440.25476"
+     y2="349"
+     stroke="#374151"
+     stroke-width="1.62239"
+     marker-end="url(#arr)"
+     id="line24" />
+</svg>

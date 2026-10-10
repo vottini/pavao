@@ -1,5 +1,5 @@
 
-message = """Grettings {name}!
+message = """Greetings {name}!
 You are now {age} years old.
 In two years, you'll be {next_age} years old.
 """
@@ -16,4 +16,3 @@ def pavao_endpoint():
     'path': '/greet/{name}/{age:int}',
     'processor': process
   }
-

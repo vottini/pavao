@@ -1,5 +1,4 @@
 
-import asyncio
 import pavao
 
 delete_refresh = pavao.include('queries/delete_refresh.sql')
@@ -22,13 +21,12 @@ async def process(server, response, db_connection, auth_data):
   response.set_status(204)
 
 
-def pavao_endpoint(db_connection):
-  if db_connection is None:
+def pavao_endpoint(loaded_settings):
+  if not loaded_settings.get_setting('api.v1.enabled', True):
     return
 
   return {
     'method': 'DELETE',
-    'path': '/logout',
+    'path': '/v1/logout',
     'processor': process
   }
-

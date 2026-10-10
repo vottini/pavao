@@ -35,7 +35,11 @@ class Daemon(TaskManager):
 			'on_finish': add_finish_callback
 		}
 
-		async def on_output(task, output): pass
+		async def on_output(task, output):
+			await self.broadcaster.write_message(
+				f"taskState:{task.ident}",
+				f"OUTPUT:{output}"
+			)
 		async def on_finish(task_ident, run_ident, success):
 			for cb in finish_callbacks:
 				adapted_cb = async_adapter(cb)
@@ -48,7 +52,7 @@ class Daemon(TaskManager):
 					+ ("cleanly" if success else "with error"))
 
 		task.run(self.loop,
-			self.broadcaster, self.internal_db, context,
+			self.broadcaster, self.task_store, context,
 			on_output, on_finish)
 
 

@@ -12,4 +12,3 @@ def pavao_endpoint():
     'path': '/hello/stamped',
     'processor': process
   }
-

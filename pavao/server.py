@@ -133,7 +133,12 @@ class Server:
 		await self.register_endpoints()
 		await self.restart_tasks()
 
-		self.monitor.schedule_execution(self.loop)
+		hot_reload = self.loaded_settings.get_setting('pavao.hot_reload.enabled', True)
+		if hot_reload:
+			self.monitor.schedule_execution(self.loop)
+		else:
+			Logger.info("Hot-reloading disabled")
+
 		Logger.info("Pavão started!")
 		return True
 
@@ -427,19 +432,19 @@ class Server:
 
 
 	async def restart_tasks(self):
-		internal_db = await self.parametering.produce('internal_db')
+		task_store = await self.parametering.produce('task_store')
 
 		try:
 			await self.scheduler.set_tasks(
 				self.parse_tasks(self.tasks, self.scheduler, self._parsed_tasks),
-				internal_db)
+				task_store)
 
 			await self.daemon.set_tasks(
 				self.parse_tasks(self.services, self.daemon, self._parsed_services),
-				internal_db)
+				task_store)
 
 		finally:
-			await self.parametering.destroy('internal_db', internal_db)
+			await self.parametering.destroy('task_store', task_store)
 
 	#-------------------------------------------------------------------------------
 

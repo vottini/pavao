@@ -92,7 +92,7 @@ class Scheduler(TaskManager):
 		}
 
 		task.run(self.loop,
-			self.broadcaster, self.internal_db, context,
+			self.broadcaster, self.task_store, context,
 			on_output, on_finish)
 
 	#--------------------------------------------------------

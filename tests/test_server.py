@@ -750,7 +750,7 @@ async def testRestartTasksDestroysInternalDb():
 	server.parse_tasks = MagicMock(return_value=[])
 
 	await Server.restart_tasks(server)
-	server.parametering.destroy.assert_called_once_with('internal_db', mock_db)
+	server.parametering.destroy.assert_called_once_with('task_store', mock_db)
 
 
 @pytest.mark.asyncio
@@ -764,7 +764,7 @@ async def testRestartTasksDestroysInternalDbEvenOnException():
 	with pytest.raises(RuntimeError):
 		await Server.restart_tasks(server)
 
-	server.parametering.destroy.assert_called_once_with('internal_db', mock_db)
+	server.parametering.destroy.assert_called_once_with('task_store', mock_db)
 
 
 @pytest.mark.asyncio

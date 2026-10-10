@@ -22,64 +22,6 @@ class TaskProblem:
 
 #-------------------------------------------------------------------------------
 
-insert_if_inexistent = """
-
-	INSERT INTO task (package, name, enabled)
-		SELECT :package, :name, TRUE
-			WHERE NOT EXISTS (
-				SELECT 1 FROM task
-					WHERE
-						package = :package AND
-						"name" = :name
-				)
-
-"""
-
-retrieve_task = """
-
-	SELECT id, enabled FROM task
-		WHERE
-			package = :package AND
-			"name" = :name
-
-"""
-
-insert_task_run = """
-
-	INSERT INTO task_execution (task, execution_start)
-		VALUES (:task, :start)
-		RETURNING id;
-
-"""
-
-mark_execution_finish = """
-
-	UPDATE task_execution SET
-		execution_end = :end,
-		success = :success
-
-	WHERE id = :execution;
-
-"""
-
-insert_task_output = """
-
-	INSERT INTO task_output (
-		execution,
-		instant,
-		error,
-		content
-	)
-
-	VALUES (
-		:execution,
-		:instant,
-		:error,
-		:content
-	);
-
-"""
-
 #-------------------------------------------------------------------------------
 
 def get_identity(entity):
@@ -119,19 +61,11 @@ class Task:
 
 	#----------------------------------------------------------------------------
 
-	async def register_self(self, internal_db):
-
-		args = {
-			'package': get_identity(self.package),
-			'name': get_identity(self.name)
-		}
-
-		async with internal_db.cursor() as cursor:
-			await cursor.execute(insert_if_inexistent, args)
-			retrieved = await cursor.execute(retrieve_task, args)
-			self.ident, enabled = await retrieved.fetchone()
-
-		await internal_db.commit()
+	async def register_self(self, task_store):
+		self.ident, enabled = await task_store.register_task(
+			get_identity(self.name),
+			get_identity(self.package)
+		)
 		setup = self.enable if enabled else self.disable
 		await setup()
 
@@ -156,7 +90,7 @@ class Task:
 	#----------------------------------------------------------------------------
 
 	def create_future(self,
-		broadcaster, internal_db, context,
+		broadcaster, task_store, context,
 		on_output, on_finish):
 
 		async def async_task():
@@ -166,30 +100,12 @@ class Task:
 				"STARTED"
 			)
 
-			async with internal_db.cursor() as cursor:
-				await cursor.execute(insert_task_run, {
-					'task': self.ident,
-					'start': start
-				})
-
-				inserted_row = await cursor.fetchone()
-				run_ident = inserted_row[0]
-
-			await internal_db.commit()
+			run_ident = await task_store.start_execution(self.ident, start)
 
 			async def process_output(output, error):
 				instant = datetime.now(timezone.utc)
 				await on_output(self, output)
-
-				async with internal_db.cursor() as cursor:
-					await cursor.execute(insert_task_output, {
-						'execution': run_ident,
-						'instant': instant,
-						'error': error,
-						'content': str(output)
-					})
-
-				await internal_db.commit()
+				await task_store.record_output(run_ident, instant, str(output), error)
 
 			try:
 				if self.pre_processing is not None:
@@ -228,18 +144,9 @@ class Task:
 				)
 
 				if on_finish is not None:
-					await on_finish(self.ident,
-						run_ident,
-						success)
+					await on_finish(self.ident, run_ident, success)
 
-				async with internal_db.cursor() as cursor:
-					await cursor.execute(mark_execution_finish, {
-						'execution': run_ident,
-						'success': success,
-						'end': end
-					})
-
-				await internal_db.commit()
+				await task_store.finish_execution(run_ident, end, success)
 
 		return async_task
 
@@ -253,12 +160,12 @@ class Task:
 
 
 	def run(self, loop,
-		broadcaster, internal_db, context,
+		broadcaster, task_store, context,
 		on_output, on_finish=None):
 
 		self.cancel_if_executing()
 		task_future = self.create_future(
-			broadcaster, internal_db, context,
+			broadcaster, task_store, context,
 			on_output, on_finish)
 
 		self.execution = loop.create_task(task_future())
@@ -271,7 +178,7 @@ class TaskManager(ABC):
 		self.loop = loop
 
 		self.executor = None
-		self.internal_db = None
+		self.task_store = None
 		self.loaded_tasks = list()
 		self.ctor = Task
 
@@ -291,17 +198,16 @@ class TaskManager(ABC):
 
 	#--------------------------------------------------------
 
-	async def set_tasks(self, tasks, internal_db):
+	async def set_tasks(self, tasks, task_store):
 		await self.stop()
 
-		self.internal_db = internal_db
+		self.task_store = task_store
 		self.loaded_tasks = tasks
 
 		async def execution():
 			for task in self.loaded_tasks:
-				await task.register_self(internal_db)
+				await task.register_self(task_store)
 
-			await internal_db.commit()
 			await self.execute_tasks()
 
 		self.executor = self.loop.create_task(execution())
