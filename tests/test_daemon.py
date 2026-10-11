@@ -86,6 +86,17 @@ def testStartTaskProvidesOnFinishCallback(daemon):
 	assert callable(context['on_finish'])
 
 @pytest.mark.asyncio
+async def testStartTaskOnOutputBroadcastsMessage(daemon, broadcaster):
+	task = make_task("svc.py")
+	task.ident = 5
+	daemon.start_task(task)
+	_, _, _, _, on_output, _ = task.run.call_args.args
+	broadcaster.write_message = AsyncMock()
+	await on_output(task, "some output")
+	broadcaster.write_message.assert_called_once_with("taskState:5", "OUTPUT:some output")
+
+
+@pytest.mark.asyncio
 async def testStartTaskOnFinishRecordsTermination(daemon):
 	task = make_task("svc.py")
 	daemon.start_task(task)

@@ -161,6 +161,33 @@ async def testServerStartupStartsAllComponents():
 
 
 @pytest.mark.asyncio
+async def testServerStartupLogsWhenHotReloadDisabled():
+	server, init_fn, _ = _make_real_server()
+
+	server.http_handler.init = AsyncMock()
+	server.parametering.init = AsyncMock()
+	server.filtering.init = AsyncMock()
+	server._build_filter_list = AsyncMock()
+	server.load_user_modules = AsyncMock()
+	server.register_endpoints = AsyncMock()
+	server.restart_tasks = AsyncMock()
+
+	mock_settings = MagicMock()
+	mock_settings.get_setting.return_value = False
+
+	with patch('pavao.server.load_settings', return_value=mock_settings), \
+		 patch('pavao.server.start_logging'), \
+		 patch('pavao.server.load_folder'), \
+		 patch('pavao.server.Scheduler'), \
+		 patch('pavao.server.Daemon'), \
+		 patch('pavao.server.Logger') as mock_logger:
+		await init_fn()
+
+	info_messages = [c.args[0] for c in mock_logger.info.call_args_list]
+	assert any('Hot-reloading disabled' in m for m in info_messages)
+
+
+@pytest.mark.asyncio
 async def testServerStartupInitializesReloadLock():
 	server, init_fn, _ = _make_real_server()
 
@@ -215,6 +242,20 @@ async def testLoadModulesWarnsAndSkipsNonDictSpec():
 	server = make_server()
 	endpoints = {}
 	def bad(): return ["not", "a", "dict"]
+
+	with patch('pavao.server.Logger') as mock_logger:
+		await Server.load_modules(server, endpoints, {}, {}, ('/fake/ep.py', ('ENDPOINT', bad)))
+
+	assert '/fake/ep.py' not in endpoints
+	mock_logger.warning.assert_called()
+	assert 'dict' in mock_logger.warning.call_args.args[0]
+
+
+@pytest.mark.asyncio
+async def testLoadModulesWarnsOnNonDictNonListReturn():
+	server = make_server()
+	endpoints = {}
+	def bad(): return 42
 
 	with patch('pavao.server.Logger') as mock_logger:
 		await Server.load_modules(server, endpoints, {}, {}, ('/fake/ep.py', ('ENDPOINT', bad)))
@@ -286,6 +327,64 @@ async def testLoadModulesWarnsOnGenericException():
 
 	assert '/fake/ep.py' not in endpoints
 	mock_logger.warning.assert_called()
+
+
+@pytest.mark.asyncio
+async def testLoadModulesStoresListOfDictSpecs():
+	server = make_server()
+	endpoints = {}
+	def multi(): return [
+		{'method': 'GET',    'path': '/a', 'processor': lambda: None},
+		{'method': 'POST',   'path': '/b', 'processor': lambda: None},
+		{'method': 'DELETE', 'path': '/c', 'processor': lambda: None},
+	]
+
+	await Server.load_modules(server, endpoints, {}, {}, ('/fake/ep.py', ('ENDPOINT', multi)))
+	assert '/fake/ep.py'      in endpoints
+	assert '/fake/ep.py[1]'   in endpoints
+	assert '/fake/ep.py[2]'   in endpoints
+	assert len(endpoints) == 3
+
+
+@pytest.mark.asyncio
+async def testLoadModulesSingleItemListUsesFilePathAsKey():
+	server = make_server()
+	endpoints = {}
+	def single(): return [{'method': 'GET', 'path': '/x', 'processor': lambda: None}]
+
+	await Server.load_modules(server, endpoints, {}, {}, ('/fake/ep.py', ('ENDPOINT', single)))
+	assert '/fake/ep.py' in endpoints
+	assert '/fake/ep.py[1]' not in endpoints
+
+
+@pytest.mark.asyncio
+async def testLoadModulesEmptyListRegistersNothing():
+	server = make_server()
+	endpoints = {}
+	def empty(): return []
+
+	with patch('pavao.server.Logger') as mock_logger:
+		await Server.load_modules(server, endpoints, {}, {}, ('/fake/ep.py', ('ENDPOINT', empty)))
+
+	assert len(endpoints) == 0
+	mock_logger.warning.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def testLoadModulesListWarnsAndSkipsNonDictItems():
+	server = make_server()
+	endpoints = {}
+	def mixed(): return [
+		{'method': 'GET', 'path': '/good', 'processor': lambda: None},
+		"not a dict",
+	]
+
+	with patch('pavao.server.Logger') as mock_logger:
+		await Server.load_modules(server, endpoints, {}, {}, ('/fake/ep.py', ('ENDPOINT', mixed)))
+
+	assert '/fake/ep.py' in endpoints
+	assert len(endpoints) == 1
+	mock_logger.warning.assert_called_once()
 
 
 @pytest.mark.asyncio

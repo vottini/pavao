@@ -180,13 +180,23 @@ class Server:
 				if specs is None:
 					continue
 
-				if not isinstance(specs, dict):
+				if isinstance(specs, list):
+					specs_list = specs
+				elif isinstance(specs, dict):
+					specs_list = [specs]
+				else:
 					short_path = os.path.relpath(file_path, self.modules_dir)
-					Logger.warning(f"'{short_path}' register function must return a dict or None")
+					Logger.warning(f"'{short_path}' register function must return a dict, a list of dicts, or None")
 					continue
 
 				destination = destinations[kind]
-				destination[file_path] = specs
+				for i, spec in enumerate(specs_list):
+					if not isinstance(spec, dict):
+						short_path = os.path.relpath(file_path, self.modules_dir)
+						Logger.warning(f"'{short_path}' register function: item {i} in list is not a dict")
+						continue
+					key = file_path if i == 0 else f"{file_path}[{i}]"
+					destination[key] = spec
 
 			except KeyError as e:
 				msg = f"Incomplete spec in '{file_path}': missing field {e}"

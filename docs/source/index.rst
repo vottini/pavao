@@ -73,8 +73,11 @@ Both pillars extend naturally as an application grows.
 
 On the modularity side, modules can be organised into subdirectories, share helper code
 through plain Python imports, and be hot-reloaded on change without restarting the server.
-Alongside endpoint modules, the same directory can contain scheduled task modules
-(``pavao_task()``) and always-on background service modules (``pavao_service()``).
+Because each endpoint lives in its own file, the reload boundary is exactly the unit of
+work: edit one handler, save, and only that module is reloaded — the rest of the
+application keeps running. Alongside endpoint modules, the same directory can contain
+scheduled task modules (``pavao_task()``) and always-on background service modules
+(``pavao_service()``).
 
 On the injection side, the built-in injectables — ``request``, ``response``,
 ``path_variables``, ``broadcasting``, and others — cover the common cases. The set is open:
@@ -130,4 +133,3 @@ resources are released via destructors once the response is complete.
    sections/messaging
    sections/foundation
    sections/running
-   sections/extensions

@@ -154,10 +154,17 @@ A minimal configuration file:
 Hot-reloading
 =============
 
+The development loop with pavao is intentionally tight: edit a file, save it, and the
+new version is live — no restart, no lost state, no waiting. Because each endpoint
+already lives in its own file, the reload boundary matches the unit of work exactly.
+Only the changed module is reloaded; connection pools, caches, and every other endpoint
+keep running undisturbed.
+
 pavao watches the modules directory for file changes using a background file-system
 monitor. When a ``.py`` file is created, modified, or deleted, the affected module is
 reloaded and its endpoints, tasks, or services are re-registered — without restarting the
-process. Hot-reloading is enabled by default and can be disabled via configuration:
+process. Hot-reloading is enabled by default and should be disabled in production, where
+restarts are controlled externally:
 
 .. code-block:: yaml
 

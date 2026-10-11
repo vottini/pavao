@@ -58,6 +58,11 @@ filters as ``endpoint_specs`` (see :ref:`filters`). This is how application-leve
 like visibility or required permissions are attached to an endpoint without the framework
 needing to know about them.
 
+``pavao_endpoint()`` can also return a list of such dicts to register multiple routes from
+a single file. One file per endpoint is still the norm — it keeps hot-reloading precise and
+each module self-contained — but the list form is available when registering several tightly
+related routes together makes more sense.
+
 The descriptor function itself participates in dependency injection. It can declare any
 injectable parameter as an argument, and pavao will resolve it before calling the function.
 
@@ -229,3 +234,69 @@ in DI and can declare any injectable parameter as arguments.
 
 Filters are registered by placing them in a foundation directory and configuring their
 order in ``application.yml``. See :ref:`foundation` for setup details.
+
+Internationalization
+====================
+
+pavao automatically localizes its own built-in error responses — missing parameters,
+invalid JSON, wrong content type — according to the ``Accept-Language`` header sent by
+the client. Twenty languages are supported out of the box, including English, Portuguese,
+Spanish, French, German, Chinese, Japanese, Arabic, and Russian.
+
+Application modules can plug into the same mechanism using ``ModuleLocalizer``.
+
+Adding message files
+--------------------
+
+Create a ``messages/`` directory alongside your module code and add one ``.ini`` file per
+language. The filename is the locale identifier (e.g. ``en_US.ini``, ``pt_BR.ini``).
+Each file contains plain ``KEY = value`` pairs:
+
+.. code-block:: ini
+
+   ; messages/en_US.ini
+   ITEM_NOT_FOUND = "Item not found"
+   ACCESS_DENIED  = "You do not have access to this resource"
+
+.. code-block:: ini
+
+   ; messages/pt_BR.ini
+   ITEM_NOT_FOUND = "Item não encontrado"
+   ACCESS_DENIED  = "Você não tem acesso a este recurso"
+
+Using ModuleLocalizer
+---------------------
+
+``ModuleLocalizer`` is instantiated once at module load time and maps message keys to
+``LazyLocalizer`` objects. A ``LazyLocalizer`` holds a reference to its key and performs
+the actual lookup only when ``localize()`` is called with a language priority list:
+
+.. code-block:: python
+
+   import pavao
+
+   _localizer = pavao.ModuleLocalizer('items', pavao.path_to('messages'))
+
+   ITEM_NOT_FOUND = _localizer.map('ITEM_NOT_FOUND')
+   ACCESS_DENIED  = _localizer.map('ACCESS_DENIED')
+
+The first argument to ``ModuleLocalizer`` is a module name used for logging; it does not
+affect message resolution.
+
+Localizing a response
+---------------------
+
+``request.parse_locale_priority()`` returns the ordered list of languages from the
+client's ``Accept-Language`` header. Pass it to ``localize()`` to get the best available
+translation:
+
+.. literalinclude:: ../codes/i18n_endpoint.py
+   :language: python
+
+Resolution order
+----------------
+
+For a given priority list, pavao tries each language in order. If an exact locale is not
+available (e.g. ``fr_FR`` is requested but only ``fr_BE`` exists), the language prefix is
+matched as a fallback. If no match is found at all, ``en_US`` is used as the final
+fallback.
