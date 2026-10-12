@@ -3,9 +3,12 @@
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+include = ["pavao*"]
+
 [project]
 name = "pavao"
-version = "0.9.0"
+version = "0.10.1"
 description = "Modular, injection based, Python ASGI web framework"
 authors = [
 	{ name = "Gustavo Venturini", email = "gustavo.c.venturini@gmail.com" }
@@ -22,21 +25,38 @@ dependencies = [
 	"six==1.16.0",
 	"typing_extensions==4.12.2",
 	"uvicorn==0.30.6",
-	"uvloop==0.22.1",
 	"watchdog==4.0.2",
-	"jsonbp==1.3.2",
+	"jsonbp==1.3.1",
 	"umapper==0.1.6"
 ]
 readme = { file = "README.md", content-type = "text/markdown" }
-keywords = ["framework", "asgi", "api"]
-license = "BSD-3-Clause"
+keywords = ["framework", "asgi", "api", "web", "rest", "http", "dependency-injection", "server-sent-events"]
+license = "MIT"
 classifiers = [
-	"Development Status :: 2 - Pre-Alpha",
+	"Development Status :: 4 - Beta",
 	"Intended Audience :: Developers",
 	"Operating System :: OS Independent",
 	"Programming Language :: Python :: 3 :: Only",
+	"Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+	"Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
+	"Topic :: Software Development :: Libraries :: Application Frameworks",
+	"License :: OSI Approved :: MIT License",
+	"Framework :: AsyncIO",
 ]
+
+[project.scripts]
+pavao-run = "pavao.run:main"
+pavao-pkg = "pavao.pkg:main"
 
 [project.urls]
 "Homepage" = "https://github.com/vottini/pavao"
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+
+[tool.coverage.run]
+omit = ["/tmp/*", "tests/*", ".env/*"]
+
+[tool.coverage.report]
+omit = ["/tmp/*", "tests/*", ".env/*"]
 

@@ -37,6 +37,52 @@ $ pavao-run modules/
 
 Open `http://localhost:8000/hello` and you should see `World`.
 
+## Going further
+
+Both pillars extend naturally as an application grows.
+
+On the modularity side, modules can be organised into subdirectories, share helper code through plain Python imports, and be hot-reloaded on change without restarting the server. Because each endpoint lives in its own file, the reload boundary is exactly the unit of work: edit one handler, save, and only that module is reloaded — the rest of the application keeps running. Alongside endpoint modules, the same directory can contain scheduled task modules (`pavao_task()`) and always-on background service modules (`pavao_service()`).
+
+On the injection side, the built-in injectables — `request`, `response`, `path_variables`, `broadcasting`, and others — cover the common cases. The set is open: custom suppliers placed in a foundation directory can introduce new named parameters, making application-specific resources (database connections, caches, auth tokens) available to any module that declares them.
+
+Crucially, injection applies to descriptor functions too, not only to processors. A module can declare a dependency in its `pavao_endpoint()` function and use it to decide whether to register at all, or to configure the endpoint based on runtime state. Each function asks for exactly what it needs — nothing is shared implicitly.
+
+```python
+import pavao
+
+delete_refresh = pavao.include('queries/delete_refresh.sql')
+
+async def process(server, response, db_connection, auth_data):
+    server.authorizer.blacklist(auth_data)
+
+    await db_connection.execute(
+        delete_refresh,
+        auth_data.account_id,
+        auth_data.token)
+
+    response.add_cookie(
+        pavao.http.Cookie('token')
+            .set_path('/refresh-token')
+            .set_sameSite(pavao.http.SameSite.STRICT)
+            .set_to_be_removed()
+    )
+
+    response.set_status(204)
+
+
+def pavao_endpoint(loaded_settings):
+    if not loaded_settings.get_setting('api.v1.enabled', True):
+        return
+
+    return {
+        'method': 'DELETE',
+        'path': '/v1/logout',
+        'processor': process
+    }
+```
+
+The descriptor receives `loaded_settings` and checks a configuration flag — if the v1 API is disabled the module is quietly skipped. Otherwise the endpoint is registered, and its processor independently declares `server`, `response`, `db_connection`, and `auth_data`. Each function asks for exactly what it needs at the time it needs it.
+
 ## Features
 
 - Point-and-serve module directory: endpoints, tasks, and services auto-discovered at startup

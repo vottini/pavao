@@ -88,8 +88,7 @@ module that declares them.
 Crucially, injection applies to descriptor functions too, not only to processors. A module
 can declare a dependency in its ``pavao_endpoint()`` function and use it to decide whether
 to register at all, or to configure the endpoint based on runtime state. The following
-example, from `pavao-auth <https://github.com/vottini/pavao-auth>`_, illustrates how far
-this can go:
+example illustrates how far this can go:
 
 .. literalinclude:: codes/logout.py
    :language: python
