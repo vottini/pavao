@@ -47,7 +47,7 @@ Save the ``hello.py`` example above as ``modules/hello.py``, then start the serv
 
 .. code-block:: console
 
-   $ python -m pavao modules/
+   $ pavao-run modules/
 
 Open ``http://localhost:8000/hello`` in a browser and you should see ``World``.
 
@@ -133,3 +133,4 @@ resources are released via destructors once the response is complete.
    sections/messaging
    sections/foundation
    sections/running
+   sections/extensions

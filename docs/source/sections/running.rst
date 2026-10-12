@@ -5,12 +5,12 @@ Running & Configuration
 Command line
 ============
 
-pavao is invoked as a Python module. The only required argument is the path to the
-directory of modules to serve:
+pavao is started with the ``pavao-run`` command. The only required argument is the path
+to the directory of modules to serve:
 
 .. code-block:: console
 
-   $ python -m pavao modules/
+   $ pavao-run modules/
 
 Additional options:
 
