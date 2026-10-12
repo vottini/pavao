@@ -38,8 +38,8 @@ Create a virtual environment, install pavao, and drop the file above into a new
 
 .. code-block:: console
 
-   $ python -m venv .venv
-   $ source .venv/bin/activate
+   $ python -m venv .env
+   $ source .env/bin/activate
    $ pip install pavao
    $ mkdir modules
 
