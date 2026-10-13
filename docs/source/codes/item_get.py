@@ -18,7 +18,11 @@ async def process(response, path_variables):
     response.set_status(404)
     return None
 
-  return {'id': item_id, 'name': 'Widget', 'price': 9.99}
+  return {
+    'id': item_id,
+    'name': 'Widget',
+    'price': 9.99
+  }
 
 
 def pavao_endpoint():

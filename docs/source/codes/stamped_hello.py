@@ -1,8 +1,10 @@
 
-import timestamp
+import pavao
+
+utc_milliseconds = pavao.from_module('timestamp').import_item('utc_milliseconds')
 
 def process(response):
-  time_info = timestamp.utc_milliseconds()
+  time_info = utc_milliseconds()
   response.set_plain_text(f"World is now at {time_info}")
 
 

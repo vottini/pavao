@@ -30,9 +30,11 @@ an endpoint:
 .. literalinclude:: ../codes/stamped_hello.py
    :language: python
 
-Because pavao adds the modules directory to the Python path, ``timestamp`` can be imported
-directly. If ``timestamp.py`` is modified on disk, ``stamped_hello.py`` will be reloaded
-along with it — see :ref:`hot-reload` for details.
+``stamped_hello.py`` uses ``pavao.from_module()`` to import from ``timestamp``. This
+registers a dependency link, so when ``timestamp.py`` changes on disk, ``stamped_hello.py``
+is reloaded along with it. A plain ``import timestamp`` would work at runtime but would
+not register the link — only ``timestamp.py`` itself would reload, and ``stamped_hello.py``
+would keep running the old code. See :ref:`hot-reload` for details.
 
 The descriptor function
 =======================
@@ -87,55 +89,11 @@ are **not** available to descriptor functions — they do not exist until a requ
 Missing and unavailable dependencies
 --------------------------------------
 
-It is important to understand how pavao handles dependencies that cannot be satisfied,
-because the behaviour differs between descriptors and processors.
-
 If a parameter has **no registered supplier at all**, pavao raises an error before the
 descriptor is ever called. For descriptor functions this causes the module to be silently
 skipped with a warning in the log. For processor functions the same check happens at
 startup: the endpoint is disabled and a warning is logged. In neither case does the
 function receive a value — it is simply never invoked.
-
-The ``if db_connection is None: return None`` pattern seen in the ``/logout`` example on
-the overview page is a **different** scenario. There, a supplier *is* registered for
-``db_connection``, but it is designed to return ``None`` when the underlying resource is
-unavailable — for example, when the database is not configured in ``application.yml``.
-The descriptor receives ``None``, checks for it explicitly, and returns ``None`` to
-opt out of registration. This is a deliberate design choice in the supplier, not an
-automatic framework behaviour.
-
-In summary:
-
-- Unknown parameter (no supplier) → module/endpoint disabled, warning logged, function never called
-- Supplier returns ``None`` → function is called with ``None``, can handle it explicitly
-
-A supplier that wants to allow graceful opt-out should return ``None`` from its
-constructor when the resource is not available, rather than omitting the parameter
-entirely. Omitting it causes a hard skip; returning ``None`` gives the descriptor a
-chance to decide.
-
-Custom fields and public endpoints
------------------------------------
-
-Extra keys in the descriptor dict are not interpreted by pavao — they are preserved and
-forwarded to every filter's ``enabled()`` method as part of ``endpoint_specs``. This
-makes the descriptor dict the natural place to express endpoint-level policy.
-
-A common pattern is a ``'public'`` flag that marks endpoints that should bypass
-authentication:
-
-.. literalinclude:: ../codes/public_endpoint.py
-   :language: python
-
-A filter can then check for this flag in ``enabled()`` and opt out entirely for public
-endpoints:
-
-.. literalinclude:: ../codes/auth_filter.py
-   :language: python
-
-Any field works — ``'roles'``, ``'rate_limit'``, ``'deprecated'`` — as long as the
-filters that care about them know the key name. Fields that no filter reads are silently
-ignored.
 
 Path variables
 ==============
@@ -197,7 +155,10 @@ The following parameters are always available in endpoint processors:
      - The full descriptor dict returned by ``pavao_endpoint()``, including any custom
        fields. Useful when a processor needs to read its own metadata.
    * - ``server``
-     - The running ``pavao.Server`` instance, for accessing application-level state.
+     - The running ``pavao.Server`` instance. Intended as a bridge to framework internals
+       for advanced introspection — extensions and low-level tooling that genuinely need
+       to inspect server state. Most application code should never need to declare this
+       parameter; reach for a supplier instead.
 
 In addition, every parameter registered by a supplier (``task_store``, ``stored_settings``,
 and any custom supplier) is available to endpoint processors.
@@ -231,6 +192,29 @@ A filter is defined by subclassing ``pavao.RequestFilter`` and overriding two me
 to that endpoint at all. ``allow()`` is called on every request that reaches a filtered
 endpoint; returning ``False`` stops processing and returns a 403. Both methods participate
 in DI and can declare any injectable parameter as arguments.
+
+Custom fields and endpoint-level policy
+----------------------------------------
+
+Extra keys in the descriptor dict are not interpreted by pavao — they are preserved and
+forwarded to every filter's ``enabled()`` method as part of ``endpoint_specs``. This
+makes the descriptor dict the natural place to express endpoint-level policy.
+
+A common pattern is a ``'public'`` flag that marks endpoints that should bypass
+authentication:
+
+.. literalinclude:: ../codes/public_endpoint.py
+   :language: python
+
+A filter can then check for this flag in ``enabled()`` and opt out entirely for public
+endpoints:
+
+.. literalinclude:: ../codes/auth_filter.py
+   :language: python
+
+Any field works — ``'roles'``, ``'rate_limit'``, ``'deprecated'`` — as long as the
+filters that care about them know the key name. Fields that no filter reads are silently
+ignored.
 
 Filters are registered by placing them in a foundation directory and configuring their
 order in ``application.yml``. See :ref:`foundation` for setup details.

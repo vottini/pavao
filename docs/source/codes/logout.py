@@ -3,8 +3,14 @@ import pavao
 
 delete_refresh = pavao.include('queries/delete_refresh.sql')
 
-async def process(server, response, db_connection, auth_data):
-  server.authorizer.blacklist(auth_data)
+async def process(response, db_connection, auth_data):
+  row = await db_connection.fetchrow(
+    "SELECT id FROM pavao.refresh_token WHERE account = $1",
+    auth_data.account_id)
+
+  if row is None:
+    response.set_status(404)
+    return
 
   await db_connection.execute(
     delete_refresh,

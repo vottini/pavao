@@ -76,6 +76,17 @@ the decorator serializes it using the schema that matches that status code.
 .. literalinclude:: ../codes/item_get.py
    :language: python
 
+When used together with ``@pavao.accepts_json``, ``@pavao.generates_json`` must be the
+outermost decorator so it can capture the return value before the framework transmits the
+response:
+
+.. code-block:: python
+
+   @pavao.generates_json(string_blueprint=item_schema)
+   @pavao.accepts_json(string_blueprint=input_schema)
+   async def process(response, parsed_json):
+     ...
+
 When a single ``string_blueprint`` or ``file_blueprint`` is provided, it is used for all
 non-error status codes. Error status codes automatically use pavao's built-in error schema
 (``{ error, description, timestamp }``). Returning ``None`` leaves the response body
@@ -116,16 +127,21 @@ that monitor for client disconnection and server shutdown.
    * - Method
      - Description
    * - ``await emit.headers(status=200, headers=None)``
-     - Send the HTTP response headers. Called at most once; subsequent calls are no-ops.
+     - Flush the HTTP response headers to the client. Called at most once; subsequent
+       calls are no-ops. Any first call to ``event()`` or ``message()`` flushes headers
+       automatically if not already done.
    * - ``await emit.event(event_type, data=None)``
-     - Send a named SSE event, optionally with a data payload.
+     - Send a named SSE event, optionally with a data payload. The client receives it via
+       ``EventSource.addEventListener(event_type, ...)``.
    * - ``await emit.message(data)``
-     - Send an unnamed SSE message (the ``data:`` field only).
+     - Send an unnamed SSE event (``data:`` field only, no ``event:`` line). The client
+       receives it via ``EventSource.onmessage``. Use ``emit.event()`` when the client
+       needs to distinguish between different event types.
 
 When the client disconnects unexpectedly, any callback registered with
 ``emit.on_disconnection(callback)`` is called before the processor task is cancelled.
-When the server shuts down, a ``serverShutdown`` event is sent automatically and the
-processor task is cancelled.
+When the server shuts down, a ``serverShutdown`` event is sent automatically to the client
+and the processor task is cancelled.
 
 The decorator accepts three optional parameters:
 

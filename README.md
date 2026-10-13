@@ -52,8 +52,14 @@ import pavao
 
 delete_refresh = pavao.include('queries/delete_refresh.sql')
 
-async def process(server, response, db_connection, auth_data):
-    server.authorizer.blacklist(auth_data)
+async def process(response, db_connection, auth_data):
+    row = await db_connection.fetchrow(
+        "SELECT id FROM pavao.refresh_token WHERE account = $1",
+        auth_data.account_id)
+
+    if row is None:
+        response.set_status(404)
+        return
 
     await db_connection.execute(
         delete_refresh,
@@ -81,7 +87,7 @@ def pavao_endpoint(loaded_settings):
     }
 ```
 
-The descriptor receives `loaded_settings` and checks a configuration flag — if the v1 API is disabled the module is quietly skipped. Otherwise the endpoint is registered, and its processor independently declares `server`, `response`, `db_connection`, and `auth_data`. Each function asks for exactly what it needs at the time it needs it.
+The descriptor receives `loaded_settings` and checks a configuration flag — if the v1 API is disabled the module is quietly skipped. Otherwise the endpoint is registered, and its processor independently declares `response`, `db_connection`, and `auth_data`. Each function asks for exactly what it needs at the time it needs it.
 
 ## Features
 

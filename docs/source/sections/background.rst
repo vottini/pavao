@@ -12,27 +12,39 @@ Scheduled tasks
 ===============
 
 A module that defines a ``pavao_task()`` descriptor is registered as a scheduled task. The
-descriptor returns a dict with three required keys:
+descriptor returns a dict with the following keys:
 
 .. list-table::
    :header-rows: 1
-   :widths: 20 80
+   :widths: 20 10 70
 
    * - Key
+     - Required
      - Description
    * - ``name``
+     - yes
      - Unique name for the task
    * - ``schedule``
+     - yes
      - Cron expression (``"minute hour day month weekday"``)
    * - ``processor``
+     - yes
      - Async generator function to run on each scheduled tick
+   * - ``package``
+     - no
+     - Optional grouping label. Stored alongside the task name and useful for organising
+       tasks by application area in admin interfaces or execution logs.
 
 The processor is an **async generator** that runs to completion on each scheduled tick.
 Each ``yield value`` emits an output: the value is stored in the internal execution log,
 published on a per-task broadcasting topic (``taskState:<id>``), and passed to any
-registered output callback. Yielding ``None`` (a bare ``yield``) is valid but produces
-no logged output — it can be used as a simple end-of-body marker when there is nothing
-meaningful to report.
+registered output callback. Yielding ``None`` (a bare ``yield``) produces no logged output. It is required when the
+processor has nothing meaningful to report but still needs the ``yield`` keyword to
+satisfy Python's async generator protocol — without at least one ``yield``, the function
+is treated as a plain coroutine and rejected at registration. The
+``@pavao.silent_generator`` decorator handles this automatically: it wraps a plain
+``async def`` and appends the silent ``yield`` on its behalf, so the processor can be
+written as a normal coroutine.
 
 The following parameters are available to task processors, in addition to all supplier-provided parameters:
 
@@ -47,6 +59,13 @@ The following parameters are available to task processors, in addition to all su
 
 .. literalinclude:: ../codes/ticker.py
    :language: python
+
+Each ``yield value`` also publishes a message on the ``taskState:<id>`` broadcasting
+topic, where ``<id>`` is the integer assigned to that task at registration time. The id
+can be retrieved via ``await task_store.list_tasks()``, which returns the id alongside
+the task's package, name, and enabled state. Subscribing to ``taskState:<id>`` lets any
+part of the application react to task output in real time — for example, forwarding it to
+a connected SSE client.
 
 Execution metadata — start time, end time, success or failure, and all yielded outputs —
 is automatically persisted to the internal SQLite database, giving every task a built-in
@@ -89,18 +108,24 @@ Background services
 ===================
 
 A module that defines a ``pavao_service()`` descriptor is registered as a background
-service (daemon). The descriptor returns a dict with two required keys:
+service (daemon). The descriptor returns a dict with the following keys:
 
 .. list-table::
    :header-rows: 1
-   :widths: 20 80
+   :widths: 20 10 70
 
    * - Key
+     - Required
      - Description
    * - ``name``
+     - yes
      - Unique name for the service
    * - ``processor``
+     - yes
      - Async generator function to run continuously
+   * - ``package``
+     - no
+     - Optional grouping label, same as for scheduled tasks.
 
 Unlike scheduled tasks, a service starts once at application startup and is expected to
 run indefinitely. If it terminates unexpectedly, pavao restarts it automatically after a
@@ -108,9 +133,11 @@ short delay.
 
 The processor is an async generator that runs continuously. ``yield value`` behaves
 identically to scheduled tasks: the value is persisted to the execution log and published
-on the service's ``taskState:<id>`` broadcasting topic. A bare ``yield`` is valid as a
-progress marker with no output. pavao does not pause between yields — the generator
-drives its own pace.
+on the service's ``taskState:<id>`` broadcasting topic, where ``<id>`` is the same
+integer assigned at registration and queryable via ``task_store``. A bare ``yield`` produces no logged output and serves the same purpose as in scheduled
+tasks: satisfying the async generator protocol when there is nothing to report. The
+``@pavao.silent_generator`` decorator is available here too for services that never need
+to emit output. pavao does not pause between yields — the generator drives its own pace.
 
 The following parameters are available to service processors, in addition to all supplier-provided parameters:
 
