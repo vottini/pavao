@@ -1,10 +1,22 @@
+
 # pavao
 
-**pavao** (from "Pavão", Portuguese for *peacock*) is a Python ASGI framework built on two ideas that work together.
+[![Documentation Status](https://readthedocs.org/projects/pavao/badge/?version=latest)](http://pavao.readthedocs.io/?badge=latest)
+[![codecov](https://codecov.io/github/vottini/pavao/graph/badge.svg?token=N2H2WJ0SC5)](https://codecov.io/github/vottini/pavao)
 
-One is **modularity**: point pavao at a directory of Python files and it discovers and serves every endpoint module it finds there. Adding a new endpoint means dropping a file into the directory; removing one means deleting it. Nothing else in the application needs to change.
+**pavao** (from "Pavão", Portuguese for *peacock*) is a Python ASGI framework built
+on two ideas that work together.
 
-The other is **name-based dependency injection**: instead of importing or constructing the objects your endpoint needs, you just declare them as arguments to your handler function. pavao uses the names of the parameters to deliver the correct objects where they are requested. Parameters are instantiated on demand — if a module does not declare `db_connection`, no database connection is created for it.
+One is **modularity**: point pavao at a directory of Python files and it discovers and
+serves every endpoint module it finds there. Adding a new endpoint means dropping a file
+into the directory; removing one means deleting it. Nothing else in the application needs
+to change.
+
+The other is **name-based dependency injection**: instead of importing or constructing the
+objects your endpoint needs, you just declare them as arguments to your handler function.
+pavao uses the names of the parameters to deliver the correct objects where they are requested.
+Parameters are instantiated on demand — if a module does not declare `db_connection`,
+no database connection is created for it.
 
 A minimal endpoint:
 
