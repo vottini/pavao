@@ -32,7 +32,6 @@ dependencies = [
 ]
 readme = { file = "README.md", content-type = "text/markdown" }
 keywords = ["framework", "asgi", "api", "web", "rest", "http", "dependency-injection", "server-sent-events"]
-license = "MIT"
 classifiers = [
 	"Development Status :: 4 - Beta",
 	"Intended Audience :: Developers",
