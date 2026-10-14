@@ -13,6 +13,7 @@ description = "Modular, injection based, Python ASGI web framework"
 authors = [
 	{ name = "Gustavo Venturini", email = "gustavo.c.venturini@gmail.com" }
 ]
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
 	"aiosqlite==0.20.0",
@@ -40,7 +41,6 @@ classifiers = [
 	"Topic :: Internet :: WWW/HTTP :: HTTP Servers",
 	"Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
 	"Topic :: Software Development :: Libraries :: Application Frameworks",
-	"License :: OSI Approved :: MIT License",
 	"Framework :: AsyncIO",
 ]
 
