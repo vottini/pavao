@@ -2,6 +2,7 @@
 # pavao
 
 [![Documentation Status](https://readthedocs.org/projects/pavao/badge/?version=latest)](http://pavao.readthedocs.io/?badge=latest)
+[![Upload Python Package](https://github.com/vottini/pavao/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/vottini/pavao/actions/workflows/pypi-publish.yml)
 [![codecov](https://codecov.io/github/vottini/pavao/graph/badge.svg?token=N2H2WJ0SC5)](https://codecov.io/github/vottini/pavao)
 
 **pavao** (from "Pavão", Portuguese for *peacock*) is a Python ASGI framework built
@@ -118,7 +119,7 @@ The descriptor receives `loaded_settings` and checks a configuration flag — if
 
 ## Documentation
 
-Full documentation is available at [vottini.github.io/pavao](https://vottini.github.io/pavao).
+Full documentation is available at [pavao.readthedocs.io](https://pavao.readthedocs.io/en/latest/).
 
 ## License
 
