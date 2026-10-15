@@ -6,9 +6,12 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["pavao*"]
 
+[tool.setuptools.package-data]
+"pavao" = ["builtin/**/*", "messages/**/*"]
+
 [project]
 name = "pavao"
-version = "0.10.1"
+version = "0.10.2"
 description = "Modular, injection based, Python ASGI web framework"
 authors = [
 	{ name = "Gustavo Venturini", email = "gustavo.c.venturini@gmail.com" }

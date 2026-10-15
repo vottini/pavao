@@ -1,5 +1,6 @@
 
 import argparse
+import asyncio
 import uvicorn
 import pavao
 
@@ -61,7 +62,7 @@ def main():
 		app=server.get_app())
 
 	asgi_server = uvicorn.Server(asgi_config)
-	try: server.loop.run_until_complete(asgi_server.serve())
+	try: asyncio.run(asgi_server.serve())
 	except KeyboardInterrupt:
 		pass
 
