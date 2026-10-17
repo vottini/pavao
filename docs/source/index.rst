@@ -3,13 +3,14 @@ pavao
 =====
 
 **pavao** (from "Pavão", Portuguese for *peacock*) is a Python ASGI framework built on two
-ideas that work together.
+main ideas:
 
 One is **modularity**: point pavao at a directory of Python files and it discovers and
 serves every endpoint module it finds there. Each module is defined by a specifically named function
 that returns the necessary metadata for registration. Adding a new endpoint means dropping a
 file into the directory; removing one means deleting it. Nothing else in the application needs
-to change.
+to modified. pavao also watches the directory for changes and hot-reloads any edited module
+on the fly — no server restart needed, which keeps the development loop tight.
 
 The other is **name-based dependency injection**: instead of importing or constructing the
 objects your endpoint needs, you just declare them as arguments to your handler function. pavao

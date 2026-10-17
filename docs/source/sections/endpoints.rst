@@ -163,6 +163,21 @@ The following parameters are always available in endpoint processors:
 In addition, every parameter registered by a supplier (``task_store``, ``stored_settings``,
 and any custom supplier) is available to endpoint processors.
 
+Automatic methods
+-----------------
+
+Two HTTP methods are handled automatically without any module declaring them:
+
+- **HEAD** — any path that has a ``GET`` endpoint responds to ``HEAD`` as well. pavao
+  runs the GET processor normally and then strips the response body before sending,
+  as required by :rfc:`9110`.
+- **OPTIONS** — any path responds to ``OPTIONS`` with an ``Allow`` header listing every
+  method registered at that path (including ``HEAD`` when ``GET`` is present). This also
+  drives CORS preflight: pavao checks which of the requested methods are actually
+  registered and returns the appropriate ``Access-Control-Allow-Methods`` header.
+
+Neither method needs to be declared in a descriptor.
+
 .. _filters:
 
 Filters

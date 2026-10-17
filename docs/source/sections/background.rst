@@ -288,22 +288,63 @@ The default SQLite backend uses three tables:
 Querying execution history
 --------------------------
 
-``task_store`` is a standard injectable, so any endpoint can query execution history
-through it. Three read methods are available:
+``task_store`` is a standard injectable available to any endpoint or processor. It
+exposes three read methods:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 40 60
+``await task_store.list_tasks()``
+  Returns a list of dicts, one per registered task or service:
 
-   * - Method
-     - Description
-   * - ``await task_store.list_tasks()``
-     - All registered tasks: ``id``, ``package``, ``name``, ``enabled``
-   * - ``await task_store.get_executions(task_id, day=None)``
-     - Completed executions for a task: ``id``, ``success``, ``execution_start``,
-       ``execution_end``. Pass a ``datetime.date`` to filter by day.
-   * - ``await task_store.get_outputs(execution_id)``
-     - Output rows for one execution: ``instant``, ``error``, ``content``
+  .. list-table::
+     :header-rows: 1
+     :widths: 25 75
+
+     * - Key
+       - Description
+     * - ``id``
+       - Integer assigned at registration; also used as the ``taskState:<id>``
+         broadcasting topic suffix.
+     * - ``package``
+       - The grouping label declared in the descriptor, or ``None``.
+     * - ``name``
+       - The name declared in the descriptor.
+     * - ``enabled``
+       - ``True`` if the task is currently active.
+
+``await task_store.get_executions(task_id, day=None)``
+  Returns a list of dicts for all completed executions of the given task.
+  Pass a ``datetime.date`` as ``day`` to restrict results to a single day.
+
+  .. list-table::
+     :header-rows: 1
+     :widths: 25 75
+
+     * - Key
+       - Description
+     * - ``id``
+       - Execution id, used to fetch output rows.
+     * - ``success``
+       - ``True`` if the processor completed without raising an exception.
+     * - ``execution_start``
+       - ``datetime`` when the run began.
+     * - ``execution_end``
+       - ``datetime`` when the run finished.
+
+``await task_store.get_outputs(execution_id)``
+  Returns a list of dicts for every value yielded during one execution, ordered
+  by time:
+
+  .. list-table::
+     :header-rows: 1
+     :widths: 25 75
+
+     * - Key
+       - Description
+     * - ``instant``
+       - ``datetime`` of the yield.
+     * - ``error``
+       - ``True`` when the row records an exception rather than a normal yield.
+     * - ``content``
+       - String representation of the yielded value.
 
 The following endpoint returns the full run history and output for a named task:
 
@@ -314,10 +355,28 @@ Persisted settings
 ------------------
 
 The ``stored_settings`` injectable provides a typed key-value store backed by the same
-database, useful for persisting small pieces of application state across restarts:
+database, useful for persisting small pieces of application state across restarts.
+
+``await stored_settings.set(key, value)``
+  Persists ``value`` under ``key``. The type is preserved and reconstructed on
+  retrieval. Supported types are:
+
+  - Scalars: ``int``, ``float``, ``str``, ``bool``
+  - Homogeneous lists of any of the above: ``[1, 2, 3]``, ``[0.5, 1.0]``, etc.
+  - Empty list ``[]`` (stored as an empty list; element type is not required)
+
+``await stored_settings.get(key)``
+  Returns the value stored under ``key``, reconstructed to its original type.
+  Returns ``None`` if the key has never been set.
 
 .. code-block:: python
 
    async def process(stored_settings):
      await stored_settings.set('last_run_count', 42)
      count = await stored_settings.get('last_run_count')  # returns int 42
+
+     await stored_settings.set('thresholds', [0.5, 1.0, 2.0])
+     thresholds = await stored_settings.get('thresholds')  # returns [0.5, 1.0, 2.0]
+
+     await stored_settings.set('tags', [])
+     tags = await stored_settings.get('tags')             # returns []
