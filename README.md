@@ -117,6 +117,20 @@ The descriptor receives `loaded_settings` and checks a configuration flag — if
 - Response internationalization
 - Extension management via `pavao-pkg`
 
+## Extensions
+
+Official extensions are available via `pavao-pkg`:
+
+**[pavao-postgres](https://github.com/vottini/pavao-postgres)** — PostgreSQL support.
+Provides a `pg_connection` injectable backed by an asyncpg connection pool, and optional
+`task_store` and `stored_settings` backends that replace the default SQLite database with
+PostgreSQL — useful when your application already runs a Postgres server or needs to scale
+across multiple processes.
+
+```console
+$ pavao-pkg add github.com/vottini/pavao-postgres@v1.0.0
+```
+
 ## Documentation
 
 Full documentation is available at [pavao.readthedocs.io](https://pavao.readthedocs.io/en/latest/).

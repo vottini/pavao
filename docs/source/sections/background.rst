@@ -359,11 +359,10 @@ database, useful for persisting small pieces of application state across restart
 
 ``await stored_settings.set(key, value)``
   Persists ``value`` under ``key``. The type is preserved and reconstructed on
-  retrieval. Supported types are:
-
-  - Scalars: ``int``, ``float``, ``str``, ``bool``
-  - Homogeneous lists of any of the above: ``[1, 2, 3]``, ``[0.5, 1.0]``, etc.
-  - Empty list ``[]`` (stored as an empty list; element type is not required)
+  retrieval. Supported scalar types are ``int``, ``float``, ``str``, and ``bool``.
+  Lists are also supported, subject to two constraints: all elements must share
+  the same type, and that type must be one of the four supported scalars. An empty
+  list ``[]`` is valid. Passing any other type raises a ``ValueError``.
 
 ``await stored_settings.get(key)``
   Returns the value stored under ``key``, reconstructed to its original type.
@@ -380,3 +379,5 @@ database, useful for persisting small pieces of application state across restart
 
      await stored_settings.set('tags', [])
      tags = await stored_settings.get('tags')             # returns []
+
+     await stored_settings.set('mixed', [1, 2.0])         # raises ValueError

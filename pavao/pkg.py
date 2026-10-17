@@ -38,7 +38,6 @@ def _parse_ref(ref):
 	repo, tag = ref.rsplit('@', 1)
 	repo = repo.strip('/')
 
-	# accept https://github.com/... or github.com/... or owner/repo
 	if '://' in repo:
 		repo = repo.split('://', 1)[1]
 
@@ -49,9 +48,7 @@ def _parse_ref(ref):
 
 	owner, repo_name = segments[-2], segments[-1]
 	canonical = f"github.com/{owner}/{repo_name}"
-
-	short = repo_name[len('pavao-'):] if repo_name.startswith('pavao-') else repo_name
-	return canonical, owner, repo_name, tag, short
+	return canonical, owner, repo_name, tag
 
 
 def _archive_url(owner, repo_name, tag):
@@ -106,7 +103,7 @@ def _check_requirements(req_file):
 	return conflicts
 
 
-def _install(data, short, foundation_dir, modules_dir, force=False):
+def _install(data, foundation_dir, modules_dir, force=False):
 	with tempfile.TemporaryDirectory() as tmp:
 		tarball = os.path.join(tmp, 'pkg.tar.gz')
 		with open(tarball, 'wb') as f:
@@ -128,24 +125,34 @@ def _install(data, short, foundation_dir, modules_dir, force=False):
 			sys.exit(1)
 
 		root = os.path.join(tmp, entries[0])
-		installed = False
+		installed_foundation = []
+		installed_modules = []
 
-		for src_name, dst_base in [('foundation', foundation_dir), ('modules', modules_dir)]:
+		for src_name, dst_base, installed_list in [
+			('foundation', foundation_dir, installed_foundation),
+			('modules', modules_dir, installed_modules),
+		]:
 			src = os.path.join(root, src_name)
 			if not os.path.isdir(src):
 				continue
 
-			dst = os.path.join(dst_base, short)
-			if os.path.exists(dst):
-				shutil.rmtree(dst)
+			subdirs = [e for e in os.listdir(src) if os.path.isdir(os.path.join(src, e))]
+			if not subdirs:
+				print(f"  warning: {src_name}/ contains no subdirectories — skipping")
+				continue
 
 			os.makedirs(dst_base, exist_ok=True)
-			shutil.copytree(src, dst)
-			print(f"  {src_name}/ → {dst}/")
-			installed = True
+			for subdir in subdirs:
+				src_sub = os.path.join(src, subdir)
+				dst_sub = os.path.join(dst_base, subdir)
+				if os.path.exists(dst_sub):
+					shutil.rmtree(dst_sub)
+				shutil.copytree(src_sub, dst_sub)
+				print(f"  {src_name}/{subdir}/ → {dst_sub}/")
+				installed_list.append(subdir)
 
-		if not installed:
-			print(f"  warning: no foundation/ or modules/ found in package")
+		if not installed_foundation and not installed_modules:
+			print(f"  warning: no foundation/ or modules/ subdirectories found in package")
 
 		req_file = os.path.join(root, 'requirements.txt')
 		if os.path.isfile(req_file):
@@ -167,24 +174,33 @@ def _install(data, short, foundation_dir, modules_dir, force=False):
 			else:
 				print(f"  requirements installed")
 
+	return installed_foundation, installed_modules
 
-def _remove_dirs(short, foundation_dir, modules_dir):
-	for base in [foundation_dir, modules_dir]:
-		target = os.path.join(base, short)
+
+def _remove_dirs(entry, foundation_dir, modules_dir):
+	for d in entry.get('foundation_dirs', []):
+		target = os.path.join(foundation_dir, d)
+		if os.path.isdir(target):
+			shutil.rmtree(target)
+			print(f"  removed {target}/")
+	for d in entry.get('modules_dirs', []):
+		target = os.path.join(modules_dir, d)
 		if os.path.isdir(target):
 			shutil.rmtree(target)
 			print(f"  removed {target}/")
 
 
-def _gitignore_entries(short, foundation_dir, modules_dir):
-	return [
-		os.path.join(foundation_dir, short) + '/',
-		os.path.join(modules_dir, short) + '/',
-	]
+def _gitignore_entries(entry, foundation_dir, modules_dir):
+	entries = []
+	for d in entry.get('foundation_dirs', []):
+		entries.append(os.path.join(foundation_dir, d) + '/')
+	for d in entry.get('modules_dirs', []):
+		entries.append(os.path.join(modules_dir, d) + '/')
+	return entries
 
 
-def _add_to_gitignore(short, foundation_dir, modules_dir):
-	entries = _gitignore_entries(short, foundation_dir, modules_dir)
+def _add_to_gitignore(entry, foundation_dir, modules_dir):
+	entries = _gitignore_entries(entry, foundation_dir, modules_dir)
 	gitignore = '.gitignore'
 
 	content = ''
@@ -200,13 +216,13 @@ def _add_to_gitignore(short, foundation_dir, modules_dir):
 	with open(gitignore, 'a') as f:
 		if content and not content.endswith('\n'):
 			f.write('\n')
-		for entry in to_add:
-			f.write(entry + '\n')
-			print(f"  .gitignore ← {entry}")
+		for e in to_add:
+			f.write(e + '\n')
+			print(f"  .gitignore ← {e}")
 
 
-def _remove_from_gitignore(short, foundation_dir, modules_dir):
-	entries = set(_gitignore_entries(short, foundation_dir, modules_dir))
+def _remove_from_gitignore(entry, foundation_dir, modules_dir):
+	entries = set(_gitignore_entries(entry, foundation_dir, modules_dir))
 	gitignore = '.gitignore'
 
 	if not os.path.isfile(gitignore):
@@ -221,7 +237,7 @@ def _remove_from_gitignore(short, foundation_dir, modules_dir):
 
 	with open(gitignore, 'w') as f:
 		f.writelines(kept)
-	print(f"  .gitignore — removed {short} entries")
+	print(f"  .gitignore — removed entries")
 
 
 def _resolve_name(packages, name_arg):
@@ -234,7 +250,7 @@ def _resolve_name(packages, name_arg):
 #-------------------------------------------------------------------------------
 
 def cmd_add(args):
-	canonical, owner, repo_name, tag, short = _parse_ref(args.package)
+	canonical, owner, repo_name, tag = _parse_ref(args.package)
 	packages = _load_packages()
 
 	if repo_name in packages:
@@ -244,9 +260,16 @@ def cmd_add(args):
 	data = _download(_archive_url(owner, repo_name, tag))
 	hash_val = _sha256(data)
 
-	_install(data, short, args.foundation, args.modules, args.force)
-	_add_to_gitignore(short, args.foundation, args.modules)
-	packages[repo_name] = {'repo': canonical, 'tag': tag, 'hash': hash_val}
+	foundation_dirs, modules_dirs = _install(data, args.foundation, args.modules, args.force)
+	entry = {
+		'repo': canonical,
+		'tag': tag,
+		'hash': hash_val,
+		'foundation_dirs': foundation_dirs,
+		'modules_dirs': modules_dirs,
+	}
+	_add_to_gitignore(entry, args.foundation, args.modules)
+	packages[repo_name] = entry
 	_save_packages(packages)
 	print(f"added {repo_name}@{tag}")
 
@@ -268,18 +291,20 @@ def cmd_update(args):
 
 	entry = packages[entry_name]
 	tag = new_tag or entry['tag']
-	short = entry_name[len('pavao-'):] if entry_name.startswith('pavao-') else entry_name
 
 	canonical = entry['repo']
 	segments = [s for s in canonical.split('/') if s and s != 'github.com']
 	owner, repo_name = segments[-2], segments[-1]
 
+	_remove_dirs(entry, args.foundation, args.modules)
 	data = _download(_archive_url(owner, repo_name, tag))
 	hash_val = _sha256(data)
 
-	_install(data, short, args.foundation, args.modules, args.force)
+	foundation_dirs, modules_dirs = _install(data, args.foundation, args.modules, args.force)
 	entry['tag'] = tag
 	entry['hash'] = hash_val
+	entry['foundation_dirs'] = foundation_dirs
+	entry['modules_dirs'] = modules_dirs
 	_save_packages(packages)
 	print(f"updated {entry_name}@{tag}")
 
@@ -292,9 +317,9 @@ def cmd_remove(args):
 		print(f"'{args.package}' not found in {PACKAGES_FILE}")
 		sys.exit(1)
 
-	short = entry_name[len('pavao-'):] if entry_name.startswith('pavao-') else entry_name
-	_remove_dirs(short, args.foundation, args.modules)
-	_remove_from_gitignore(short, args.foundation, args.modules)
+	entry = packages[entry_name]
+	_remove_dirs(entry, args.foundation, args.modules)
+	_remove_from_gitignore(entry, args.foundation, args.modules)
 	del packages[entry_name]
 	_save_packages(packages)
 	print(f"removed {entry_name}")
@@ -308,7 +333,6 @@ def cmd_sync(args):
 
 	failed = False
 	for name, entry in packages.items():
-		short = name[len('pavao-'):] if name.startswith('pavao-') else name
 		segments = [s for s in entry['repo'].split('/') if s and s != 'github.com']
 		owner, repo_name = segments[-2], segments[-1]
 
@@ -324,10 +348,14 @@ def cmd_sync(args):
 			failed = True
 			break
 
-		_install(data, short, args.foundation, args.modules, args.force)
+		foundation_dirs, modules_dirs = _install(data, args.foundation, args.modules, args.force)
+		entry['foundation_dirs'] = foundation_dirs
+		entry['modules_dirs'] = modules_dirs
 
 	if failed:
 		sys.exit(1)
+
+	_save_packages(packages)
 
 
 def cmd_list(_args):

@@ -5,16 +5,43 @@ Extensions
 pavao extensions are self-contained packages that add suppliers, filters, and endpoint
 modules to any pavao project. Two official extensions exist:
 
-- `pavao-auth <https://github.com/vottini/pavao-auth>`_ — JWT-based authentication,
-  role and permission management, and a full administration API
-- `pavao-postgres <https://github.com/vottini/pavao-postgres>`_ — PostgreSQL connection
-  pool supplier with optional ``task_store`` and ``stored_settings`` backends
+`pavao-postgres <https://github.com/vottini/pavao-postgres>`_
+  PostgreSQL support. Provides a ``pg_connection`` injectable backed by an asyncpg
+  connection pool. Optionally replaces the built-in SQLite ``task_store`` and
+  ``stored_settings`` backends with PostgreSQL equivalents — useful when the application
+  already runs a Postgres server or needs to scale across multiple processes.
+
+`pavao-auth <https://github.com/vottini/pavao-auth>`_
+  JWT-based authentication, role and permission management, and a full administration API.
 
 Extensions are managed with the ``pavao-pkg`` command, installed alongside pavao.
 They are vendored into your project — their files are copied into your ``foundation/``
 and ``modules/`` directories and committed to version control. No network access is needed
 to run the project after that; ``pavao-pkg`` is only used when adding or updating
 extensions.
+
+Caveats of vendoring
+====================
+
+The vendoring model has a few trade-offs worth understanding before adopting it:
+
+**Do not edit vendored files.** Once installed, extension files sit inside your project
+and look like ordinary source files. Any manual edits will be silently overwritten the
+next time ``pavao-pkg update`` or ``pavao-pkg sync`` runs. Treat everything under
+``foundation/<ext>/`` and ``modules/<ext>/`` as read-only. Configuration belongs in
+``application.yml``; behaviour changes belong in a fork or a wrapper module of your own.
+
+**The pinned hash covers the archive, not the local files.** The SHA-256 recorded in
+``pavao_packages.json`` is taken from the downloaded archive at install time. It
+protects against a tag being silently republished upstream, but it does not detect local
+drift — if vendored files are modified after installation, ``pavao-pkg`` has no way to
+notice. If you suspect local files have been accidentally changed, run
+``pavao-pkg update <ext>`` (without a new tag) to reinstall from the pinned version.
+
+**Python dependencies are not removed on uninstall.** When you remove an extension,
+its Python packages remain in your environment. If they are no longer needed, uninstall
+them manually with ``pip uninstall``. This is especially relevant when multiple
+extensions share a dependency at different versions.
 
 Using extensions
 ================
@@ -29,12 +56,17 @@ Pass the GitHub repository and a tag:
    $ pavao-pkg add github.com/vottini/pavao-auth@v1.0.0
 
 This downloads the archive, records the repository, tag, and a SHA-256 content hash in
-``pavao_packages.json``, copies ``foundation/`` to ``foundation/auth/`` and ``modules/``
-to ``modules/auth/``, installs Python dependencies from ``requirements.txt`` if one is
-present, and adds the vendored directories to ``.gitignore`` automatically.
+``pavao_packages.json``, copies every subdirectory inside the extension's ``foundation/``
+directly into your project's ``foundation/``, does the same for ``modules/``, installs
+Python dependencies from ``requirements.txt`` if one is present, and adds the vendored
+directories to ``.gitignore`` automatically.
+
+The extension itself controls the subdirectory names. ``pavao-auth`` ships
+``foundation/auth/`` and ``modules/auth/``, so those paths appear in your project.
+No renaming or prefix-stripping is performed by ``pavao-pkg``.
 
 ``pavao_packages.json`` is committed to version control. The vendored directories
-(``foundation/auth/``, ``modules/auth/``) are not.
+are not.
 
 Dependency conflicts
 ^^^^^^^^^^^^^^^^^^^^
@@ -133,32 +165,47 @@ All commands accept these flags; use the same values consistently across ``add``
 Building an extension
 =====================
 
-An extension is a directory (or Git repository) with the following layout:
+`pavao-postgres <https://github.com/vottini/pavao-postgres>`_ is the reference
+implementation to follow when building an extension. It demonstrates the full structure:
+a supplier that reads configuration from ``application.yml``, relative imports between
+files within the same subdirectory, an optional ``requirements.txt``, and replacement
+backends for built-in injectables.
+
+An extension is a directory (or Git repository). Both ``foundation/`` and ``modules/``
+are optional — include only the ones your extension needs:
 
 .. code-block:: text
 
    pavao-myext/
-   ├── requirements.txt       ← Python dependencies (optional)
-   ├── foundation/            ← suppliers and filters
-   │   ├── supplier.py
-   │   └── filter.py
-   └── modules/               ← endpoint, task, and service modules
-       ├── items/
-       │   ├── list.py
-       │   └── create.py
-       └── shared/
-           └── utils.py
+   ├── requirements.txt        ← Python dependencies (optional)
+   ├── foundation/             ← optional: suppliers and filters
+   │   └── myext/             ← your chosen namespace
+   │       ├── supplier.py
+   │       └── filter.py
+   └── modules/                ← optional: endpoint, task, and service modules
+       └── myext/             ← same namespace
+           ├── items/
+           │   ├── list.py
+           │   └── create.py
+           └── shared/
+               └── utils.py
 
-When installed, ``foundation/`` becomes ``foundation/myext/`` and ``modules/`` becomes
-``modules/myext/`` in the target project. The ``myext`` name is derived by stripping the
-``pavao-`` prefix from the repository name.
+An extension that only provides a supplier (like ``pavao-postgres``) needs only
+``foundation/``; one that only adds ready-made endpoints needs only ``modules/``.
+``pavao-pkg`` silently skips whichever directory is absent.
+
+``pavao-pkg`` copies every subdirectory inside ``foundation/`` directly into the target
+project's ``foundation/``, and does the same for ``modules/``. No renaming is performed.
+The subdirectory names you choose in the extension repo are the names that appear in the
+user's project.
 
 Naming convention
 -----------------
 
-The repository must be named ``pavao-<name>``. The ``<name>`` part becomes the
-subdirectory name in both ``foundation/`` and ``modules/``. Choose a name that is
-unlikely to conflict with other extensions or with the user's own code.
+The repository should be named ``pavao-<name>`` as a convention for discoverability.
+The subdirectory names inside ``foundation/`` and ``modules/`` are yours to choose —
+pick something short and unlikely to conflict with other extensions or with the user's
+own code. Using the same name for both is recommended for consistency.
 
 Internal imports
 ----------------

@@ -3,18 +3,13 @@ import re
 import collections
 import pavao
 
-from pavao.persistence import StoredSettings
+from pavao.persistence import StoredSettings, STORED_SETTINGS_ALLOWED_TYPES
 
 get_setting = pavao.include("queries/get_setting.sql")
 upsert_setting = pavao.include("queries/upsert_setting.sql")
 list_pattern = re.compile(r"\[([^\]]+)\]")
 
-_allowed_types = {
-	'int': int,
-	'float': float,
-	'str': str,
-	'bool': bool,
-}
+_allowed_types = STORED_SETTINGS_ALLOWED_TYPES
 
 class PersistedSettings(StoredSettings):
 	def __init__(self, internal_db):
@@ -44,17 +39,23 @@ class PersistedSettings(StoredSettings):
 
 
 	async def set(self, setting, value):
-		value_type = type(value).__name__
-		original_value = value
-
 		if isinstance(value, collections.abc.Sequence) and not isinstance(value, str):
 			if len(value) == 0:
 				value_type = "list"
 				value = "[]"
 			else:
-				value_type = type(value[0]).__name__
+				element_type = type(value[0])
+				if element_type.__name__ not in _allowed_types:
+					raise ValueError(f"Unsupported list element type for stored_settings: {element_type.__name__!r}")
+				if not all(type(v) is element_type for v in value):
+					raise ValueError("All elements in a stored_settings list must have the same type")
+				value_type = element_type.__name__
 				str_values = map(str, value)
 				value = f"[{'::'.join(str_values)}]"
+		else:
+			value_type = type(value).__name__
+			if value_type not in _allowed_types:
+				raise ValueError(f"Unsupported type for stored_settings: {value_type!r}")
 
 		async with self.internal_db.cursor() as cursor:
 			await cursor.execute(upsert_setting, {
