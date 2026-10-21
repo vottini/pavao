@@ -63,6 +63,14 @@ insert_task_output = """
 
 """
 
+set_task_enabled_query = """
+
+	UPDATE task
+		SET enabled = :enabled
+		WHERE id = :task_id;
+
+"""
+
 list_tasks_query = """
 
 	SELECT id, package, name, enabled FROM task;
@@ -160,6 +168,19 @@ class SqliteTaskStore(TaskStore):
 			})
 
 		await self.connection.commit()
+
+	async def set_task_enabled(self,
+		task_id: int,
+		enabled: bool) -> None:
+
+		async with self.connection.cursor() as cursor:
+			await cursor.execute(set_task_enabled_query, {
+				'task_id': task_id,
+				'enabled': enabled
+			})
+
+		await self.connection.commit()
+
 
 	async def list_tasks(self) -> list:
 		async with self.connection.execute(list_tasks_query) as cursor:

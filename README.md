@@ -77,7 +77,7 @@ async def process(response, db_connection, auth_data):
     await db_connection.execute(
         delete_refresh,
         auth_data.account_id,
-        auth_data.token)
+        auth_data.jti)
 
     response.add_cookie(
         pavao.http.Cookie('token')
@@ -119,17 +119,16 @@ The descriptor receives `loaded_settings` and checks a configuration flag — if
 
 ## Extensions
 
-Official extensions are available via `pavao-pkg`:
+Extensions plug into pavao's foundation layer. An extension ships its own supplier, filter,
+and/or modules: the supplier introduces new named injectables, the filter intercepts every
+request before it reaches a processor, and the modules add ready-made endpoints and scheduled
+tasks. Once installed with `pavao-pkg`, an extension's foundation directory is merged into
+the application's foundation and its modules are served alongside your own.
 
-**[pavao-postgres](https://github.com/vottini/pavao-postgres)** — PostgreSQL support.
-Provides a `pg_connection` injectable backed by an asyncpg connection pool, and optional
-`task_store` and `stored_settings` backends that replace the default SQLite database with
-PostgreSQL — useful when your application already runs a Postgres server or needs to scale
-across multiple processes.
+Available extensions:
 
-```console
-$ pavao-pkg add github.com/vottini/pavao-postgres@v1.0.0
-```
+- **[pavao-postgres](https://github.com/vottini/pavao-postgres)** — PostgreSQL support via asyncpg, with optional `task_store` and `stored_settings` backends.
+- **[pavao-auth](https://github.com/vottini/pavao-auth)** — JWT authentication and role-based access control, with a full admin API for managing users, roles, and permissions.
 
 ## Documentation
 

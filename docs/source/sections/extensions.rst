@@ -210,20 +210,24 @@ own code. Using the same name for both is recommended for consistency.
 Internal imports
 ----------------
 
-Because the extension's files are placed inside a subdirectory, internal imports must
-use **relative** form. Absolute imports that work during development will break after
-installation:
+Foundation and module files are loaded by pavao directly from disk, not as part of a
+Python package, so relative imports (``from . import``) do not work. Use
+``pavao.from_module()`` instead:
 
 .. code-block:: python
 
-   # correct — survives installation under foundation/myext/
-   from .utils import helper
+   # correct — loads sibling file by path, injects names into the current scope
+   pavao.from_module('pg_task_store').import_item('PgTaskStore')
 
-   # breaks — resolves to 'utils' at the root, not 'myext.utils'
-   from utils import helper
+   # multiple items can be chained
+   pavao.from_module('pg_task_store').import_item('PgTaskStore').import_item('PgStoredSettings')
 
-Relative imports work at any nesting depth and are unaffected by the directory name the
-extension is installed under.
+   # breaks — no package context at load time
+   from .pg_task_store import PgTaskStore
+
+``pavao.from_module()`` resolves the path relative to the calling file and injects the
+imported names directly into the calling module's scope — no assignment needed.
+It works at any nesting depth and is unaffected by where the extension is installed.
 
 Configuration
 -------------

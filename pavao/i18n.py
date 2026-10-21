@@ -110,6 +110,10 @@ class Internationalization:
 		for languageId in localization_priority:
 			if languageId in self.languages:
 				sources.append(self.languages[languageId])
+			elif '_' in languageId:
+				base = languageId.split('_')[0]
+				if base in self.languages:
+					sources.append(self.languages[base])
 
 		if self.fallback not in sources:
 			sources.append(self.fallback)

@@ -14,6 +14,7 @@ import urllib.error
 PACKAGES_FILE = "pavao_packages.json"
 DEFAULT_FOUNDATION = "foundation"
 DEFAULT_MODULES = "modules"
+DEFAULT_TOOLS = "tools"
 
 #-------------------------------------------------------------------------------
 
@@ -103,7 +104,7 @@ def _check_requirements(req_file):
 	return conflicts
 
 
-def _install(data, foundation_dir, modules_dir, force=False):
+def _install(data, foundation_dir, modules_dir, tools_dir, force=False):
 	with tempfile.TemporaryDirectory() as tmp:
 		tarball = os.path.join(tmp, 'pkg.tar.gz')
 		with open(tarball, 'wb') as f:
@@ -127,10 +128,12 @@ def _install(data, foundation_dir, modules_dir, force=False):
 		root = os.path.join(tmp, entries[0])
 		installed_foundation = []
 		installed_modules = []
+		installed_tools = []
 
 		for src_name, dst_base, installed_list in [
 			('foundation', foundation_dir, installed_foundation),
-			('modules', modules_dir, installed_modules),
+			('modules',    modules_dir,    installed_modules),
+			('tools',      tools_dir,      installed_tools),
 		]:
 			src = os.path.join(root, src_name)
 			if not os.path.isdir(src):
@@ -151,8 +154,8 @@ def _install(data, foundation_dir, modules_dir, force=False):
 				print(f"  {src_name}/{subdir}/ → {dst_sub}/")
 				installed_list.append(subdir)
 
-		if not installed_foundation and not installed_modules:
-			print(f"  warning: no foundation/ or modules/ subdirectories found in package")
+		if not installed_foundation and not installed_modules and not installed_tools:
+			print(f"  warning: no foundation/, modules/, or tools/ subdirectories found in package")
 
 		req_file = os.path.join(root, 'requirements.txt')
 		if os.path.isfile(req_file):
@@ -174,10 +177,10 @@ def _install(data, foundation_dir, modules_dir, force=False):
 			else:
 				print(f"  requirements installed")
 
-	return installed_foundation, installed_modules
+	return installed_foundation, installed_modules, installed_tools
 
 
-def _remove_dirs(entry, foundation_dir, modules_dir):
+def _remove_dirs(entry, foundation_dir, modules_dir, tools_dir):
 	for d in entry.get('foundation_dirs', []):
 		target = os.path.join(foundation_dir, d)
 		if os.path.isdir(target):
@@ -188,19 +191,26 @@ def _remove_dirs(entry, foundation_dir, modules_dir):
 		if os.path.isdir(target):
 			shutil.rmtree(target)
 			print(f"  removed {target}/")
+	for d in entry.get('tools_dirs', []):
+		target = os.path.join(tools_dir, d)
+		if os.path.isdir(target):
+			shutil.rmtree(target)
+			print(f"  removed {target}/")
 
 
-def _gitignore_entries(entry, foundation_dir, modules_dir):
+def _gitignore_entries(entry, foundation_dir, modules_dir, tools_dir):
 	entries = []
 	for d in entry.get('foundation_dirs', []):
 		entries.append(os.path.join(foundation_dir, d) + '/')
 	for d in entry.get('modules_dirs', []):
 		entries.append(os.path.join(modules_dir, d) + '/')
+	for d in entry.get('tools_dirs', []):
+		entries.append(os.path.join(tools_dir, d) + '/')
 	return entries
 
 
-def _add_to_gitignore(entry, foundation_dir, modules_dir):
-	entries = _gitignore_entries(entry, foundation_dir, modules_dir)
+def _add_to_gitignore(entry, foundation_dir, modules_dir, tools_dir):
+	entries = _gitignore_entries(entry, foundation_dir, modules_dir, tools_dir)
 	gitignore = '.gitignore'
 
 	content = ''
@@ -221,8 +231,8 @@ def _add_to_gitignore(entry, foundation_dir, modules_dir):
 			print(f"  .gitignore ← {e}")
 
 
-def _remove_from_gitignore(entry, foundation_dir, modules_dir):
-	entries = set(_gitignore_entries(entry, foundation_dir, modules_dir))
+def _remove_from_gitignore(entry, foundation_dir, modules_dir, tools_dir):
+	entries = set(_gitignore_entries(entry, foundation_dir, modules_dir, tools_dir))
 	gitignore = '.gitignore'
 
 	if not os.path.isfile(gitignore):
@@ -260,15 +270,16 @@ def cmd_add(args):
 	data = _download(_archive_url(owner, repo_name, tag))
 	hash_val = _sha256(data)
 
-	foundation_dirs, modules_dirs = _install(data, args.foundation, args.modules, args.force)
+	foundation_dirs, modules_dirs, tools_dirs = _install(data, args.foundation, args.modules, args.tools, args.force)
 	entry = {
 		'repo': canonical,
 		'tag': tag,
 		'hash': hash_val,
 		'foundation_dirs': foundation_dirs,
 		'modules_dirs': modules_dirs,
+		'tools_dirs': tools_dirs,
 	}
-	_add_to_gitignore(entry, args.foundation, args.modules)
+	_add_to_gitignore(entry, args.foundation, args.modules, args.tools)
 	packages[repo_name] = entry
 	_save_packages(packages)
 	print(f"added {repo_name}@{tag}")
@@ -296,15 +307,16 @@ def cmd_update(args):
 	segments = [s for s in canonical.split('/') if s and s != 'github.com']
 	owner, repo_name = segments[-2], segments[-1]
 
-	_remove_dirs(entry, args.foundation, args.modules)
+	_remove_dirs(entry, args.foundation, args.modules, args.tools)
 	data = _download(_archive_url(owner, repo_name, tag))
 	hash_val = _sha256(data)
 
-	foundation_dirs, modules_dirs = _install(data, args.foundation, args.modules, args.force)
+	foundation_dirs, modules_dirs, tools_dirs = _install(data, args.foundation, args.modules, args.tools, args.force)
 	entry['tag'] = tag
 	entry['hash'] = hash_val
 	entry['foundation_dirs'] = foundation_dirs
 	entry['modules_dirs'] = modules_dirs
+	entry['tools_dirs'] = tools_dirs
 	_save_packages(packages)
 	print(f"updated {entry_name}@{tag}")
 
@@ -318,8 +330,8 @@ def cmd_remove(args):
 		sys.exit(1)
 
 	entry = packages[entry_name]
-	_remove_dirs(entry, args.foundation, args.modules)
-	_remove_from_gitignore(entry, args.foundation, args.modules)
+	_remove_dirs(entry, args.foundation, args.modules, args.tools)
+	_remove_from_gitignore(entry, args.foundation, args.modules, args.tools)
 	del packages[entry_name]
 	_save_packages(packages)
 	print(f"removed {entry_name}")
@@ -348,9 +360,10 @@ def cmd_sync(args):
 			failed = True
 			break
 
-		foundation_dirs, modules_dirs = _install(data, args.foundation, args.modules, args.force)
+		foundation_dirs, modules_dirs, tools_dirs = _install(data, args.foundation, args.modules, args.tools, args.force)
 		entry['foundation_dirs'] = foundation_dirs
 		entry['modules_dirs'] = modules_dirs
+		entry['tools_dirs'] = tools_dirs
 
 	if failed:
 		sys.exit(1)
@@ -377,6 +390,8 @@ def main():
 		help=f"foundation directory (default: {DEFAULT_FOUNDATION})")
 	parser.add_argument('--modules', default=DEFAULT_MODULES, metavar='DIR',
 		help=f"modules directory (default: {DEFAULT_MODULES})")
+	parser.add_argument('--tools', default=DEFAULT_TOOLS, metavar='DIR',
+		help=f"tools directory (default: {DEFAULT_TOOLS})")
 
 	sub = parser.add_subparsers(dest='command', required=True)
 

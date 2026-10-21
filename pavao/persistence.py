@@ -35,7 +35,14 @@ class TaskStore(ABC):
 		success: bool) -> None:
 		...
 
-	# --- read (available to user modules) ---
+	# --- read/write (available to user modules) ---
+
+	@abstractmethod
+	async def set_task_enabled(self,
+		task_id: int,
+		enabled: bool) -> None:
+		"""Enable or disable a task by its id."""
+		...
 
 	@abstractmethod
 	async def list_tasks(self) -> list:
