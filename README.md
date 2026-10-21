@@ -1,8 +1,9 @@
 
 # pavao
 
-[![Documentation Status](https://readthedocs.org/projects/pavao/badge/?version=latest)](http://pavao.readthedocs.io/?badge=latest)
+[![GitHub tag](https://img.shields.io/github/v/tag/vottini/pavao?label=latest&color=blue)](https://github.com/vottini/pavao/tags)
 [![Upload Python Package](https://github.com/vottini/pavao/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/vottini/pavao/actions/workflows/pypi-publish.yml)
+[![Documentation Status](https://readthedocs.org/projects/pavao/badge/?version=latest)](http://pavao.readthedocs.io/?badge=latest)
 [![codecov](https://codecov.io/github/vottini/pavao/graph/badge.svg?token=N2H2WJ0SC5)](https://codecov.io/github/vottini/pavao)
 
 **pavao** (from "Pavão", Portuguese for *peacock*) is a Python ASGI framework built

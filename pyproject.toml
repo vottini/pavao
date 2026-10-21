@@ -11,7 +11,7 @@ include = ["pavao*"]
 
 [project]
 name = "pavao"
-version = "0.11.0"
+version = "0.11.1"
 description = "Modular, injection based, Python ASGI web framework"
 authors = [
 	{ name = "Gustavo Venturini", email = "gustavo.c.venturini@gmail.com" }
