@@ -67,13 +67,21 @@ The following keys are recognised:
 
    * - Key
      - Description
-   * - ``pavao.logging.output``
-     - Log file path (default: ``"pavao.log"``)
    * - ``pavao.logging.level``
      - One of ``FATAL``, ``ERROR``, ``WARN``, ``INFO``, ``DEBUG`` (default: ``INFO``)
-   * - ``pavao.logging.persist``
-     - Write logs to a file in addition to stdout (default: ``true``). Set to ``false``
-       in containerized environments where stdout is collected externally.
+   * - ``pavao.logging.persist.dir``
+     - Directory where log files are written (default: ``logs/``). Created automatically
+       if it does not exist.
+   * - ``pavao.logging.persist.file``
+     - Log filename inside ``persist.dir``. File logging is disabled when this is absent.
+   * - ``pavao.logging.persist.max_size``
+     - Rotate when the log file reaches this size. Accepts ``KB``, ``MB``, or ``GB``
+       suffixes (e.g. ``10MB``). Takes priority over ``schedule`` if both are set.
+   * - ``pavao.logging.persist.schedule``
+     - Rotate on a cron schedule (e.g. ``"0 0 * * *"`` for daily at midnight).
+       Ignored if ``max_size`` is also set.
+   * - ``pavao.logging.persist.backup_count``
+     - Number of rotated files to keep before the oldest is deleted (default: ``10``).
 
 **SQLite** (built-in database supplier)
 
@@ -140,10 +148,13 @@ A minimal configuration file:
    pavao:
      logging:
        level: INFO
-       persist: ${LOG_TO_FILE:-true}
+       persist:
+         dir: logs
+         file: app.log
+         max_size: 10MB
      database:
        sqlite:
-         filename: ${DB_PATH:-app.db}
+         filename: ${DB_PATH}
      http:
        CORS:
          origins:
@@ -170,7 +181,7 @@ restarts are controlled externally:
 
    pavao:
      hot_reload:
-       enabled: ${HOT_RELOAD:-true}
+       enabled: ${HOT_RELOAD}
 
 This allows the flag to be controlled by an environment variable, which is useful for
 sharing the same ``application.yml`` across development and production environments.
