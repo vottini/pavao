@@ -49,11 +49,17 @@ Using extensions
 Adding an extension
 -------------------
 
-Pass the GitHub repository and a tag:
+Pass the GitHub repository. Omitting ``--tag`` installs the latest published tag:
 
 .. code-block:: console
 
-   $ pavao-pkg add github.com/vottini/pavao-auth@v1.0.0
+   $ pavao-pkg add github.com/vottini/pavao-auth
+
+To pin to a specific tag:
+
+.. code-block:: console
+
+   $ pavao-pkg add github.com/vottini/pavao-auth --tag v1.0.0
 
 This downloads the archive, records the repository, tag, and a SHA-256 content hash in
 ``pavao_packages.json``, copies every subdirectory inside the extension's ``foundation/``
@@ -78,7 +84,7 @@ reported:
 
 .. code-block:: console
 
-   $ pavao-pkg add github.com/vottini/pavao-auth@v1.0.0
+   $ pavao-pkg add github.com/vottini/pavao-auth --tag v1.0.0
      dependency conflict — the extension requires versions that differ from what is installed:
        asyncpg>=0.30  (installed: 0.27.0)
      aborting — use --force to install anyway
@@ -93,7 +99,7 @@ Use ``--force`` to proceed despite conflicts:
 
 .. code-block:: console
 
-   $ pavao-pkg add github.com/vottini/pavao-auth@v1.0.0 --force
+   $ pavao-pkg add github.com/vottini/pavao-auth --tag v1.0.0 --force
 
 ``--force`` is also accepted by ``update`` and ``sync``.
 
@@ -117,9 +123,9 @@ Updating an extension
 
 .. code-block:: console
 
-   $ pavao-pkg update pavao-auth@v1.1.0
+   $ pavao-pkg update pavao-auth --tag v1.1.0
 
-Omitting the tag re-fetches the current version (useful to reinstall after a
+Omitting ``--tag`` re-fetches the current pinned version (useful to reinstall after a
 ``git clean``):
 
 .. code-block:: console
@@ -155,7 +161,7 @@ working directory. Override them with ``--foundation`` and ``--modules``:
 
 .. code-block:: console
 
-   $ pavao-pkg add github.com/vottini/pavao-auth@v1.0.0 \
+   $ pavao-pkg add github.com/vottini/pavao-auth --tag v1.0.0 \
        --foundation app/foundation \
        --modules app/modules
 

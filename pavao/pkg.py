@@ -32,12 +32,7 @@ def _save_packages(packages):
 
 
 def _parse_ref(ref):
-	if '@' not in ref:
-		print(f"error: tag required — use {ref}@<tag>")
-		sys.exit(1)
-
-	repo, tag = ref.rsplit('@', 1)
-	repo = repo.strip('/')
+	repo = ref.strip('/')
 
 	if '://' in repo:
 		repo = repo.split('://', 1)[1]
@@ -49,7 +44,27 @@ def _parse_ref(ref):
 
 	owner, repo_name = segments[-2], segments[-1]
 	canonical = f"github.com/{owner}/{repo_name}"
-	return canonical, owner, repo_name, tag
+	return canonical, owner, repo_name
+
+
+def _fetch_latest_tag(owner, repo_name):
+	url = f"https://api.github.com/repos/{owner}/{repo_name}/tags?per_page=1"
+	req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json"})
+	try:
+		with urllib.request.urlopen(req) as r:
+			tags = json.loads(r.read())
+	except urllib.error.HTTPError as e:
+		print(f"error: HTTP {e.code} fetching tags for {owner}/{repo_name}")
+		sys.exit(1)
+	except urllib.error.URLError as e:
+		print(f"error: {e.reason}")
+		sys.exit(1)
+
+	if not tags:
+		print(f"error: no tags found for {owner}/{repo_name}")
+		sys.exit(1)
+
+	return tags[0]["name"]
 
 
 def _archive_url(owner, repo_name, tag):
@@ -260,7 +275,12 @@ def _resolve_name(packages, name_arg):
 #-------------------------------------------------------------------------------
 
 def cmd_add(args):
-	canonical, owner, repo_name, tag = _parse_ref(args.package)
+	canonical, owner, repo_name = _parse_ref(args.package)
+	tag = args.tag
+	if tag is None:
+		print(f"  resolving latest tag for {owner}/{repo_name}...")
+		tag = _fetch_latest_tag(owner, repo_name)
+		print(f"  latest: {tag}")
 	packages = _load_packages()
 
 	if repo_name in packages:
@@ -287,21 +307,13 @@ def cmd_add(args):
 
 def cmd_update(args):
 	packages = _load_packages()
-	ref = args.package
-
-	new_tag = None
-	if '@' in ref:
-		name_arg, new_tag = ref.rsplit('@', 1)
-	else:
-		name_arg = ref
-
-	entry_name = _resolve_name(packages, name_arg)
+	entry_name = _resolve_name(packages, args.package)
 	if entry_name is None:
-		print(f"'{name_arg}' not found in {PACKAGES_FILE}")
+		print(f"'{args.package}' not found in {PACKAGES_FILE}")
 		sys.exit(1)
 
 	entry = packages[entry_name]
-	tag = new_tag or entry['tag']
+	tag = args.tag or entry['tag']
 
 	canonical = entry['repo']
 	segments = [s for s in canonical.split('/') if s and s != 'github.com']
@@ -396,12 +408,14 @@ def main():
 	sub = parser.add_subparsers(dest='command', required=True)
 
 	p = sub.add_parser('add', help='add a package pinned to a tag')
-	p.add_argument('package', help='github.com/owner/repo@tag')
+	p.add_argument('package', help='github.com/owner/repo')
+	p.add_argument('--tag', default=None, metavar='TAG', help='tag to install (default: latest)')
 	p.add_argument('--force', action='store_true', help='install despite dependency conflicts')
 	p.set_defaults(func=cmd_add)
 
 	p = sub.add_parser('update', help='update a package to a new tag')
-	p.add_argument('package', help='name[@tag] — omit tag to re-fetch current version')
+	p.add_argument('package', help='package name (pavao-auth or auth)')
+	p.add_argument('--tag', default=None, metavar='TAG', help='tag to update to (default: re-fetch current)')
 	p.add_argument('--force', action='store_true', help='install despite dependency conflicts')
 	p.set_defaults(func=cmd_update)
 
