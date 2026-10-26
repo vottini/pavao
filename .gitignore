@@ -7,3 +7,5 @@ pavao.log
 application.yml
 /endpoints
 /docs/build
+pavao.db
+/build
